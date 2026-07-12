@@ -1,0 +1,23 @@
+{
+  "name": "annotated-ui-pdf",
+  "displayName": "Annotated UI PDF",
+  "version": "0.2.0",
+  "description": "Screenshot a web app and produce a PDF that outlines chosen UI elements with numbered boxes and short captions. A general-purpose visual explainer for release notes, bug reports, design/QA review, how-to guides, and design specs. Needs a Playwright MCP and a headless Chrome/Chromium/Edge.",
+  "requirements": "Node.js / Playwright MCP / headless Chrome",
+  "author": {
+    "name": "Juhyeon Lee",
+    "email": "l.juhyeonni@gmail.com"
+  },
+  "homepage": "https://github.com/juhyeonni/cc-plugins/tree/main/plugins/annotated-ui-pdf",
+  "license": "MIT",
+  "keywords": [
+    "pdf",
+    "screenshot",
+    "annotation",
+    "release-notes",
+    "bug-report",
+    "qa-review",
+    "how-to",
+    "playwright"
+  ]
+}

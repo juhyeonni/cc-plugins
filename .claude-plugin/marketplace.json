@@ -1,0 +1,18 @@
+{
+  "name": "juhyeonni",
+  "owner": {
+    "name": "Juhyeon Lee",
+    "email": "l.juhyeonni@gmail.com"
+  },
+  "description": "Juhyeon Lee's personal Claude Code plugin marketplace — skills and agents I build to work more efficiently.",
+  "metadata": {
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "annotated-ui-pdf",
+      "source": "./plugins/annotated-ui-pdf",
+      "description": "Screenshot a web app and produce a PDF that outlines chosen UI elements with numbered boxes and short captions. A general-purpose visual explainer for release notes, bug reports, design/QA review, how-to guides, and design specs. Needs a Playwright MCP and a headless Chrome/Chromium/Edge."
+    }
+  ]
+}

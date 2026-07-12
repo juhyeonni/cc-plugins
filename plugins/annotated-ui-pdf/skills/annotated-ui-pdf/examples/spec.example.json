@@ -1,0 +1,54 @@
+{
+  "title": "What's new",
+  "subtitle": "Dashboard / Reports — highlighted changes",
+  "lead": "We refined readability and clarity. Red boxes mark the highlighted areas.",
+  "lang": "en",
+  "accent": "#e11d48",
+  "modalWidth": "60%",
+  "footerNote": "Red box = highlighted area / Screens use sample data.",
+  "outFile": "annotated.pdf",
+
+  "_comment": "boxes are PIXELS in the original screenshot. crop is optional; when set, the figure is cropped (in CSS) to that window and boxes/img are offset automatically. Captions follow spec.lang; screenshots stay in the app's own language. box.n is optional (auto-numbered). Give pages an id and reference them as {ref:id} in any text — resolved to the real page number at build time (1 spec page must equal 1 printed sheet; the build fails otherwise). box.variant: 'warning' (dashed + tag) / 'result' (double + tag) — meaning survives B&W printing. A page may omit image and carry only blocks (index/glossary pages).",
+
+  "pages": [
+    {
+      "id": "index",
+      "label": "How to use this guide",
+      "blocks": [
+        { "kind": "table", "columns": ["I want to…", "Page"], "rows": [
+          ["see the dashboard changes", "{ref:dashboard}"],
+          ["see the detail dialog changes", "{ref:dialog}"]
+        ] },
+        { "kind": "callout", "level": "warning", "text": "Warnings about destructive/irreversible actions go in a callout like this — never in gray notes." },
+        { "kind": "steps", "items": ["Use steps only for flows that span multiple screens", "Within one screen, the numbered boxes are the steps"] },
+        { "kind": "checklist", "items": ["Use a checklist only as a pre-flight before a dangerous action"] }
+      ],
+      "notes": ["Plain-string notes stay as gray footnotes for disclaimers and trivia."]
+    },
+    {
+      "id": "dashboard",
+      "label": "Dashboard",
+      "image": "shot-dashboard.png",
+      "imageW": 1440,
+      "imageH": 900,
+      "boxes": [
+        { "x": 499, "y": 200, "w": 435, "h": 28, "title": "Metric basis shown", "caption": "Each KPI now states which subset it is computed from." },
+        { "x": 382, "y": 608, "w": 270, "h": 24, "title": "Axis labeled", "caption": "The cumulative series is marked as the right axis." },
+        { "x": 8, "y": 149, "w": 208, "h": 74, "variant": "result", "title": "Menu matches title", "caption": "Sidebar labels now match the page headings (result-check box)." }
+      ]
+    },
+    {
+      "id": "dialog",
+      "label": "Detail dialog",
+      "image": "shot-modal.png",
+      "imageW": 1440,
+      "imageH": 1160,
+      "crop": { "x": 460, "y": 163, "w": 520, "h": 834 },
+      "boxes": [
+        { "x": 481, "y": 355, "w": 478, "h": 80, "title": "Progress moved up", "caption": "The lifecycle is visible at a glance. See also the index on page {ref:index}." },
+        { "x": 843, "y": 956, "w": 116, "h": 20, "variant": "warning", "title": "Deletes immediately", "caption": "This control has no undo — warning-variant box." }
+      ],
+      "notes": ["Plus smaller refinements (dividers, layout) not boxed here."]
+    }
+  ]
+}
