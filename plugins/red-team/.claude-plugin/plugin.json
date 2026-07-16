@@ -1,0 +1,22 @@
+{
+  "name": "red-team",
+  "displayName": "Red-Team Review",
+  "version": "0.1.0",
+  "description": "Adversarially review a document or code diff as a specific persona — a target reader or user with real knowledge gaps. The review runs in a fresh-eyes subagent with a separate context from the author, so it catches the blind spots the writer cannot see. Returns severity-ranked findings, each with its location, the persona’s reaction, and a concrete fix, plus an honest PASS / NEEDS-FIX verdict. Personas are reusable inline, per-project, or from memory. Supports a review → fix → re-review loop, and an integrated mode that checks whole-document consistency (contradictions, duplication, broken cross-references, terminology).",
+  "requirements": "—",
+  "author": {
+    "name": "Juhyeon Lee",
+    "email": "l.juhyeonni@gmail.com"
+  },
+  "homepage": "https://github.com/juhyeonni/cc-plugins/tree/main/plugins/red-team",
+  "license": "MIT",
+  "keywords": [
+    "review",
+    "red-team",
+    "adversarial",
+    "persona",
+    "code-review",
+    "documentation",
+    "qa"
+  ]
+}
