@@ -29,7 +29,7 @@ See each plugin's own README for details, setup, and usage.
 | Plugin | Description | Requirements | Version | Install |
 |---|---|---|---|---|
 | [annotated-ui-pdf](plugins/annotated-ui-pdf/) | Screenshot a web app and produce a PDF that outlines chosen UI elements with numbered boxes and short captions. | Node.js / Playwright MCP / headless Chrome | 0.2.0 | `/plugin install annotated-ui-pdf@juhyeonni` |
-| [clear-draft](plugins/clear-draft/) | Ask for the missing inputs first, then write the draft. | — | 0.2.0 | `/plugin install clear-draft@juhyeonni` |
+| [clear-draft](plugins/clear-draft/) | Ask for the missing inputs first, then write the draft. | — | 0.2.1 | `/plugin install clear-draft@juhyeonni` |
 | [red-team](plugins/red-team/) | Adversarially review a document or code diff as a specific persona — a target reader or user with real knowledge gaps. | — | 0.1.0 | `/plugin install red-team@juhyeonni` |
 <!-- PLUGINS:END -->
 

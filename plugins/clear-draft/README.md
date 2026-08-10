@@ -4,7 +4,33 @@
 
 ## Why
 
-A message that fails to land usually fails on **missing input**, not on prose skill. Purpose, audience, conclusion, evidence, and the actual ask stay in the writer's head and never reach the page. So this skill inverts the order: **ask first, write second.** The questions double as a thinking tool — answering them is how the user finds out what they actually mean.
+Writing lands or fails on **input**, not on prose.
+
+Ask an agent for a bug report and you get this:
+
+> Login seems broken for some users after the last deploy — might be related to
+> the session changes. Could someone take a look when they get a chance?
+
+Nothing is wrong with those sentences. They are missing everything the reader
+needs: who is affected, how to reproduce it, who acts, by when. None of it was
+in the prompt, so no amount of rewriting recovers it.
+
+clear-draft asks first. Four questions, then:
+
+> **SSO login has failed since 4.2.0** (Mar 3, 14:00 KST). Password login is
+> unaffected.
+>
+> **@auth-team — rollback or forward fix? I need the call by Thu.** Not touching
+> it until then.
+>
+> Repro (3/3): log out → `/login` → "Continue with Okta" → back at `/login`, no
+> session. The callback's `Set-Cookie` lost `SameSite=None` in #1841, and Chrome
+> drops it on the cross-site redirect.
+
+Same model, same facts — facts you already had. The four questions pulled them
+out of your head *before* the draft instead of after the third review round.
+
+(The example above is illustrative, not a real incident.)
 
 ## Use
 

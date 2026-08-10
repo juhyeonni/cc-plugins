@@ -1,7 +1,7 @@
 {
   "name": "clear-draft",
   "displayName": "Clear Draft",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Ask for the missing inputs first, then write the draft. Writing fails on missing input, not on prose skill — so this diagnoses seven slots (deliverable, outcome, audience, key sentence, evidence, ask, constraints), asks at most four questions per round through AskUserQuestion, declares the one-line BLUF and a length budget before drafting, then writes conclusion-first (C-C-C) with a pre-submit self-check. Covers Slack/chat messages, GitHub issues, PR descriptions, emails, design docs, bug reports, and papers.",
   "requirements": "—",
   "author": {
