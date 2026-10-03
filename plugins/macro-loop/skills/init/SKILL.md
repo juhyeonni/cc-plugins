@@ -1,6 +1,6 @@
 ---
 name: init
-description: "Set up a GitHub repo for the macro-loop skills: create the labels, add bug and feature Issue templates, and write .claude/macro-loop.json, each only after approval. Optional; the other skills work with the defaults without it."
+description: "Set up a GitHub repo for the macro-loop skills: create the labels, add bug and feature Issue templates, and write .github/macro-loop.json, each only after approval. Optional; the other skills work with the defaults without it."
 disable-model-invocation: true
 ---
 
@@ -19,7 +19,7 @@ Look at the repo's starting state; don't assume:
 - `git remote -v`: is this a GitHub repo, and which one?
 - The repo's existing labels (see `github.md`).
 - `.github/ISSUE_TEMPLATE/`: which templates exist?
-- `.claude/macro-loop.json`: does it exist, and which labels does it rename?
+- `.github/macro-loop.json`: does it exist, and which labels does it rename?
 
 ## 2. Present and ask, one section at a time
 
@@ -43,7 +43,7 @@ When the config file renames a label, create the renamed label with the color of
 
 **B. Issue templates.** Add [bug.yml](templates/bug.yml) and [feature.yml](templates/feature.yml) to `.github/ISSUE_TEMPLATE/`. Their "How was this opened?" question is what `triage` reads to pick the source label. If templates with these names exist, show the difference and ask.
 
-**C. Config file.** Write [macro-loop.json](templates/macro-loop.json) to `.claude/macro-loop.json`. Recommend the defaults, unless the repo already uses other names for the same roles (for example `priority:high` for `P1`). Then map those names in the file, so the skills use the existing labels instead of creating duplicates.
+**C. Config file.** Write [macro-loop.json](templates/macro-loop.json) to `.github/macro-loop.json`. Recommend the defaults, unless the repo already uses other names for the same roles (for example `priority:high` for `P1`). Then map those names in the file, so the skills use the existing labels instead of creating duplicates.
 
 ## 3. Confirm and write
 
@@ -55,4 +55,4 @@ Show what each approved section will do: the labels to create and the files to w
 
 ## 4. Done
 
-Say what was set up, and that the templates and `.claude/macro-loop.json` can be edited directly later. Re-running this skill is only needed to add what is still missing.
+Say what was set up, and that the templates and `.github/macro-loop.json` can be edited directly later. Re-running this skill is only needed to add what is still missing.

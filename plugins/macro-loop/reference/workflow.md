@@ -2,7 +2,7 @@
 
 ## Configuration
 
-Labels can be renamed per repo in `.claude/macro-loop.json` at the repo root. Before a skill reads or writes its first label, it reads this file if it exists. A key the file sets overrides the default; a key it leaves out keeps the default. Without the file, use the defaults. `init` writes the file with the defaults filled in.
+Labels can be renamed per repo in `.github/macro-loop.json` at the repo root. Before a skill reads or writes its first label, it reads this file if it exists. A key the file sets overrides the default; a key it leaves out keeps the default. Without the file, use the defaults. `init` writes the file with the defaults filled in.
 
 ```json
 {

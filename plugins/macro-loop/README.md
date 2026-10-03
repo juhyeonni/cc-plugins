@@ -16,7 +16,7 @@ Any stage can be the entry point. When a stage's input is missing, the skill war
 
 | Skill | What it does | Leaves behind |
 |---|---|---|
-| `/macro-loop:init` | Optional setup: labels, bug and feature Issue templates, `.claude/macro-loop.json` | Labels and files |
+| `/macro-loop:init` | Optional setup: labels, bug and feature Issue templates, `.github/macro-loop.json` | Labels and files |
 | `/macro-loop:triage` | Proposes a priority, a state and a source for each Issue, and applies them after approval | Labels |
 | `/macro-loop:grilling` | Interviews you until every decision is settled | Decisions in the conversation |
 | `/macro-loop:spec` | Writes the spec: goal, decisions with reasons, testable acceptance criteria, out of scope | A pinned Issue comment |
