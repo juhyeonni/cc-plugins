@@ -41,7 +41,7 @@ A typical run: "What needs attention?" with `triage`, then "grill #12", then `/m
 ## Design notes
 
 - **The spec is the contract.** `verify` sees only the Issue and the diff, so the spec comment carries testable acceptance criteria and an out-of-scope list, not just decisions.
-- **Labels index; comments carry content.** GitHub filters Issues by label but cannot find comments by content. Priority, state, source and skipped stages are labels. The spec and the verdicts are comments found by a hidden marker (`<!-- macro-loop:spec -->`, `<!-- macro-loop:verify round=N -->`), counted only when written by an owner, member or collaborator.
+- **Labels index; comments carry content.** GitHub filters Issues by label but cannot find comments by content. Priority, state, source and skipped stages are labels. The spec and the verdicts are comments that start with a hidden marker (`<!-- macro-loop:spec -->`, `<!-- macro-loop:verify round=N -->`), counted only when written by an owner, member or collaborator.
 - **REST only.** Claude Code cloud sessions block GitHub GraphQL, which `gh issue` and `gh pr` use. Every GitHub call goes through `gh api`, so the skills work the same locally and in the cloud.
 - **Verdict.** NEEDS-FIX when an acceptance criterion is unmet or wrong, or when the diff introduces a test or lint failure. Scope creep, failures already on the base branch, and standards findings are reported, not failed. After two re-verifications, a person decides.
 - **Fresh context.** The `verifier` agent has not seen how the change was written, and is told not to manufacture findings.

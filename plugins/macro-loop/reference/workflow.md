@@ -2,7 +2,7 @@
 
 ## Configuration
 
-Labels can be renamed per repo in `.claude/macro-loop.json` at the repo root. A key the file sets overrides the default; a key it leaves out keeps the default. Without the file, use the defaults. `init` writes the file with the defaults filled in.
+Labels can be renamed per repo in `.claude/macro-loop.json` at the repo root. Before a skill reads or writes its first label, it reads this file if it exists. A key the file sets overrides the default; a key it leaves out keeps the default. Without the file, use the defaults. `init` writes the file with the defaults filled in.
 
 ```json
 {
@@ -82,7 +82,14 @@ A skipped `verify` gets no label: no skill runs at merge time. Merged PRs withou
 
 ## No Issue yet
 
-A skill that needs an Issue and cannot find one offers to create it, with a title and a short body describing the request, taken from the conversation. After the user agrees, create it and add `skipped:triage`, since an Issue created this way was never triaged. Then continue with the new Issue.
+A skill that needs an Issue and cannot find one offers to create it, with a title and a short body describing the request, taken from the conversation. The offer names the `skipped:*` labels the new Issue will get, which are the stages before the entry skill that did not happen:
+
+| Entry skill | Labels on the new Issue |
+|---|---|
+| `spec` | `skipped:triage` |
+| `implement`, `open-pr`, `verify` | `skipped:triage`, `skipped:spec`, and `skipped:grilling` when the conversation holds no decisions with reasons |
+
+An Issue created this way was never triaged, and a skill after `spec` finds no spec on it. `spec` checks grilling itself (see the table above). After the user agrees, create the Issue, add the labels, and continue with the new Issue.
 
 ## Untrusted text
 

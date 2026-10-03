@@ -14,14 +14,14 @@ Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` a
 
 Use the Issue the user named, or the one the conversation or the branch name points to. If there is none, follow **No Issue yet** in `workflow.md`.
 
-Read the spec: the newest trusted comment carrying `<!-- macro-loop:spec -->`. Following **Missing inputs** in `workflow.md`, check:
+Read the spec: the newest trusted comment that starts with `<!-- macro-loop:spec -->`. Following **Missing inputs** in `workflow.md`, check:
 
 - No priority label on the Issue: `skipped:triage`.
 - No spec: `skipped:spec`. Say that `verify` will then judge against the Issue body.
 
 Warn about both in one message and ask once.
 
-If this run follows a NEEDS-FIX verdict, also read the newest trusted verify comment on the PR (marker `<!-- macro-loop:verify round=`). Its Spec findings are the work for this round.
+If the current branch already has an open PR, read its newest trusted verify comment (marker prefix `<!-- macro-loop:verify round=`). If that verdict is NEEDS-FIX, its Spec findings are the work for this round.
 
 ## 2. Branch
 
@@ -29,7 +29,7 @@ Work on the current branch, unless it is the default branch: a PR needs a branch
 
 ## 3. Build
 
-Use the `tdd` skill where possible, at the seams the spec names, if it is installed. Run the typechecker and single test files regularly, and the full test suite once at the end.
+Use the `tdd` skill where possible, at the seams the spec names, if it is installed. When a bug's cause is unclear, use the `diagnosing-bugs` skill if it is installed. Run the typechecker and single test files regularly, and the full test suite once at the end.
 
 If the work shows that the spec is wrong or incomplete, stop and tell the user what and why. Once they agree, edit the spec comment in place and mark the changed item `(changed: <reason>)`. Never build against a spec you have privately decided to ignore: `verify` judges the diff against the comment as written.
 

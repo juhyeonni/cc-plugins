@@ -61,7 +61,7 @@ When triaging several Issues, show all proposals in one table (Issue, priority, 
 
 ## Apply
 
-Add the approved labels (see `github.md`), then act on the state:
+Add the approved labels, and remove any other label of the same kind, so a re-triaged Issue keeps exactly one priority, one state and one source (see `github.md`). Then act on the state:
 
 - `ready-for-agent`: no comment. The next step is `/macro-loop:spec`, after `/macro-loop:grilling` if decisions are still open.
 - `needs-info`: post triage notes addressed to the requester (template below).

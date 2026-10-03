@@ -23,7 +23,7 @@ Then push: `git push -u origin <branch>`.
 
 ## 3. Reuse an open PR
 
-If the branch already has an open PR, the push has updated it. Check that its body still has `Closes #<n>`; if not, tell the user, since `verify` needs that line. Report the PR's URL and stop.
+If the branch already has an open PR, the push has updated it. Check that its body still has `Closes #<n>`; if not, tell the user, since `verify` needs that line. Report the PR's URL and skip steps 4 and 5. When `implement` called this skill, it continues with `verify`.
 
 ## 4. Write the body
 

@@ -41,8 +41,8 @@ Explore the codebase enough to make the criteria concrete: what exists today, wh
 Write the comment with this template and the rules in [WRITING-RULES.md](WRITING-RULES.md):
 
 ```markdown
-## Spec
 <!-- macro-loop:spec -->
+## Spec
 
 **Goal:** what is different after this change, in one line
 
@@ -68,10 +68,10 @@ Show the draft to the user and let them edit it before publishing.
 
 ### 5. Publish
 
-Look for the existing spec: the newest trusted comment carrying `<!-- macro-loop:spec -->` (see `github.md`).
+Look for the existing spec: the newest trusted comment that starts with `<!-- macro-loop:spec -->` (see `github.md`).
 
 - **None:** post the draft as a new comment on the Issue.
-- **One exists:** edit it in place; never post a second spec. Mark each changed item `(changed: <reason>)`. GitHub keeps the edit history.
+- **One exists:** show its URL, then edit it in place; never post a second spec. Mark each changed item `(changed: <reason>)`. GitHub keeps the edit history.
 
 ### 6. Pin
 
@@ -82,6 +82,10 @@ Read the Issue's pinned comment (see `github.md`).
 
 The pin is for people. Skills find the spec by its marker, never by the pin.
 
-### 7. Report
+### 7. Update the state
+
+A published spec means the Issue is clear enough to implement. If its state label is `needs-info` or `needs-decision`, offer to replace it with `ready-for-agent`, and do so if the user agrees. Leave any other state as it is.
+
+### 8. Report
 
 Give the spec comment's URL and the next step: `/macro-loop:implement`.

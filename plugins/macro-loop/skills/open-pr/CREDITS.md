@@ -2,6 +2,8 @@
 
 The PR body template in [SKILL.md](SKILL.md) comes from the `pr` skill in [mattpocock/skills](https://github.com/mattpocock/skills) (MIT, commit `d81f3a1`; see [NOTICE.md](../../NOTICE.md)). `open-pr` adds what `pr` leaves out: it creates the PR and links the Issue with `Closes #<n>`.
 
+The `show-me` skill it names lives at <https://github.com/humanlayer/skills/blob/main/plugins/show-me/skills/show-me/SKILL.md>, the source `pr` records in its frontmatter.
+
 The credit that `pr` carries, reproduced from its `CREDITS.md`:
 
 > # Credits

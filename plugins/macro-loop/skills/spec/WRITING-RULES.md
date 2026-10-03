@@ -38,8 +38,8 @@ State what is out of scope. It keeps the implementer from gold-plating, and give
 ## Good spec
 
 ```markdown
-## Spec
 <!-- macro-loop:spec -->
+## Spec
 
 **Goal:** Long skill descriptions are cut at a word boundary instead of mid-word.
 

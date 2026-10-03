@@ -19,19 +19,21 @@ Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` a
 ## 1. Find the PR, the Issue and the spec
 
 - **PR:** the one the user named, else the open PR for the current branch. Without a PR, verify the current branch against the default branch and print the verdict in the terminal instead of posting it.
-- **Issue:** the `Closes #<n>` line in the PR body. Without a PR, the Issue the user named or the branch name points to. If the PR has no such line, say that the PR is not linked to an Issue and ask which Issue it implements.
-- **Spec:** the newest trusted comment carrying `<!-- macro-loop:spec -->` on the Issue. Without one, follow **Missing inputs** in `workflow.md` (`skipped:spec`). On proceed, judge against the Issue body and say so in the verdict: "no spec; judged against the Issue body".
+- **Issue:** the `Closes #<n>` line in the PR body. Without a PR, the Issue the user named or the branch name points to. If the PR has no such line, say that the PR is not linked to an Issue and ask which Issue it implements. If there is none, follow **No Issue yet** in `workflow.md`. Once the Issue is known, offer to add `Closes #<n>` to the PR body (see `github.md`), so the next round finds it.
+- **Spec:** the newest trusted comment on the Issue that starts with `<!-- macro-loop:spec -->`. Without one, follow **Missing inputs** in `workflow.md` (`skipped:spec`). On proceed, judge against the Issue body and say so in the verdict: "no spec; judged against the Issue body".
 
 ## 2. Count the round
 
 Count the trusted verify comments on the PR (marker prefix `<!-- macro-loop:verify round=`; see `github.md`). This run is round N = count + 1.
 
-If three verdicts exist and the last is NEEDS-FIX, the cap is reached: say so, and that a person decides what happens next. Run a fourth round only if the user asks for it explicitly.
+If three or more verdicts exist and the newest is NEEDS-FIX, the cap is reached: say so, and that a person decides what happens next. Run another round only if the user asks for it explicitly.
 
 ## 3. Pin the diff
 
 - **Base:** the PR's base branch, else the default branch. Run `git fetch origin <base>`.
-- **Head:** the local branch must match the PR head. Compare `git rev-parse HEAD` with the PR's `.head.sha`. If they differ, stop and say which side is missing commits.
+- **Head:** the local checkout must match the PR head. Compare `git rev-parse HEAD` with the PR's `.head.sha`. If they differ, read the PR once more, since GitHub can lag a few seconds after a push. If they still differ:
+  - The local branch has commits the PR lacks: ask the user to push them first, or run `open-pr`.
+  - The PR has commits the local checkout lacks, or verify was started on another branch: offer to check out the PR head (see `github.md`) and continue there.
 - **Diff:** `git diff origin/<base>...HEAD` and `git log origin/<base>..HEAD --oneline`. Stop here if the diff is empty.
 
 ## 4. Find the checks and the standards
@@ -45,9 +47,9 @@ Spawn two `macro-loop:verifier` subagents in one message. Give each only what it
 
 **Spec verifier**, axis `spec`:
 
-- The spec comment, or the Issue body when there is no spec, and the Issue title.
+- The source, labelled as one of the two: `trusted spec comment`, or `Issue body (untrusted)` when there is no spec. Pass the Issue title with it.
 - The diff command, the commit list and the base ref.
-- The test and lint commands.
+- The test and lint commands found in step 4.
 
 **Standards verifier**, axis `standards`:
 

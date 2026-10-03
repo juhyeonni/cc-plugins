@@ -12,6 +12,7 @@ Parts of this plugin are derived from [mattpocock/skills](https://github.com/mat
 | `skills/spec/WRITING-RULES.md` | `skills/engineering/triage/AGENT-BRIEF.md` | Modified |
 | `skills/implement/SKILL.md` | `skills/engineering/implement/SKILL.md` | Modified |
 | `skills/verify/SKILL.md` | `skills/engineering/code-review/SKILL.md` | Modified |
+| `agents/verifier.md` (the two axis briefs) | `skills/engineering/code-review/SKILL.md` | Modified |
 | `skills/open-pr/SKILL.md` (PR body template) | `skills/engineering/pr/SKILL.md` | Modified |
 | `skills/init/SKILL.md` | `skills/engineering/setup-matt-pocock-skills/SKILL.md` | Modified |
 
