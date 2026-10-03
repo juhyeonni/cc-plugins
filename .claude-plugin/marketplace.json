@@ -20,6 +20,11 @@
       "description": "Ask for the missing inputs first, then write the draft. Writing fails on missing input, not on prose skill — so this diagnoses seven slots (deliverable, outcome, audience, key sentence, evidence, ask, constraints), asks at most four questions per round through AskUserQuestion, declares the one-line BLUF and a length budget before drafting, then writes conclusion-first (C-C-C) with a pre-submit self-check. Covers Slack/chat messages, GitHub issues, PR descriptions, emails, design docs, bug reports, and papers."
     },
     {
+      "name": "macro-loop",
+      "source": "./plugins/macro-loop",
+      "description": "A regular routine for AI-assisted development on GitHub Issues: triage, grill, spec, implement, open a PR, and verify in a fresh context. Each stage can be the entry point; a missing input warns instead of blocking, and a skipped stage is recorded on the Issue as a skipped:* label so it can be counted later. Works in local and cloud Claude Code sessions through the GitHub REST API. Skills are forked from mattpocock/skills (MIT)."
+    },
+    {
       "name": "red-team",
       "source": "./plugins/red-team",
       "description": "Adversarially review a document or code diff as a specific persona — a target reader or user with real knowledge gaps. The review runs in a fresh-eyes subagent with a separate context from the author, so it catches the blind spots the writer cannot see. Returns severity-ranked findings, each with its location, the persona’s reaction, and a concrete fix, plus an honest PASS / NEEDS-FIX verdict. Personas are reusable inline, per-project, or from memory. Supports a review → fix → re-review loop, and an integrated mode that checks whole-document consistency (contradictions, duplication, broken cross-references, terminology)."

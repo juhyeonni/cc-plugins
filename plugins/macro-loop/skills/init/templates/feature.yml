@@ -1,0 +1,24 @@
+name: Feature
+description: A new capability, or a change to an existing one
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Who runs into it, and what they do about it today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+  - type: dropdown
+    id: source
+    attributes:
+      label: How was this opened?
+      options:
+        - I need this myself
+        - On someone else's behalf
+        - While working on the code
+    validations:
+      required: true
