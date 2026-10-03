@@ -1,0 +1,22 @@
+{
+  "labels": {
+    "priority": { "P0": "P0", "P1": "P1", "P2": "P2" },
+    "state": {
+      "ready": "ready-for-agent",
+      "needsInfo": "needs-info",
+      "needsDecision": "needs-decision",
+      "wontfix": "wontfix"
+    },
+    "source": {
+      "requester": "source:requester",
+      "proxy": "source:proxy",
+      "discovery": "source:discovery",
+      "developer": "source:developer"
+    },
+    "skipped": {
+      "triage": "skipped:triage",
+      "grilling": "skipped:grilling",
+      "spec": "skipped:spec"
+    }
+  }
+}
