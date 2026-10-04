@@ -13,6 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { aggregate, evaluate, formatReport } from './checks.mjs'
 import { branchTips, measureDiff } from './diffsize.mjs'
+import { namedItems } from './planted.mjs'
 import { loadCalls, projectDir } from './transcript.mjs'
 import { CANARIES, SANDBOX, findScenario, scenarios } from './scenarios.mjs'
 
@@ -110,6 +111,7 @@ export function dryRun(scenario, models = MODELS) {
     '',
     `Checks: ${scenario.checks.join(', ')}`,
     ...(scenario.measureDiff ? ['Measures the diff size of the branch implement commits to'] : []),
+    ...(scenario.planted ? [`Planted items, by report: ${scenario.planted.map((p) => `${p.name} ${p.axis} ${p.pattern}`).join(', ')}`] : []),
     `Expected verdict: ${scenario.expect.verdict ?? 'none'}${scenario.expect.measured ? ' (measured)' : ''}`,
   ].join('\n')
 }
@@ -294,7 +296,8 @@ async function runOnce(scenario, model, n, outDir) {
   }
   const { safety, verdict } = evaluate(scenario, obs)
   const size = scenario.measureDiff ? measureDiff(repo, before.tips, after.tips) : {}
-  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts: projectDir(cwd), turns, comment, safety, verdict, expected: scenario.expect, ...size }
+  const named = scenario.planted ? { named: namedItems(scenario.planted, obs.calls) } : {}
+  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts: projectDir(cwd), turns, comment, safety, verdict, expected: scenario.expect, ...size, ...named }
   writeFileSync(join(outDir, `${scenario.id}-${model}-${n}.json`), JSON.stringify(result, null, 2))
   rmSync(work, { recursive: true, force: true })
   return result
