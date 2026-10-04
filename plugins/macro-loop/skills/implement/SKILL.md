@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Implement the work the Issue's spec describes, then hand over to `open-pr` and `verify`.
 
-Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. Trust, the spec and the last verdict come from one command, run in the repo's checkout: `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --issue <n>`, plus `--pr <n>` when the current branch has an open PR. **Configuration** in `workflow.md` says what it prints.
+Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. Trust, the spec and the last verdict come from one command, run in the repo's checkout: `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --issue <n>`, plus `--pr <n>` when the branch you work on (step 2) has an open PR. **Configuration** in `workflow.md` says what it prints.
 
 ## 1. Find the Issue and its spec
 
@@ -21,18 +21,27 @@ Read the spec: the comment whose id is `issue.spec` in the trust command's outpu
 
 Warn about both in one message and ask once.
 
-If the current branch already has an open PR, read the comment whose id is `pr.lastVerdict`. If that verdict is NEEDS-FIX, its Spec findings are the work for this round.
+If the branch you will work on (step 2) has an open PR, read the comment whose id is `pr.lastVerdict`. If that verdict is NEEDS-FIX, its Spec findings are the work for this round.
 
 ## 2. Branch
 
-Work on the current branch only when it belongs to this Issue: it is named `<n>-<slug>` for this Issue's number `<n>`, or it holds commits for this Issue alone. Then work in place.
+A branch the user named, for example the one `verify` named after a NEEDS-FIX verdict, is the branch to work on. With no branch named, work on the current branch only when it belongs to this Issue: it is named `<n>-<slug>` for this Issue's number `<n>`, or it holds commits for this Issue alone.
 
 - **On the default branch:** make `<n>-<short-slug>`. A PR needs a branch of its own.
 - **On another Issue's branch** (named `<m>-<slug>` with a different number, or holding another Issue's commits): say so, and offer to make `<n>-<short-slug>`. Commit to the other branch only if the user says the two belong together.
 
-Never check out a branch to work on it unless you created it. If an open PR for another branch already closes this Issue, say so and ask the user what to do.
+Never check out a branch to work on it unless you created it or the user named it. If an open PR for another branch already closes this Issue, say so and ask the user what to do.
 
-Never switch the user's checkout. Make a new branch in a worktree of your own: enter it with the `EnterWorktree` tool, named `<n>-<short-slug>`. In it, run `git fetch origin <default>`, then `git switch -c <n>-<short-slug> origin/<default>`, then `git branch -D worktree-<n>-<short-slug>` to delete the branch the worktree started on. Build, commit and hand over from the worktree.
+When the branch to work on is the one checked out in the user's checkout, work in place.
+
+When you do not work in place, never switch the user's checkout, and change nothing in it, before or after the worktree: no edit, no test run, no stash. Work in a worktree of your own, in this order:
+
+1. If `EnterWorktree` and `ExitWorktree` are listed by name only, they cannot be called yet: load both with the ToolSearch tool, query `select:EnterWorktree,ExitWorktree`.
+2. Enter the worktree with the `EnterWorktree` tool, named `<n>-<short-slug>`.
+3. In it, run `git fetch origin <default>`. Then run `git switch -c <n>-<short-slug> origin/<default>` for a new branch, or `git switch <branch>` for a branch that already exists.
+4. Run `git branch -D worktree-<n>-<short-slug>` to delete the branch the worktree started on.
+
+Build, commit and hand over from the worktree.
 
 Uncommitted changes in the user's checkout are not in the way of a worktree. Never stash, discard or carry them along: they may belong to other work.
 
@@ -54,4 +63,4 @@ Call the Skill tool for `macro-loop:open-pr`, then for `macro-loop:verify`, each
 
 If the user declines the push or the PR, still call `macro-loop:verify` with the branch name and carry out its steps: it judges that branch against the default branch without a PR. Never say that verify needs a PR.
 
-On either path, stay in the worktree until verify has posted or printed its verdict. Then leave it with the `ExitWorktree` tool, removing it. If it refuses only because the branch has commits, call it again with `discard_changes: true`: the commits stay on the branch. Tell the user the branch's name, and that the branch stays in the repo, checked out nowhere. If you worked in place, there is no worktree to leave.
+On either path, stay in the worktree until verify has posted or printed its verdict. Then leave it with the `ExitWorktree` tool, `action: "keep"`, and remove it with `git worktree remove <path>`, the path `EnterWorktree` printed. The branch and its commits stay. Tell the user the branch's name, and that it stays in the repo, checked out nowhere. If you worked in place, there is no worktree to leave.

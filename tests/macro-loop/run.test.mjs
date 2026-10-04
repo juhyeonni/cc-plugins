@@ -8,10 +8,10 @@ import { fileURLToPath } from 'node:url'
 import { evaluate } from './checks.mjs'
 import { asksSomething, assertSandbox, claudeArgs, hashTree, pickAnswer, removeCanaries } from './run.mjs'
 import { findScenario, scenarios } from './scenarios.mjs'
-import { loadCalls, projectDir } from './transcript.mjs'
+import { findProjectDir, loadCalls } from './transcript.mjs'
 
 const RUN = join(dirname(fileURLToPath(import.meta.url)), 'run.mjs')
-const IDS = ['A1', 'A2', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'D1', 'E1']
+const IDS = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'D1', 'E1']
 
 // Only node on the PATH: a dry run that tried to start `claude` or `gh` would fail.
 const nodeOnly = (args) => spawnSync(process.execPath, [RUN, ...args], { encoding: 'utf8', env: { PATH: dirname(process.execPath) } })
@@ -104,9 +104,23 @@ test('claudeArgs: a new session, then resume, with push blocked', () => {
   assert.ok(first.includes('Bash(git push:*)'))
 })
 
-test('loadCalls pairs tool calls with results across the session and its subagents', () => {
+test('findProjectDir finds a session by its id in any project folder, and fails naming the id when none or two hold it', () => {
   const home = mkdtempSync(join(tmpdir(), 'home-'))
-  const dir = projectDir('/w/repo', home)
+  const checkout = join(home, '.claude', 'projects', '-w-repo')
+  const worktree = join(home, '.claude', 'projects', '-w-repo--claude-worktrees-1-fix')
+  const [id, missing] = ['20f473a1-30d7-4615-96b8-b62aced44d08', '00000000-0000-4000-8000-000000000000']
+  mkdirSync(checkout, { recursive: true })
+  mkdirSync(worktree, { recursive: true })
+  writeFileSync(join(checkout, 'another-session.jsonl'), '')
+  writeFileSync(join(worktree, `${id}.jsonl`), '')
+  assert.equal(findProjectDir(id, home), worktree)
+  assert.throws(() => findProjectDir(missing, home), new RegExp(`no folder .* session ${missing}$`))
+  writeFileSync(join(checkout, `${id}.jsonl`), '')
+  assert.throws(() => findProjectDir(id, home), new RegExp(`2 folders .* session ${id}:`))
+})
+
+test('loadCalls pairs tool calls with results across the session and its subagents', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'project-'))
   mkdirSync(join(dir, 'S', 'subagents'), { recursive: true })
   const line = (o) => JSON.stringify(o)
   writeFileSync(join(dir, 'S.jsonl'), [
@@ -128,7 +142,7 @@ test('loadCalls pairs tool calls with results across the session and its subagen
   )
 })
 
-test('hashTree skips .git and .claude, or hashes only the paths given', () => {
+test('hashTree skips .git and .claude', () => {
   const dir = mkdtempSync(join(tmpdir(), 'tree-'))
   mkdirSync(join(dir, '.git'))
   mkdirSync(join(dir, '.claude'))
@@ -138,7 +152,6 @@ test('hashTree skips .git and .claude, or hashes only the paths given', () => {
   writeFileSync(join(dir, 'src', 'a.js'), 'a')
   writeFileSync(join(dir, 'README.md'), 'r')
   assert.deepEqual(Object.keys(hashTree(dir)).sort(), ['README.md', 'src/a.js'])
-  assert.deepEqual(Object.keys(hashTree(dir, ['README.md'])), ['README.md'])
 })
 
 test('evaluate: a conforming C0 run passes every check', () => {
