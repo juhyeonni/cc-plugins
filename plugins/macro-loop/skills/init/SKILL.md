@@ -57,4 +57,4 @@ Show what each approved section will do: the labels to create and the files to w
 
 ## 4. Done
 
-Say what was set up in the user's terms: the labels, the Issue templates, the config file and who is trusted. Don't refer to this plugin's own files. Say that the templates and `.github/macro-loop.json` can be edited directly later, and that re-running this skill only adds what is still missing.
+Say what was set up in the user's terms: the labels, the Issue templates, the config file and who is trusted. Don't refer to this plugin's own files. Say that the templates and `.github/macro-loop.json` can be edited directly later, that the config file takes effect once it is on the default branch, and that re-running this skill only adds what is still missing.

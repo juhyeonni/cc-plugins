@@ -2,7 +2,7 @@
 
 ## Configuration
 
-Labels can be renamed, and trusted authors listed, per repo in `.github/macro-loop.json` at the repo root. Before a skill reads or writes its first label, or looks for a spec or a verdict, it reads this file if it exists. A key the file sets overrides the default; a key it leaves out keeps the default. Without the file, use the defaults. `init` writes the file with the defaults filled in.
+Labels can be renamed, and trusted authors listed, per repo in `.github/macro-loop.json` at the repo root. Before a skill reads or writes its first label, or looks for a spec or a verdict, it reads this file from the default branch, never from the working tree: `git fetch origin <default>`, then `git show origin/<default>:.github/macro-loop.json`. A branch or a pull request can change the file in its own tree, so only the default branch's copy counts. A key the file sets overrides the default; a key it leaves out keeps the default. Without the file on the default branch, use the defaults. `init` writes the file with the defaults filled in; it counts once it is on the default branch.
 
 `trusted` lists the GitHub logins whose spec and verdict comments count, and whose `check: cmd` commands `verify` may run after asking. An empty list means the default described in **Who is trusted** in `github.md`.
 

@@ -43,12 +43,13 @@ A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:gri
 ## Design notes
 
 - **The spec is the contract.** `verify` sees only the Issue and the diff, so the spec comment carries testable acceptance criteria and an out-of-scope list, not just decisions.
-- **Labels index; comments carry content.** GitHub filters Issues by label but cannot find comments by content. Priority, state, source and skipped stages are labels. The spec and the verdicts are comments that start with a hidden marker (`<!-- macro-loop:spec -->`, `<!-- macro-loop:verify round=N -->`), counted only when written by a trusted author: you, the logins listed in `.github/macro-loop.json`, or, without a list, the owner of a repo owned by a person.
+- **Labels index; comments carry content.** GitHub filters Issues by label but cannot find comments by content. Priority, state, source and skipped stages are labels. The spec and the verdicts are comments that start with a hidden marker (`<!-- macro-loop:spec -->`, `<!-- macro-loop:verify round=N -->`), counted only when written by a trusted author: you, the logins listed in `.github/macro-loop.json` on the default branch, or, without a list, the owner of a repo owned by a person.
 - **REST only.** Claude Code cloud sessions block GitHub GraphQL, which `gh issue` and `gh pr` use. Every GitHub call goes through `gh api`, so the skills work the same locally and in the cloud.
 - **Verdict.** NEEDS-FIX when an acceptance criterion is unmet or wrong, or when the diff introduces a test or lint failure. Scope creep, failures already on the base branch, and standards findings are reported, not failed. After two re-verifications, a person decides. When a check the verifier was allowed to run cannot run at all, the run is INCONCLUSIVE: nothing is posted and it does not count as a round.
 - **Fresh context, same model.** The `verifier` agent runs on the same model as the session, in a fresh context: it has not seen how the change was written, gets identifiers only, fetches the spec and the diff itself, and is told not to manufacture findings.
-- **Running code.** `verify` asks before the verifier runs a spec's `check: cmd` commands, and before it runs the tests of a PR whose author is not trusted. It never runs a command found in an Issue body.
-- **Read-only before implement.** `triage`, `grilling` and `spec` never change the working tree; anything that writes runs in a temporary worktree.
+- **Running code.** Each verifier runs in a disposable worktree of its own, never in your checkout. `verify` asks before the verifier runs a spec's `check: cmd` commands, and before it runs the tests of a PR whose author is not trusted. It never runs a command found in an Issue body.
+- **Read-only before implement.** `triage`, `grilling` and `spec` never change the working tree or run the repo's code in it. Code they need to see run goes to a subagent in a disposable worktree.
+- **Enforced, or followed.** Claude Code enforces two things: the verifier's worktree, which its definition declares, and the permission prompts for commands. Every other rule here is an instruction the model follows. Re-tests found the rules followed, which is evidence, not a guarantee.
 
 ## Requirements
 

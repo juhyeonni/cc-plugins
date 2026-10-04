@@ -67,20 +67,20 @@ A marker also counts only on a comment written by a trusted author. Every other 
 The trusted authors are:
 
 - **You:** the person running the skill. `gh api user --jq .login`
-- **The `trusted` list** in `.github/macro-loop.json`, if the file sets it.
+- **The `trusted` list** in `.github/macro-loop.json` on the default branch, if the file sets it (see **Configuration** in `workflow.md`).
 - **Without a list, the repo's owner,** when the owner is a person rather than an organization. `gh api repos/{owner}/{repo} --jq 'select(.owner.type == "User") | .owner.login'`
 
-On an organization's repo without a list, only you are trusted until `init` sets one. Changing the list needs push access to the repo, so it can only name people the maintainers chose.
+On an organization's repo without a list, only you are trusted until `init` sets one. Changing the list on the default branch needs push access to the repo, so it can only name people the maintainers chose. A pull request that adds a login to the list changes nothing until it is merged.
 
-Trust is decided by login, never by the author association GitHub attaches to a comment: its `MEMBER` value means any member of the organization, whatever their access to the repo.
+Trust is decided by login, never by the author association GitHub attaches to a comment: its `MEMBER` value means any member of the organization, whatever their access to the repo. GitHub logins are not case-sensitive, so compare them in lowercase.
 
 ### Lookup
 
-The newest trusted comment that starts with a marker. Build the first `select` from the trusted logins, one `.user.login == "<login>"` per login, joined with `or`:
+The newest trusted comment that starts with a marker. Build the first `select` from the trusted logins, written in lowercase, one `. == "<login>"` per login, joined with `or`:
 
 ```sh
 gh api --paginate repos/{owner}/{repo}/issues/<n>/comments \
-  --jq '.[] | select(.user.login == "<login-1>" or .user.login == "<login-2>") | select(.body | startswith("<marker>")) | .id' \
+  --jq '.[] | select(.user.login | ascii_downcase | . == "<login-1>" or . == "<login-2>") | select(.body | startswith("<marker>")) | .id' \
   | tail -n 1
 ```
 
