@@ -36,6 +36,10 @@ Warn about both in one message and ask once.
 
 Explore the codebase enough to make the criteria concrete: what exists today, where the change can be tested (prefer existing seams, and the highest one that works), and which commands the repo uses to test and lint. If the repo has a glossary or ADRs, use their vocabulary and respect their decisions.
 
+"Today" means the default branch. Run `git fetch origin <default>` and read with `git show origin/<default>:<path>`. If another branch is checked out, say so: its unmerged changes are not today's behavior, and a criterion must not depend on them.
+
+The working tree is read-only for this skill. Anything that writes runs in a temporary worktree; see **Working tree before implement** in `workflow.md`.
+
 ### 4. Draft
 
 Write the comment with this template and the rules in [WRITING-RULES.md](WRITING-RULES.md):

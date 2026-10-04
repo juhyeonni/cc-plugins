@@ -25,7 +25,10 @@ If the current branch already has an open PR, read its newest trusted verify com
 
 ## 2. Branch
 
-Work on the current branch, unless it is the default branch: a PR needs a branch of its own. On the default branch, create `<issue-number>-<short-slug>` and switch to it.
+Work on the current branch only when it belongs to this Issue: it is named `<n>-<slug>` for this Issue's number `<n>`, or it holds commits for this Issue alone.
+
+- **On the default branch:** create `<n>-<short-slug>` from it and switch to it. A PR needs a branch of its own.
+- **On another Issue's branch** (named `<m>-<slug>` with a different number, or holding another Issue's commits): say so, and offer to create `<n>-<short-slug>` from the default branch (`git fetch origin <default>` then `git switch -c <n>-<short-slug> origin/<default>`). Commit to the other branch only if the user says the two belong together.
 
 ## 3. Build
 
@@ -40,3 +43,5 @@ Commit your work to the current branch.
 ## 5. Hand over
 
 Call the Skill tool for `macro-loop:open-pr`, then for `macro-loop:verify`. `open-pr` pushes the branch and opens the PR, or pushes to the PR that already exists. `verify` judges the PR in a fresh context and posts the verdict.
+
+If the user declines the push or the PR, still call `macro-loop:verify`: it judges the local branch against the default branch without a PR. Never say that verify needs a PR.

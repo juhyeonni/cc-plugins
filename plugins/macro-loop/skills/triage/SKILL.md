@@ -10,6 +10,8 @@ Give each open Issue a priority, a state and a source, so the queue says what to
 
 Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. The labels and their meanings are in `workflow.md`.
 
+Triage treats the working tree as read-only: it changes labels and comments on GitHub, never files in the checkout. To try something that writes, such as reproducing a bug, follow **Working tree before implement** in `workflow.md`.
+
 Every comment posted during triage starts with this line:
 
 ```
@@ -44,7 +46,7 @@ List open Issues, pull requests excluded, in two buckets, oldest first:
 1. **Untriaged:** no priority label.
 2. **`needs-info` with new activity:** the requester commented after the last triage notes.
 
-Show the count of each bucket and one line per Issue. Let the maintainer pick Issues, or propose for all of them.
+Show the count of each bucket and one line per Issue. With three or fewer Issues in the buckets, read them and go straight to proposals. With more, let the maintainer pick Issues, or propose for all of them.
 
 ## Propose
 
@@ -67,6 +69,8 @@ Add the approved labels, and remove any other label of the same kind, so a re-tr
 - `needs-info`: post triage notes addressed to the requester (template below).
 - `needs-decision`: post triage notes that name the decision a person has to make, with the options you see.
 - `wontfix`: post a short comment with the reason, then close the Issue as not planned. If the request is already implemented, point to where it lives.
+
+When the maintainer decides something while triaging, such as which fix to take or what is out of scope, write the decision and its reason into the triage comment, whatever the state. A decision left only in the conversation is lost to the next session.
 
 Then read each Issue's own labels back, since a label-filtered list lags a few seconds, and report what changed.
 

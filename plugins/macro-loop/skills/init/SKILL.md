@@ -16,7 +16,7 @@ Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` a
 
 Look at the repo's starting state; don't assume:
 
-- `git remote -v`: is this a GitHub repo, and which one?
+- `git remote -v`: is this a GitHub repo, and which one? Is its owner a person or an organization?
 - The repo's existing labels (see `github.md`).
 - `.github/ISSUE_TEMPLATE/`: which templates exist?
 - `.github/macro-loop.json`: does it exist, and which labels does it rename?
@@ -45,6 +45,8 @@ When the config file renames a label, create the renamed label with the color of
 
 **C. Config file.** Write [macro-loop.json](templates/macro-loop.json) to `.github/macro-loop.json`. Recommend the defaults, unless the repo already uses other names for the same roles (for example `priority:high` for `P1`). Then map those names in the file, so the skills use the existing labels instead of creating duplicates.
 
+The file's `trusted` list names whose spec and verdict comments count, and whose `check: cmd` commands `verify` may run after asking (see **Who is trusted** in `github.md`). On a repo owned by a person, recommend leaving it empty: the owner and whoever runs a skill are trusted. On an organization's repo, ask which logins to trust and fill them in; without a list, only the person running a skill is trusted.
+
 ## 3. Confirm and write
 
 Show what each approved section will do: the labels to create and the files to write. Then:
@@ -55,4 +57,4 @@ Show what each approved section will do: the labels to create and the files to w
 
 ## 4. Done
 
-Say what was set up, and that the templates and `.github/macro-loop.json` can be edited directly later. Re-running this skill is only needed to add what is still missing.
+Say what was set up in the user's terms: the labels, the Issue templates, the config file and who is trusted. Don't refer to this plugin's own files. Say that the templates and `.github/macro-loop.json` can be edited directly later, and that re-running this skill only adds what is still missing.

@@ -1,7 +1,7 @@
 {
   "name": "macro-loop",
   "displayName": "Macro Loop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A regular routine for AI-assisted development on GitHub Issues: triage, grill, spec, implement, open a PR, and verify in a fresh context. Each stage can be the entry point; a missing input warns instead of blocking, and a skipped stage is recorded on the Issue as a skipped:* label so it can be counted later. Works in local and cloud Claude Code sessions through the GitHub REST API. Skills are forked from mattpocock/skills (MIT).",
   "requirements": "GitHub / gh CLI",
   "author": {

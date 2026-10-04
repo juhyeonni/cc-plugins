@@ -1,6 +1,11 @@
 {
+  "trusted": [],
   "labels": {
-    "priority": { "P0": "P0", "P1": "P1", "P2": "P2" },
+    "priority": {
+      "P0": "P0",
+      "P1": "P1",
+      "P2": "P2"
+    },
     "state": {
       "ready": "ready-for-agent",
       "needsInfo": "needs-info",
