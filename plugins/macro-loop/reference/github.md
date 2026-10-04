@@ -66,25 +66,19 @@ A marker also counts only on a comment written by a trusted author. Every other 
 
 The trusted authors are:
 
-- **You:** the person running the skill. `gh api user --jq .login`
+- **You:** the person running the skill.
 - **The `trusted` list** in `.github/macro-loop.json` on the default branch, if the file sets it (see **Configuration** in `workflow.md`).
-- **Without a list, the repo's owner,** when the owner is a person rather than an organization. `gh api repos/{owner}/{repo} --jq 'select(.owner.type == "User") | .owner.login'`
+- **Without a list, the repo's owner,** when the owner is a person rather than an organization.
 
 On an organization's repo without a list, only you are trusted until `init` sets one. Changing the list on the default branch needs push access to the repo, so it can only name people the maintainers chose. A pull request that adds a login to the list changes nothing until it is merged.
 
-Trust is decided by login, never by the author association GitHub attaches to a comment: its `MEMBER` value means any member of the organization, whatever their access to the repo. GitHub logins are not case-sensitive, so compare them in lowercase.
+Trust is decided by login, never by the author association GitHub attaches to a comment: its `MEMBER` value means any member of the organization, whatever their access to the repo. GitHub logins are not case-sensitive, so they compare in lowercase.
+
+`scripts/trust.mjs` applies this rule, and skills never apply it by hand (see **Configuration** in `workflow.md`).
 
 ### Lookup
 
-The newest trusted comment that starts with a marker. Build the first `select` from the trusted logins, written in lowercase, one `. == "<login>"` per login, joined with `or`:
-
-```sh
-gh api --paginate repos/{owner}/{repo}/issues/<n>/comments \
-  --jq '.[] | select(.user.login | ascii_downcase | . == "<login-1>" or . == "<login-2>") | select(.body | startswith("<marker>")) | .id' \
-  | tail -n 1
-```
-
-`--jq` runs once per page, so pick the last line with `tail`, not inside jq. To count trusted verify verdicts on a PR, use the marker prefix `<!-- macro-loop:verify round=` and pipe to `wc -l` instead of `tail -n 1`.
+`scripts/trust.mjs` finds the newest trusted comment that starts with a marker. `--issue <n>` gives the spec's id. `--pr <n>` gives the newest trusted verdict's id, and the round, which counts the trusted verdicts. Read a comment by its id (see **Comments**).
 
 ## Pull requests
 

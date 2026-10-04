@@ -2,41 +2,21 @@
 
 ## Configuration
 
-Labels can be renamed, and trusted authors listed, per repo in `.github/macro-loop.json` at the repo root. Before a skill reads or writes its first label, or looks for a spec or a verdict, it reads this file from the default branch on GitHub, never from the working tree. A branch or a pull request can change the file in its own tree, so only the default branch's copy counts:
+Labels can be renamed, and trusted authors listed, per repo in `.github/macro-loop.json` at the repo root. Only the default branch's copy counts: a branch or a pull request can change the file in its own tree. `init` writes the file from its template, `skills/init/templates/macro-loop.json`, which also holds the defaults; the file counts once it is on the default branch.
 
-```sh
-gh api 'repos/{owner}/{repo}/contents/.github/macro-loop.json' --jq '.content | @base64d | fromjson | tojson'
-```
+Skills never read this file or decide trust themselves. Before a skill reads or writes its first label, or looks for a spec or a verdict, it runs `scripts/trust.mjs` in the repo's checkout, with the command its own instructions give. The script prints one JSON object on one line:
 
-This prints the whole file on one line, so nothing piped after it can cut a key off. A 404 means the default branch has no file: use the defaults. A key the file sets overrides the default; a key it leaves out keeps the default. `init` writes the file with the defaults filled in; it counts once it is on the default branch.
+| Field | What it holds |
+|---|---|
+| `configFile` | Whether the default branch has the file. |
+| `config` | The file on the default branch over the defaults: a key the file sets overrides the default, and a key it leaves out keeps it. Without a file, the defaults. |
+| `trusted` | The trusted logins, in lowercase (see **Who is trusted** in `github.md`). |
+| `issue` | With `--issue <n>`: `spec`, the id of the Issue's spec comment, or `null`. |
+| `pr` | With `--pr <n>`: `author`, `authorTrusted`, `head` (the head SHA), `base`, `lastVerdict` (the id of the newest trusted verify comment, or `null`) and `round` (the trusted verify comments, plus one). |
 
-`trusted` lists the GitHub logins whose spec and verdict comments count, and whose `check: cmd` commands `verify` may run after asking. An empty list means the default described in **Who is trusted** in `github.md`.
+If the script fails, it prints nothing and exits non-zero with the error. Stop and tell the user what failed. Never read the file or the comments yourself instead.
 
-```json
-{
-  "trusted": [],
-  "labels": {
-    "priority": { "P0": "P0", "P1": "P1", "P2": "P2" },
-    "state": {
-      "ready": "ready-for-agent",
-      "needsInfo": "needs-info",
-      "needsDecision": "needs-decision",
-      "wontfix": "wontfix"
-    },
-    "source": {
-      "requester": "source:requester",
-      "proxy": "source:proxy",
-      "discovery": "source:discovery",
-      "developer": "source:developer"
-    },
-    "skipped": {
-      "triage": "skipped:triage",
-      "grilling": "skipped:grilling",
-      "spec": "skipped:spec"
-    }
-  }
-}
-```
+`trusted` in the file lists the GitHub logins whose spec and verdict comments count, and whose `check: cmd` commands `verify` may run after asking. An empty list means the default described in **Who is trusted** in `github.md`.
 
 The rest of this plugin names labels by their default strings.
 

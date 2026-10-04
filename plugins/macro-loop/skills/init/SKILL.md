@@ -10,7 +10,7 @@ Set up the repo so the other skills have their labels, Issue templates and confi
 
 This is a prompt-driven setup, not a script. Explore, present what you found, confirm with the user, then write.
 
-Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`.
+Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. Then run `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs` in the repo's checkout. **Configuration** in `workflow.md` says what it prints.
 
 ## 1. Explore
 
@@ -19,7 +19,7 @@ Look at the repo's starting state; don't assume:
 - `git remote -v`: is this a GitHub repo, and which one? Is its owner a person or an organization?
 - The repo's existing labels (see `github.md`).
 - `.github/ISSUE_TEMPLATE/`: which templates exist?
-- `.github/macro-loop.json`: does it exist, and which labels does it rename?
+- `.github/macro-loop.json`: `configFile` in the trust command's output says whether the default branch has it, and `config.labels`, against [the template](templates/macro-loop.json), shows which labels it renames.
 
 ## 2. Present and ask, one section at a time
 
