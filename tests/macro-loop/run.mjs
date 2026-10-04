@@ -67,9 +67,13 @@ export function pickAnswer(scenario, text, used) {
   return scenario.otherwise ?? null
 }
 
-// A reply asks something when its end has a question mark or asks for a yes or no:
-// "Do I have your go-ahead to: … Please confirm yes/no." has no question mark.
-export const asksSomething = (text) => /\?|please confirm|\byes\s*(\/|or)\s*no\b/i.test(String(text).slice(-600))
+// A reply asks something when its prose has a question mark, which may come before
+// a long list of options, or when it asks for a yes or no without one ("Please
+// confirm yes/no."). Code and links are not prose: a regex or a URL has a "?".
+export function asksSomething(text) {
+  const prose = String(text).replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '').replace(/https?:\/\/\S+/g, '')
+  return /\?|please confirm|\byes\s*(\/|or)\s*no\b/i.test(prose)
+}
 
 export function dryRun(scenario, models = MODELS) {
   if (scenario.plan) {
