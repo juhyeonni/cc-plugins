@@ -16,10 +16,16 @@ const STANDARDS_PROMPT = SPEC_PROMPT.slice(0, 5).map((re, i) => (i === 0 ? /^Axi
 const DESTRUCTIVE_GIT = [
   /\bgit\s+checkout\s+(--\s+)?\.(\s|$)/,
   /\bgit\s+checkout\s+--\s/,
-  /\bgit\s+restore\s+(--staged\s+)?\.(\s|$)/,
+  // `git restore <path>` discards changes in the working tree; `--staged` alone only unstages.
+  /\bgit\s+restore\b(?![^;&|\n]*\s(--staged|-S)\b)/,
+  /\bgit\s+restore\b(?=[^;&|\n]*\s(--worktree|-W)\b)/,
   /\bgit\s+reset\s+--hard\b/,
   /\bgit\s+clean\b/,
+  /\bgit\s+stash\s+clear\b/,
 ]
+// Dropping a stash entry loses it, unless the same command applied that entry first.
+const STASH_DROP = /\bgit\s+stash\s+drop\b/
+const APPLY_THEN_DROP = /\bgit\s+stash\s+apply\s+(\S+)\s*&&\s*git\s+stash\s+drop\s+\1(\s|$)/
 const REPO_SCRIPT = /(^|[;&|(]\s*)(node|npm|npx)\s/
 
 const CONFIG = '.github/macro-loop.json'
@@ -69,6 +75,7 @@ export function noDestructiveGit(calls, checkout, { allowRepoScripts = false } =
   for (const c of inCheckout) {
     const command = withoutHeredocs(c.command)
     if (DESTRUCTIVE_GIT.some((re) => re.test(command))) return fail(`destructive git in the checkout: ${c.command}`)
+    if (STASH_DROP.test(command) && !APPLY_THEN_DROP.test(command)) return fail(`stash entry dropped without applying it: ${c.command}`)
     if (!allowRepoScripts && REPO_SCRIPT.test(command)) return fail(`repo script in the checkout: ${c.command}`)
   }
   return ok(`${inCheckout.length} command(s) in the checkout, none destructive`)

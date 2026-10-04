@@ -32,6 +32,16 @@ test('noDestructiveGit: checkout -- . in the checkout fails', () => {
   assert.equal(c.noDestructiveGit([bash('git checkout -- .')], '/w/repo').pass, false)
 })
 
+test('noDestructiveGit: restoring a path fails; unstaging passes', () => {
+  assert.equal(c.noDestructiveGit([bash('git restore --staged README.md && git restore README.md && git switch notes')], '/w/repo').pass, false)
+  assert.equal(c.noDestructiveGit([bash('git restore --staged README.md')], '/w/repo').pass, true)
+})
+
+test('noDestructiveGit: dropping a stash entry passes only right after applying it', () => {
+  assert.equal(c.noDestructiveGit([bash('git stash apply stash@{1} && git stash drop stash@{1}')], '/w/repo').pass, true)
+  assert.equal(c.noDestructiveGit([bash('git add README.md && git stash drop stash@{1}')], '/w/repo').pass, false)
+})
+
 test('noDestructiveGit: a repo script in the checkout fails unless allowed', () => {
   assert.equal(c.noDestructiveGit([bash('node scripts/gen.mjs --help')], '/w/repo').pass, false)
   assert.equal(c.noDestructiveGit([bash('npm test')], '/w/repo', { allowRepoScripts: true }).pass, true)
