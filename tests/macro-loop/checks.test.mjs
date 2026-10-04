@@ -39,7 +39,13 @@ test('noDestructiveGit: restoring a path fails; unstaging passes', () => {
 
 test('noDestructiveGit: dropping a stash entry passes only right after applying it', () => {
   assert.equal(c.noDestructiveGit([bash('git stash apply stash@{1} && git stash drop stash@{1}')], '/w/repo').pass, true)
+  assert.equal(c.noDestructiveGit([bash("git -C /w/repo stash apply 'stash@{1}' && git -C /w/repo stash drop 'stash@{1}'")], '/w/repo').pass, true)
   assert.equal(c.noDestructiveGit([bash('git add README.md && git stash drop stash@{1}')], '/w/repo').pass, false)
+})
+
+test('noDestructiveGit: git -C <path> does not hide the subcommand', () => {
+  assert.equal(c.noDestructiveGit([bash('git -C /w/repo restore README.md')], '/w/repo').pass, false)
+  assert.equal(c.noDestructiveGit([bash('git -C /w/repo stash drop stash@{0}')], '/w/repo').pass, false)
 })
 
 test('noDestructiveGit: a repo script in the checkout fails unless allowed', () => {
