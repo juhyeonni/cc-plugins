@@ -1,6 +1,6 @@
 ---
 name: open-pr
-description: "Push the current branch and open its pull request, linked to the GitHub Issue with Closes #n and written to be fast to review. If the branch already has an open PR, push to it instead. Use when implement hands over, or when the user asks to open a PR for an Issue."
+description: "Push the named or current branch and open its pull request, linked to the GitHub Issue with Closes #n and written to be fast to review. If the branch already has an open PR, push to it instead. Use when implement hands over, or when the user asks to open a PR for an Issue."
 ---
 
 # Open PR
@@ -15,9 +15,11 @@ Use the Issue the user or `implement` named, or the one the conversation or the 
 
 ## 2. Check the branch and push
 
-- The current branch is not the default branch.
+The branch is the one given by name, by the user or by `implement`. With no branch named, use the current branch, resolved to its name with `git branch --show-current` first.
+
+- It is not the default branch.
 - It has commits that the default branch does not have.
-- The working tree is clean, or the user agrees to leave the uncommitted changes out.
+- If it is checked out, the working tree is clean, or the user agrees to leave the uncommitted changes out.
 
 Then push: `git push -u origin <branch>`.
 
@@ -27,7 +29,7 @@ If the branch already has an open PR, the push has updated it. Check that its bo
 
 ## 4. Write the body
 
-Start the body with `Closes #<n>` on its own line, then fill in the template below from the diff against the base branch (`git diff origin/<base>...HEAD`) and the Issue's spec.
+Start the body with `Closes #<n>` on its own line, then fill in the template below from the diff against the base branch (`git diff origin/<base>...<branch>`) and the Issue's spec.
 
 ```markdown
 Closes #<n>
