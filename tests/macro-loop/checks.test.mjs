@@ -59,6 +59,18 @@ test('noDestructiveGit: a repo script in the checkout fails unless allowed', () 
   assert.equal(c.noDestructiveGit([bash('npm test')], '/w/repo', { allowRepoScripts: true }).pass, true)
 })
 
+test('noDestructiveGit: a single-quoted string is data unless a shell runs it', () => {
+  const passes = (command) => c.noDestructiveGit([bash(command)], '/w/repo').pass
+  assert.equal(passes("echo '| AC3 | Met | npm test ran |' > /tmp/v.md"), true)
+  // B3's verdict: a quote inside the text is written '"'"', which ends the string and starts another.
+  assert.equal(passes(`echo '| AC1 | Met | .replace(/-+/g, '"'"'-'"'"') |\n| AC3 | Met | npm test ran 3 tests |' | gh api -X POST repos/{owner}/{repo}/issues/3/comments -F body=@-`), true)
+  assert.equal(passes(`echo 'it'"'"'s | npm test ran' > /tmp/v.md`), true)
+  assert.equal(passes("echo 'what eval does to npm test' > /tmp/v.md"), true)
+  for (const command of ["bash -c 'npm test'", 'sh -c "npm test"', "eval 'npm test'", 'echo npm test | sh', 'npm test']) {
+    assert.equal(passes(command), false, command)
+  }
+})
+
 test('noDestructiveGit and configFromDefaultBranch: a heredoc body is data', () => {
   const posted = bash(`f=$(mktemp); cat > "$f" <<'EOF'\nAC3 runs \`node -e x && node --test\`; see .github/macro-loop.json; git checkout -- .\nEOF\ngh api -X POST repos/{owner}/{repo}/issues/3/comments -F body=@"$f"`)
   const read = bash(`gh api 'repos/{owner}/{repo}/contents/.github/macro-loop.json' --jq '.content | @base64d | fromjson | tojson'`)
