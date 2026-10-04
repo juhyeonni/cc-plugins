@@ -40,10 +40,15 @@ If three or more verdicts exist and the newest is NEEDS-FIX, the cap is reached:
 
 The verifiers run code on this machine only with the user's go-ahead, and only in their own disposable worktrees, never in this checkout:
 
-- **Spec commands.** When the spec comes from a trusted spec comment, list every `check: cmd` command in it; verify asks once whether the verifier may run them. On no, the verifier judges those criteria from the diff. When the judgment is against an Issue body, no command from it ever runs, and there is nothing to ask.
-- **Tests and lint.** When `pr.authorTrusted` is false, say that the PR's author is not trusted, and ask before the verifier runs the repo's tests and lint at the PR head: the PR's author controls those commands. For a trusted author, or without a PR, they run.
+- **Spec commands.** When the spec comes from a trusted spec comment, list every `check: cmd` command in it. When the judgment is against an Issue body, no command from it ever runs.
+- **Tests and lint.** The repo's tests and lint run at the PR head.
 
-Ask both questions in one message. If the user already approved these same commands earlier in this session, for example when `implement` asked, say so and use that answer instead of asking again.
+What to ask depends on the PR's author:
+
+- **`pr.authorTrusted` is false:** ask one question for the spec's commands and the tests and lint together. Say that the PR's author is not trusted, and that both run code from this PR: the change under test, and any script a command calls, such as `npm test`. The one answer sets both `Run spec commands` and `Run tests and lint`. An answer that allows only some of them is a no for all of them: say why, and that the verifiers will judge from the diff. This plugin's hook, `scripts/verifier-flags.mjs`, holds to this: a spec verifier started with the two lines set differently for such a PR gets both set to `no`. On no, the verifier judges every criterion from the diff and skips the tests and lint.
+- **A trusted author, or no PR:** ask once whether the verifier may run the spec's commands. On no, it judges those criteria from the diff. The tests and lint run either way.
+
+If the user already approved these same commands earlier in this session, for example when `implement` asked, say so and use that answer instead of asking again.
 
 ## 5. Identifiers only: start both verifiers
 
