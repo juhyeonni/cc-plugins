@@ -65,6 +65,12 @@ test('configFromDefaultBranch: the contents API read passes', () => {
   assert.equal(c.configFromDefaultBranch([read]).pass, true)
 })
 
+test('configFromDefaultBranch: a main-session run of trust.mjs passes; a working-tree read still fails', () => {
+  const trust = bash('node /p/plugins/macro-loop/scripts/trust.mjs --issue 1 --pr 3')
+  assert.equal(c.configFromDefaultBranch([trust]).pass, true)
+  assert.equal(c.configFromDefaultBranch([trust, bash('cat .github/macro-loop.json')]).pass, false)
+})
+
 test('configFromDefaultBranch: a working-tree read fails', () => {
   assert.equal(c.configFromDefaultBranch([bash('cat .github/macro-loop.json')]).pass, false)
   assert.equal(c.configFromDefaultBranch([{ ...bash(''), tool: 'Read', input: { file_path: '/w/repo/.github/macro-loop.json' } }]).pass, false)

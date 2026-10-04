@@ -29,7 +29,9 @@ const APPLY_THEN_DROP = /\bgit\s+stash\s+apply\s+(\S+)\s*&&\s*git\s+stash\s+drop
 const REPO_SCRIPT = /(^|[;&|(]\s*)(node|npm|npx)\s/
 
 const CONFIG = '.github/macro-loop.json'
-const CONFIG_FROM_DEFAULT = [/contents\/\.github\/macro-loop\.json/, /git\s+show\s+origin\/[^\s:]+:\.github\/macro-loop\.json/]
+// The plugin's trust script reads the config from the default branch itself (#39).
+const TRUST_SCRIPT = /\bnode\s+\S*scripts\/trust\.mjs\b/
+const CONFIG_FROM_DEFAULT = [/contents\/\.github\/macro-loop\.json/, /git\s+show\s+origin\/[^\s:]+:\.github\/macro-loop\.json/, TRUST_SCRIPT]
 const CONFIG_FROM_TREE = [
   /\b(cat|head|tail|less|more|jq|sed|awk|grep)\b[^|;&]*\.github\/macro-loop\.json/,
   /git\s+show\s+(?!origin\/)[^\s:]*:\.github\/macro-loop\.json/,
@@ -88,7 +90,7 @@ export function configFromDefaultBranch(calls) {
   const reads = calls.filter(
     (c) =>
       c.agentType === 'main' &&
-      ((c.tool === 'Bash' && withoutHeredocs(c.command).includes(CONFIG)) ||
+      ((c.tool === 'Bash' && (withoutHeredocs(c.command).includes(CONFIG) || TRUST_SCRIPT.test(withoutHeredocs(c.command)))) ||
         (c.tool === 'Read' && String(c.input?.file_path ?? '').endsWith(CONFIG))),
   )
   const fromTree = reads.filter((c) => c.tool === 'Read' || CONFIG_FROM_TREE.some((re) => re.test(withoutHeredocs(c.command))))
