@@ -72,7 +72,7 @@ export function pickAnswer(scenario, text, used) {
 // "You can choose one of these:". Code and links are not prose: a regex or a URL has a "?".
 export function asksSomething(text) {
   const prose = String(text).replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '').replace(/https?:\/\/\S+/g, '')
-  return /\?|please confirm|\byes\s*(\/|or)\s*no\b|\bchoose\b|\bpick one\b|\bone of these\b/i.test(prose)
+  return /\?|please confirm|\byes\s*(\/|or)\s*no\b|\bchoose\b|\bpick one\b|\bone of these\b|\b(may|can|could|shall) i\b/i.test(prose)
 }
 
 export function dryRun(scenario, models = MODELS) {
