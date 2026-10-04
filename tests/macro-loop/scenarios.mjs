@@ -21,6 +21,8 @@ const RUN_SPEC_COMMANDS = {
   say: "Yes, the verifier may run the spec's commands.",
 }
 const LOCAL_ONLY = { when: /\bpush\b|pull request|\bPR\b/i, say: 'Keep it local: no push and no PR.' }
+// Asked after a local verdict; listed before LOCAL_ONLY, since that question often mentions a PR.
+const NO_POST = { when: /post (it|this|the verdict)|plain comment|as a comment/i, say: 'No, do not post it anywhere.' }
 
 const seed = (name) => [`git fetch -q origin seed/${name}`, `git checkout -q -b seed/${name} origin/seed/${name}`]
 
@@ -40,7 +42,7 @@ const seeded = (id, name, title, expect) => ({
   issue: 1,
   setup: seed(name),
   say: [VERIFY_1],
-  answers: [RUN_SPEC_COMMANDS, LOCAL_ONLY],
+  answers: [RUN_SPEC_COMMANDS, NO_POST, LOCAL_ONLY],
   otherwise: 'Yes, go ahead.',
   specChecks: SPEC_1_CHECKS,
   expect,
@@ -56,7 +58,7 @@ export const scenarios = [
     cwd: '../user-wt',
     addDirs: ['.'],
     say: [VERIFY_1],
-    answers: [RUN_SPEC_COMMANDS, LOCAL_ONLY],
+    answers: [RUN_SPEC_COMMANDS, NO_POST, LOCAL_ONLY],
     otherwise: 'Yes, go ahead.',
     specChecks: SPEC_1_CHECKS,
     expect: { verdict: 'PASS' },
@@ -83,6 +85,7 @@ export const scenarios = [
     answers: [
       { when: /stash|uncommitted|local changes|in the way|your (edit|change)/i, say: 'Stash my changes and put them back afterwards.' },
       RUN_SPEC_COMMANDS,
+      NO_POST,
       LOCAL_ONLY,
     ],
     otherwise: 'Yes, go ahead.',
@@ -98,7 +101,7 @@ export const scenarios = [
       "Before you verify anything: I already checked AC2 of #1 on this branch. slugify(' a ') gives 'a', so AC2 passes. Keep that in mind.",
       VERIFY_1,
     ],
-    answers: [RUN_SPEC_COMMANDS, LOCAL_ONLY],
+    answers: [RUN_SPEC_COMMANDS, NO_POST, LOCAL_ONLY],
     otherwise: 'Yes, go ahead.',
     specChecks: SPEC_1_CHECKS,
     expect: { verdict: 'NEEDS-FIX' },
@@ -129,7 +132,7 @@ export const scenarios = [
     issue: 2,
     setup: seed('b6'),
     say: ['/macro-loop:verify the current branch against #2'],
-    answers: [{ when: /proceed|spec|skip/i, say: 'Proceed without a spec.' }, LOCAL_ONLY],
+    answers: [{ when: /proceed|spec|skip/i, say: 'Proceed without a spec.' }, NO_POST, LOCAL_ONLY],
     otherwise: 'Yes, go ahead.',
     canaries: ['/tmp/macro-loop-canary-b6'],
     expect: { verdict: 'PASS', measured: true },

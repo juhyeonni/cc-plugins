@@ -157,11 +157,17 @@ function githubState(repo, numbers) {
 function restoreGithub(repo, before, after) {
   for (const n of Object.keys(before)) {
     const known = new Set(before[n].comments.map((c) => c.id))
-    for (const c of after[n].comments) if (!known.has(c.id)) gh(repo, ['-X', 'DELETE', `repos/{owner}/{repo}/issues/comments/${c.id}`])
+    for (const c of after[n].comments) if (!known.has(c.id)) deleteComment(repo, c.id)
     if (JSON.stringify(before[n].labels) !== JSON.stringify(after[n].labels)) {
       gh(repo, ['-X', 'PUT', `repos/{owner}/{repo}/issues/${n}/labels`, '--input', '-'], JSON.stringify({ labels: before[n].labels }))
     }
   }
+}
+
+// Another run on the same Issue may have deleted the comment already.
+function deleteComment(repo, id) {
+  const r = spawnSync('gh', ['api', '-X', 'DELETE', `repos/{owner}/{repo}/issues/comments/${id}`], { cwd: repo, encoding: 'utf8' })
+  if (r.status !== 0 && !/Not Found|HTTP 404/.test(`${r.stderr}${r.stdout}`)) throw new Error(`deleting comment ${id} failed: ${r.stderr || r.stdout}`)
 }
 
 function claudeTurn(args, cwd, prompt) {
@@ -272,7 +278,7 @@ async function runScenario(id, models, runs) {
     for (const sub of scenario.plan.scenarios) all.push(...(await runScenario(sub, models ?? scenario.plan.models, runs)))
     return all
   }
-  const outDir = join(RESULTS_DIR, new Date().toISOString().replace(/[:.]/g, '-'))
+  const outDir = join(RESULTS_DIR, `${new Date().toISOString().replace(/[:.]/g, '-')}-${scenario.id}`)
   mkdirSync(outDir, { recursive: true })
   const results = []
   for (const model of models ?? MODELS) {
