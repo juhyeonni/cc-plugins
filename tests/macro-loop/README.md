@@ -17,7 +17,7 @@ node tests/macro-loop/run.mjs --dry-run A1           # what A1 would run, withou
 node tests/macro-loop/run.mjs --seed                 # put seeds/*.patch on seed/* branches of the sandbox
 node tests/macro-loop/run.mjs C0 --model opus --runs 1
 node tests/macro-loop/run.mjs D1                     # C0 to C3, with Opus and Haiku, three runs each
-node --test tests/macro-loop/checks.test.mjs tests/macro-loop/run.test.mjs tests/macro-loop/diffsize.test.mjs tests/macro-loop/planted.test.mjs
+node --test tests/macro-loop/checks.test.mjs tests/macro-loop/run.test.mjs tests/macro-loop/diffsize.test.mjs tests/macro-loop/planted.test.mjs tests/macro-loop/lint.test.mjs
 ```
 
 Each run clones the sandbox into a fresh directory under the system temp folder, and refuses to go on if the clone is not the sandbox. It also deletes both canary files. Then it sets the scenario's state, sends the scripted turns and answers the plugin's questions by rule. Afterwards it reads the session's transcripts under `~/.claude/projects/`, runs the scenario's checks, puts the labels of every Issue and PR in the sandbox back, and deletes comments the run added. Without `--model`, a scenario runs with Opus and with Haiku. Results go to `results/`, one JSON file per run, plus a `report.txt`.
@@ -30,6 +30,8 @@ A scenario that runs `implement` (A2) also measures the size of its change (#63)
 
 S1 and C0 also record which planted slop items the verifiers' reports name (#62). `seed/s1` is c0's fix plus five items: a `separator` option, a `catch` fallback, a helper `collapseDashes` used once, a comment restating the next line, and `null` giving `''`. An item is named when its pattern is in the last report of its axis, read from the verifier's Agent result in the transcript; with no report for that axis, it is null. C0 carries the same list as the control. Each result holds them as `named`, and `report.txt` gives, per item, the runs that named it. It never decides a pass.
 
+L0 and L1 verify a PR whose base already fails lint (#61): L0 adds no lint finding, L1 adds one. Each result records, as `lint`, whether a verifier ran lint at the PR's head and at its base, judged by the detached checkout before each lint command. `report.txt` gives the runs that ran it at both, and their verdicts. It never decides a pass.
+
 ## Fixtures
 
 Made by the trusted account, and recreated with `--seed` where marked:
@@ -40,7 +42,8 @@ Made by the trusted account, and recreated with `--seed` where marked:
 | #1 | Collapse repeated dashes and trim them. It has a trusted spec, pinned, with three `cmd` checks |
 | #2 | Turn underscores into dashes. Its only spec marker comment is by an untrusted login |
 | #4 | Add a changelog. Its spec's only check is a bare `test -f`, for checks that cannot be read |
-| `seed/*` | One branch per patch in `seeds/` (`--seed`) |
+| `seed/*` | One branch per patch in `seeds/`, cut from `main`, or for `l0` and `l1` from `seed/lint-base` (`--seed`) |
+| PRs from `seed/l0` and `seed/l1` | Into `seed/lint-base`, which adds `npm run lint` and one existing lint finding. Each closes #1. `--seed` opens them when they are not open; L0 and L1 find them by their head branch |
 
 Made by hand in the browser, as the untrusted login `anpanmanni`, a collaborator on the sandbox. A cloud session can only act as its own account, so the suite cannot make these:
 
