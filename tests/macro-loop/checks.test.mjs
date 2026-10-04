@@ -115,10 +115,11 @@ test('checksOnDefaultBranch: equal hashes or a detach pass, code first fails', (
   assert.equal(c.checksOnDefaultBranch([differ, inHelper('npm test')]).pass, false)
 })
 
-test('readVerdict: from the comment, else from the line about the verdict', () => {
+test('readVerdict: from the comment, else from the latest reply that has one', () => {
   assert.equal(c.readVerdict({ comment: '<!-- macro-loop:verify round=1 -->\n## Verify: NEEDS-FIX (round 1 of 3)' }), 'NEEDS-FIX')
-  assert.equal(c.readVerdict({ lastText: 'AC1 passes.\n## Verify: INCONCLUSIVE, local only' }), 'INCONCLUSIVE')
-  assert.equal(c.readVerdict({ lastText: 'Nothing to report.' }), null)
+  assert.equal(c.readVerdict({ texts: ['May the verifier run them?', '## Verify: INCONCLUSIVE, local only', 'Nothing was posted.'] }), 'INCONCLUSIVE')
+  assert.equal(c.readVerdict({ texts: ['## Verify: NEEDS-FIX', 'Fixed. ## Verify: PASS'] }), 'PASS')
+  assert.equal(c.readVerdict({ texts: ['Nothing to report.'] }), null)
 })
 
 const run = (safe, verdict = 'PASS') => ({

@@ -163,10 +163,19 @@ export function stashKept(stash, message) {
 }
 
 // The verdict a run reached: from its verdict comment when it posted one,
-// else from the last message, the first verdict word on a line about the verdict.
-export function readVerdict({ comment, lastText }) {
-  const text = comment ?? lastText ?? ''
-  const lines = text.split('\n')
+// else from the latest reply that has one. A reply to a later question, such
+// as whether to post the verdict, often has none.
+export function readVerdict({ comment, texts = [] }) {
+  for (const text of comment != null ? [comment] : [...texts].reverse()) {
+    const hit = verdictIn(text)
+    if (hit) return hit
+  }
+  return null
+}
+
+// The first verdict word on a line about the verdict, else on any line.
+function verdictIn(text) {
+  const lines = String(text).split('\n')
   const about = lines.filter((l) => /verify|verdict/i.test(l))
   for (const line of [...about, ...lines]) {
     const hit = VERDICTS.find((v) => line.includes(v))

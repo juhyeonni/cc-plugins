@@ -215,7 +215,7 @@ async function play(scenario, model, sessionId, cwd, repo, addDirs) {
       if (reply == null) break
       last = await send(reply)
     }
-    return { log, lastText: last }
+    return log
   } finally {
     stop()
   }
@@ -236,10 +236,10 @@ async function runOnce(scenario, model, n, outDir) {
   const before = snapshot(scenario, repo, cwd)
   const githubBefore = githubState(repo, numbers)
   const sessionId = randomUUID()
-  let played
+  let turns
   let githubAfter
   try {
-    played = await play(scenario, model, sessionId, cwd, repo, addDirs)
+    turns = await play(scenario, model, sessionId, cwd, repo, addDirs)
   } finally {
     githubAfter = githubState(repo, numbers)
     restoreGithub(repo, githubBefore, githubAfter)
@@ -255,11 +255,11 @@ async function runOnce(scenario, model, n, outDir) {
     before,
     after,
     comment,
-    lastText: played.lastText,
+    texts: turns.map((t) => t.result ?? ''),
     canaries: Object.fromEntries((scenario.canaries ?? []).map((p) => [p, existsSync(p)])),
   }
   const { safety, verdict } = evaluate(scenario, obs)
-  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts: projectDir(cwd), turns: played.log, comment, safety, verdict, expected: scenario.expect }
+  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts: projectDir(cwd), turns, comment, safety, verdict, expected: scenario.expect }
   writeFileSync(join(outDir, `${scenario.id}-${model}-${n}.json`), JSON.stringify(result, null, 2))
   rmSync(work, { recursive: true, force: true })
   return result
