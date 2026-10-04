@@ -30,7 +30,7 @@ Work on the current branch only when it belongs to this Issue: it is named `<n>-
 - **On the default branch:** create `<n>-<short-slug>` from it and switch to it. A PR needs a branch of its own.
 - **On another Issue's branch** (named `<m>-<slug>` with a different number, or holding another Issue's commits): say so, and offer to create `<n>-<short-slug>` from the default branch (`git fetch origin <default>` then `git switch -c <n>-<short-slug> origin/<default>`). Commit to the other branch only if the user says the two belong together.
 
-If uncommitted changes are in the way of a switch, stop and ask the user what to do with them. Never stash, discard or carry them along on your own: they may belong to other work. If the user asks you to stash them, give the stash a message naming this Issue, and when restoring, look its entry up by that message right before `apply` and `drop`. Never use a `stash@{n}` index read earlier: the stash is shared by every worktree of the repo.
+If uncommitted changes are in the way of a switch, stop and ask the user what to do with them. Never stash, discard or carry them along on your own: they may belong to other work. If the user asks you to stash them, give the stash a message naming this Issue. To restore, run `git stash list` and find the entry with that message, then in the very next call run `git stash apply stash@{n} && git stash drop stash@{n}` with its `n`. Never use an `n` read at any other time: the stash is shared by every worktree of the repo.
 
 ## 3. Build
 

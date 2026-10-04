@@ -108,7 +108,7 @@ Failures already present on the base branch, behavior outside the spec (scope cr
 **Next:** <from step 8>
 ```
 
-Keep both reports as the verifiers wrote them, lightly cleaned. Don't merge or rerank findings across the axes: a change can follow every standard and still miss the spec, or match the spec and break the conventions, and one axis must not hide the other.
+Keep both reports as the verifiers wrote them, lightly cleaned. Add nothing of your own to them, such as a check this session ran earlier: a gap you see goes in your message to the user, outside the verdict. Don't merge or rerank findings across the axes: a change can follow every standard and still miss the spec, or match the spec and break the conventions, and one axis must not hide the other.
 
 **INCONCLUSIVE:** print what could not run and the error. Post no comment with the marker: an inconclusive run is not a round. Say what would let the checks run, then verify again.
 

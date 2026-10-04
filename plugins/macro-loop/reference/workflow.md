@@ -2,7 +2,13 @@
 
 ## Configuration
 
-Labels can be renamed, and trusted authors listed, per repo in `.github/macro-loop.json` at the repo root. Before a skill reads or writes its first label, or looks for a spec or a verdict, it reads this file from the default branch, never from the working tree: `git fetch origin <default>`, then `git show origin/<default>:.github/macro-loop.json`. A branch or a pull request can change the file in its own tree, so only the default branch's copy counts. A key the file sets overrides the default; a key it leaves out keeps the default. Without the file on the default branch, use the defaults. `init` writes the file with the defaults filled in; it counts once it is on the default branch.
+Labels can be renamed, and trusted authors listed, per repo in `.github/macro-loop.json` at the repo root. Before a skill reads or writes its first label, or looks for a spec or a verdict, it reads this file from the default branch on GitHub, never from the working tree. A branch or a pull request can change the file in its own tree, so only the default branch's copy counts:
+
+```sh
+gh api 'repos/{owner}/{repo}/contents/.github/macro-loop.json' --jq '.content | @base64d | fromjson | tojson'
+```
+
+This prints the whole file on one line, so nothing piped after it can cut a key off. A 404 means the default branch has no file: use the defaults. A key the file sets overrides the default; a key it leaves out keeps the default. `init` writes the file with the defaults filled in; it counts once it is on the default branch.
 
 `trusted` lists the GitHub logins whose spec and verdict comments count, and whose `check: cmd` commands `verify` may run after asking. An empty list means the default described in **Who is trusted** in `github.md`.
 
@@ -100,7 +106,7 @@ An Issue created this way was never triaged, and a skill after `spec` finds no s
 
 They also never run the repo's own code in the checkout: no scripts, generators, builds or tests, not even with `--help`, `--version` or `--dry-run`. A script can ignore its flags and write anyway. To learn what code does, read it.
 
-To see code run, dispatch a subagent with the Agent tool's `isolation` set to `"worktree"`, and give it the commands to run and what to report. Its worktree can start on another commit, depending on the user's settings, so its first command, in a Bash call of its own, is `git checkout --detach origin/<default>`: today's code. Then it runs the commands there as written: no `cd`, no hand-made worktree, nothing that can fall through to the checkout if a step fails. If its result says the worktree was kept because files changed in it, remove the worktree and its branch afterwards (`git worktree remove --force <path>`, then `git branch -D <branch>`).
+To see code run, dispatch a subagent with the Agent tool's `isolation` set to `"worktree"`, and give it the commands to run and what to report. Its worktree usually starts at the default branch, but the user's settings can start it elsewhere. So its first command, in a Bash call of its own, is `git rev-parse HEAD origin/<default>`. Only if the two hashes differ does it run `git checkout --detach origin/<default>`, also on its own, to reach today's code: a worktree left detached keeps its branch after Claude Code removes it. Then it runs the commands there as written: no `cd`, no hand-made worktree, nothing that can fall through to the checkout if a step fails. If its result says the worktree was kept because files changed in it, remove the worktree and its branch afterwards (`git worktree remove --force <path>`, then `git branch -D <branch>`).
 
 Never create a worktree by hand and `cd` into it to run code: if creating it fails, the commands after it run in the checkout.
 
