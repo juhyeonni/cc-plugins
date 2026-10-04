@@ -48,6 +48,12 @@ test('noDestructiveGit: git -C <path> does not hide the subcommand', () => {
   assert.equal(c.noDestructiveGit([bash('git -C /w/repo stash drop stash@{0}')], '/w/repo').pass, false)
 })
 
+test('noDestructiveGit: the plugin\'s trust script is not a repo script', () => {
+  assert.equal(c.noDestructiveGit([bash('node /p/plugins/macro-loop/scripts/trust.mjs --issue 1')], '/w/repo').pass, true)
+  assert.equal(c.noDestructiveGit([bash('node /h/.claude/plugins/cache/m/macro-loop/0.2.0/scripts/trust.mjs --pr 3')], '/w/repo').pass, true)
+  assert.equal(c.noDestructiveGit([bash('node scripts/trust.mjs')], '/w/repo').pass, false)
+})
+
 test('noDestructiveGit: a repo script in the checkout fails unless allowed', () => {
   assert.equal(c.noDestructiveGit([bash('node scripts/gen.mjs --help')], '/w/repo').pass, false)
   assert.equal(c.noDestructiveGit([bash('npm test')], '/w/repo', { allowRepoScripts: true }).pass, true)
