@@ -6,13 +6,13 @@ Parts of this plugin are derived from [mattpocock/skills](https://github.com/mat
 
 | File in this plugin | Upstream file | Change |
 |---|---|---|
-| `skills/grilling/SKILL.md` | `skills/productivity/grilling/SKILL.md` | Copied unchanged |
+| `skills/grilling/SKILL.md` | `skills/productivity/grilling/SKILL.md` | Modified: adds a read-only working tree rule |
 | `skills/triage/SKILL.md` | `skills/engineering/triage/SKILL.md` | Modified |
 | `skills/spec/SKILL.md` | `skills/engineering/to-spec/SKILL.md` | Modified |
 | `skills/spec/WRITING-RULES.md` | `skills/engineering/triage/AGENT-BRIEF.md` | Modified |
 | `skills/implement/SKILL.md` | `skills/engineering/implement/SKILL.md` | Modified |
 | `skills/verify/SKILL.md` | `skills/engineering/code-review/SKILL.md` | Modified |
-| `agents/verifier.md` (the two axis briefs) | `skills/engineering/code-review/SKILL.md` | Modified |
+| `agents/verifier.md` (the axis briefs and the smell baseline) | `skills/engineering/code-review/SKILL.md` | Modified |
 | `skills/open-pr/SKILL.md` (PR body template) | `skills/engineering/pr/SKILL.md` | Modified |
 | `skills/init/SKILL.md` | `skills/engineering/setup-matt-pocock-skills/SKILL.md` | Modified |
 

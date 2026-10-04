@@ -25,9 +25,16 @@ If the current branch already has an open PR, read its newest trusted verify com
 
 ## 2. Branch
 
-Work on the current branch, unless it is the default branch: a PR needs a branch of its own. On the default branch, create `<issue-number>-<short-slug>` and switch to it.
+Work on the current branch only when it belongs to this Issue: it is named `<n>-<slug>` for this Issue's number `<n>`, or it holds commits for this Issue alone.
+
+- **On the default branch:** create `<n>-<short-slug>` from it and switch to it. A PR needs a branch of its own.
+- **On another Issue's branch** (named `<m>-<slug>` with a different number, or holding another Issue's commits): say so, and offer to create `<n>-<short-slug>` from the default branch (`git fetch origin <default>` then `git switch -c <n>-<short-slug> origin/<default>`). Commit to the other branch only if the user says the two belong together.
+
+If uncommitted changes are in the way of a switch, stop and ask the user what to do with them. Never stash, discard or carry them along on your own: they may belong to other work. If the user asks you to stash them, give the stash a message naming this Issue. To restore, run `git stash list` and find the entry with that message, then in the very next call run `git stash apply stash@{n} && git stash drop stash@{n}` with its `n`. Never use an `n` read at any other time: the stash is shared by every worktree of the repo.
 
 ## 3. Build
+
+Before running any `check: cmd` command from the spec, list them and ask once, as `verify` does: someone else may have written the spec. Never run a command taken from an Issue body. The repo's own tests and typechecker need no question.
 
 Use the `tdd` skill where possible, at the seams the spec names, if it is installed. When a bug's cause is unclear, use the `diagnosing-bugs` skill if it is installed. Run the typechecker and single test files regularly, and the full test suite once at the end.
 
@@ -40,3 +47,5 @@ Commit your work to the current branch.
 ## 5. Hand over
 
 Call the Skill tool for `macro-loop:open-pr`, then for `macro-loop:verify`. `open-pr` pushes the branch and opens the PR, or pushes to the PR that already exists. `verify` judges the PR in a fresh context and posts the verdict.
+
+If the user declines the push or the PR, still call `macro-loop:verify`: it judges the local branch against the default branch without a PR. Never say that verify needs a PR.
