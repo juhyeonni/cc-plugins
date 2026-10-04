@@ -4,7 +4,9 @@ Every skill in this plugin reads and writes GitHub through the REST API with `gh
 
 Run `gh api` from inside the repo's clone. `{owner}` and `{repo}` in an endpoint are filled in from the clone's git remote.
 
-Write a comment, Issue or PR body to a temporary file made with `mktemp`, and pass it with `-F body=@<file>`, so quotes and newlines survive. Remove the file afterwards; never write it into the repo or next to it.
+Write a comment, Issue or PR body with the Write tool into a file in a directory made with `mktemp -d`, and pass it with `-F body=@<file>`, so quotes and newlines survive. Remove the directory afterwards; never write the file into the repo or next to it. A body's text never goes inside a Bash command, not in a heredoc and not in `echo`: Claude Code's permission check cannot read such a command, and stops it before it runs.
+
+A comment, Issue or PR counts as posted only when the POST printed its id: `.id` for a comment, `.number` or `.html_url` for an Issue or a PR. If the POST failed or printed nothing, it was not posted: say so, with the error. Confirm a post by that id, never by finding a comment that starts with a marker: any login can write one.
 
 ## Issues
 

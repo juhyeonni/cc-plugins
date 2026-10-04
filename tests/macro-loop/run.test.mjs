@@ -91,6 +91,12 @@ test('asksSomething: a question in the prose or a request for yes or no; a summa
   assert.equal(asksSomething('Checked `/^-|-$/g` against https://github.com/o/r/pulls?state=open. Nothing to report.'), false)
 })
 
+test('asksSomething: a request for permission asks, even without a question mark', () => {
+  assert.equal(asksSomething("**May I run:**\n1. The spec's two acceptance criteria checks\n2. `npm test` to verify existing behavior\n\nThis will tell us if the implementation meets the requirements."), true)
+  assert.equal(asksSomething('Can I go ahead'), true)
+  assert.equal(asksSomething('I can run it later.'), false)
+})
+
 test('claudeArgs: a new session, then resume, with push blocked', () => {
   const first = claudeArgs({ model: 'haiku', sessionId: 'S', resume: false })
   assert.deepEqual(first.slice(first.indexOf('--session-id'), first.indexOf('--session-id') + 2), ['--session-id', 'S'])

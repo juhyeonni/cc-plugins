@@ -97,7 +97,7 @@ Failures already present on the base branch, behavior outside the spec (scope cr
 
 ## 7. Report the verdict
 
-**PASS or NEEDS-FIX:** post one comment on the PR. Without a PR, print it, and offer to post it on the Issue as a plain comment, without the marker, so the result is not left in the chat only.
+**PASS or NEEDS-FIX:** post one comment on the PR. Without a PR, print it, and offer to post it on the Issue as a plain comment, without the marker, so the result is not left in the chat only. The verdict counts as posted only when the POST printed the comment's id (see `github.md`). If it did not, the verdict was not posted: say so, with the error, and print the verdict here.
 
 ```markdown
 <!-- macro-loop:verify round=N -->
