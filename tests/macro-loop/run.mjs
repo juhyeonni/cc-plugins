@@ -13,6 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { aggregate, evaluate, formatReport } from './checks.mjs'
 import { branchTips, measureDiff } from './diffsize.mjs'
+import { lintSides } from './lint.mjs'
 import { namedItems } from './planted.mjs'
 import { loadCalls, projectDir } from './transcript.mjs'
 import { CANARIES, SANDBOX, findScenario, scenarios } from './scenarios.mjs'
@@ -24,13 +25,15 @@ const RESULTS_DIR = join(here, 'results')
 const WORK_ROOT = join(tmpdir(), 'macro-loop-suite')
 const MODELS = ['opus', 'haiku']
 const MAX_ANSWERS = 4
+// A seed cut from another seed's branch instead of main (#61). Bases are seeded first.
+const SEED_BASES = { l0: 'lint-base', l1: 'lint-base' }
 
 // Pushing and opening PRs are blocked: a blocked push is the user declining it.
 const DISALLOWED = ['Bash(git push:*)', 'Bash(gh pr:*)', 'Bash(gh api -X POST repos/{owner}/{repo}/pulls:*)']
 const ALLOWED = [
   'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Skill', 'Agent', 'TodoWrite',
   'Bash(gh api:*)', 'Bash(git:*)', 'Bash(ls:*)', 'Bash(cat:*)', 'Bash(mktemp:*)', 'Bash(grep:*)',
-  'Bash(wc:*)', 'Bash(tail:*)', 'Bash(head:*)', 'Bash(jq:*)', 'Bash(node:*)', 'Bash(npm test:*)',
+  'Bash(wc:*)', 'Bash(tail:*)', 'Bash(head:*)', 'Bash(jq:*)', 'Bash(node:*)', 'Bash(npm test:*)', 'Bash(npm run lint:*)',
   'Bash(diff:*)', 'Bash(sed:*)', 'Bash(sort:*)', 'Bash(find:*)', 'Bash(test:*)', 'Bash(mkdir:*)',
   'Bash(printf:*)', 'Bash(echo:*)', 'Bash(rm /tmp/*)',
 ]
@@ -111,6 +114,8 @@ export function dryRun(scenario, models = MODELS) {
     '',
     `Checks: ${scenario.checks.join(', ')}`,
     ...(scenario.measureDiff ? ['Measures the diff size of the branch implement commits to'] : []),
+    ...(scenario.prHead ? [`PR: the open PR from ${scenario.prHead} into ${scenario.prBase}, found at run time`] : []),
+    ...(scenario.measureLint ? ['Records whether a verifier ran lint at the head and at the base'] : []),
     ...(scenario.planted ? [`Planted items, by report: ${scenario.planted.map((p) => `${p.name} ${p.axis} ${p.pattern}`).join(', ')}`] : []),
     `Expected verdict: ${scenario.expect.verdict ?? 'none'}${scenario.expect.measured ? ' (measured)' : ''}`,
   ].join('\n')
@@ -124,6 +129,13 @@ function sh(cmd, args, cwd, input) {
 
 const git = (cwd, ...args) => sh('git', args, cwd)
 const gh = (cwd, args, input) => sh('gh', ['api', ...args], cwd, input)
+const OWNER = SANDBOX.split('/')[0]
+
+// The number of the open PR from a branch of the sandbox, or null.
+function openPr(repo, head) {
+  const n = gh(repo, [`repos/{owner}/{repo}/pulls?head=${OWNER}:${head}&state=open`, '--jq', '.[0].number // empty'])
+  return n === '' ? null : Number(n)
+}
 
 // A deny rule matches only a command's start: `git -C <path> push` passed it in A2 (#57).
 export function blockPushes(repo) {
@@ -268,6 +280,8 @@ async function runOnce(scenario, model, n, outDir) {
   for (const command of scenario.setup) sh('bash', ['-c', command], repo)
   const cwd = resolve(repo, scenario.cwd ?? '.')
   const addDirs = (scenario.addDirs ?? []).map((d) => resolve(repo, d))
+  const pr = scenario.prHead ? openPr(repo, scenario.prHead) : scenario.pr
+  if (pr === null) throw new Error(`no open PR from ${scenario.prHead}; run --seed first`)
   const numbers = sandboxNumbers(repo)
   const before = snapshot(scenario, repo, cwd)
   const githubBefore = githubState(repo, numbers)
@@ -281,9 +295,9 @@ async function runOnce(scenario, model, n, outDir) {
     restoreGithub(repo, githubBefore, githubAfter)
   }
   const after = snapshot(scenario, repo, cwd)
-  const known = new Set((githubBefore[scenario.pr]?.comments ?? []).map((c) => c.id))
-  const comment = scenario.pr
-    ? githubAfter[scenario.pr].comments.find((c) => !known.has(c.id) && c.body.startsWith('<!-- macro-loop:verify'))?.body ?? null
+  const known = new Set((githubBefore[pr]?.comments ?? []).map((c) => c.id))
+  const comment = pr
+    ? githubAfter[pr].comments.find((c) => !known.has(c.id) && c.body.startsWith('<!-- macro-loop:verify'))?.body ?? null
     : null
   const obs = {
     calls: loadCalls(projectDir(cwd), sessionId),
@@ -297,10 +311,19 @@ async function runOnce(scenario, model, n, outDir) {
   const { safety, verdict } = evaluate(scenario, obs)
   const size = scenario.measureDiff ? measureDiff(repo, before.tips, after.tips) : {}
   const named = scenario.planted ? { named: namedItems(scenario.planted, obs.calls) } : {}
-  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts: projectDir(cwd), turns, comment, safety, verdict, expected: scenario.expect, ...size, ...named }
+  const lint = scenario.measureLint ? { lint: lintSides(obs.calls, prSides(repo, scenario)) } : {}
+  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts: projectDir(cwd), turns, comment, safety, verdict, expected: scenario.expect, ...size, ...named, ...lint }
   writeFileSync(join(outDir, `${scenario.id}-${model}-${n}.json`), JSON.stringify(result, null, 2))
   rmSync(work, { recursive: true, force: true })
   return result
+}
+
+// The refs and shas that name the PR's head and base, as a verifier may check them out.
+function prSides(repo, { prHead, prBase }) {
+  return {
+    head: [git(repo, 'rev-parse', `origin/${prHead}`)],
+    base: [`origin/${prBase}`, git(repo, 'rev-parse', `origin/${prBase}`)],
+  }
 }
 
 async function runScenario(id, models, runs) {
@@ -324,7 +347,19 @@ async function runScenario(id, models, runs) {
   return results
 }
 
-// Puts each patch in seeds/ on its own `seed/<name>` branch of the sandbox, cut from main.
+// The seeds in seeds/, each with the branch it is cut from: bases first, each group by name.
+export function seedPlan(files) {
+  return files
+    .filter((f) => f.endsWith('.patch'))
+    .map((f) => {
+      const name = f.replace(/\.patch$/, '')
+      return { name, base: SEED_BASES[name] ?? 'main' }
+    })
+    .sort((a, b) => (a.base !== 'main') - (b.base !== 'main') || a.name.localeCompare(b.name))
+}
+
+// Puts each patch in seeds/ on its own `seed/<name>` branch of the sandbox, cut from main or
+// from its base's seed branch. A seed with a base gets an open PR into that base, for sandbox #1.
 function seedSandbox() {
   const work = join(WORK_ROOT, 'seed')
   rmSync(work, { recursive: true, force: true })
@@ -332,13 +367,15 @@ function seedSandbox() {
   const repo = join(work, 'repo')
   git(work, 'clone', '-q', `https://github.com/${SANDBOX}`, repo)
   assertSandbox(git(repo, 'remote', 'get-url', 'origin'))
-  for (const file of readdirSync(SEEDS_DIR).filter((f) => f.endsWith('.patch')).sort()) {
-    const name = file.replace(/\.patch$/, '')
-    git(repo, 'checkout', '-q', '-B', `seed/${name}`, 'origin/main')
-    git(repo, 'apply', join(SEEDS_DIR, file))
-    git(repo, 'commit', '-q', '-am', `Seed ${name}`)
+  for (const { name, base } of seedPlan(readdirSync(SEEDS_DIR))) {
+    git(repo, 'checkout', '-q', '-B', `seed/${name}`, base === 'main' ? 'origin/main' : `seed/${base}`)
+    git(repo, 'apply', '--index', join(SEEDS_DIR, `${name}.patch`))
+    git(repo, 'commit', '-q', '-m', `Seed ${name}`)
     git(repo, 'push', '-q', '--force-with-lease', 'origin', `seed/${name}`)
     console.log(`seed/${name} pushed`)
+    if (base === 'main' || openPr(repo, `seed/${name}`) !== null) continue
+    const url = gh(repo, ['-X', 'POST', 'repos/{owner}/{repo}/pulls', '-f', `title=Seed ${name}`, '-f', `head=seed/${name}`, '-f', `base=seed/${base}`, '-f', `body=Closes #1\n\nA fixture of the macro-loop scenario suite. Do not merge.`, '--jq', '.html_url'])
+    console.log(`PR from seed/${name} into seed/${base}: ${url}`)
   }
   rmSync(work, { recursive: true, force: true })
 }

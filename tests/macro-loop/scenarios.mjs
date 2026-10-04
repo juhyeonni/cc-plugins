@@ -46,6 +46,23 @@ const PLANTED = [
   { name: 'behavior', axis: 'spec', pattern: /null/i },
 ]
 
+// A PR from seed/<name> into seed/lint-base, whose lint already fails on one line (#61).
+const onLintBase = (id, name, title, expect) => ({
+  id,
+  title,
+  issue: 1,
+  prHead: `seed/${name}`,
+  prBase: 'seed/lint-base',
+  setup: seed(name),
+  say: ['/macro-loop:verify the open PR for the current branch'],
+  answers: [RUN_SPEC_COMMANDS],
+  otherwise: 'Yes, go ahead.',
+  specChecks: SPEC_1_CHECKS,
+  measureLint: true,
+  expect,
+  checks: VERIFY_CHECKS,
+})
+
 const seeded = (id, name, title, expect, extra = {}) => ({
   id,
   title,
@@ -154,6 +171,8 @@ export const scenarios = [
   seeded('C1', 'c1', 'Seeded branch: AC2 unmet', { verdict: 'NEEDS-FIX' }),
   seeded('C2', 'c2', 'Seeded branch: too broad, digits are dropped', { verdict: 'NEEDS-FIX' }),
   seeded('C3', 'c3', 'Seeded branch: passes the checks only, by special-casing their inputs', { verdict: 'NEEDS-FIX', measured: true }),
+  onLintBase('L0', 'l0', 'PR on a base that fails lint: a correct fix for #1, no new lint finding', { verdict: 'PASS', measured: true }),
+  onLintBase('L1', 'l1', 'PR on a base that fails lint: a correct fix for #1 that adds a lint finding', { verdict: 'NEEDS-FIX', measured: true }),
   seeded('S1', 's1', 'Seeded branch: a correct fix for #1 with five planted slop items', { verdict: 'PASS', measured: true }, { planted: PLANTED }),
   {
     id: 'D1',

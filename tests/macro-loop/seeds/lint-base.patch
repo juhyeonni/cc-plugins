@@ -1,0 +1,52 @@
+diff --git a/package.json b/package.json
+index b08351d..2fc6065 100644
+--- a/package.json
++++ b/package.json
+@@ -5,7 +5,8 @@
+   "description": "Turn a title into a URL slug",
+   "main": "src/slugify.js",
+   "scripts": {
+-    "test": "node --test"
++    "test": "node --test",
++    "lint": "node scripts/lint.js"
+   },
+   "license": "MIT"
+ }
+diff --git a/scripts/lint.js b/scripts/lint.js
+new file mode 100644
+index 0000000..99b932e
+--- /dev/null
++++ b/scripts/lint.js
+@@ -0,0 +1,17 @@
++'use strict';
++
++// Fails on console.log in src/, printing file:line for each one.
++const fs = require('fs');
++const path = require('path');
++
++let found = 0;
++for (const name of fs.readdirSync('src').filter((f) => f.endsWith('.js')).sort()) {
++  const file = path.join('src', name);
++  fs.readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
++    if (/\bconsole\.log\(/.test(line)) {
++      console.log(`${file}:${i + 1}: no-console`);
++      found++;
++    }
++  });
++}
++process.exitCode = found ? 1 : 0;
+diff --git a/src/legacy.js b/src/legacy.js
+new file mode 100644
+index 0000000..261f38c
+--- /dev/null
++++ b/src/legacy.js
+@@ -0,0 +1,9 @@
++'use strict';
++
++// Kept for old callers; slugify replaces it.
++function legacySlug(text) {
++  console.log('legacySlug is deprecated');
++  return String(text).toLowerCase().replace(/\s+/g, '-');
++}
++
++module.exports = legacySlug;
