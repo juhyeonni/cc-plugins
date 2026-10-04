@@ -96,7 +96,9 @@ An Issue created this way was never triaged, and a skill after `spec` finds no s
 
 ## Working tree before implement
 
-`triage`, `grilling` and `spec` treat the working tree as read-only: they never change files in the checkout, switch branches or move `HEAD`. They read files, `git log` and `git show origin/<default>:<path>`. Anything that writes, such as a generator, a build or a test run that leaves files behind, runs in a temporary worktree instead:
+`triage`, `grilling` and `spec` treat the working tree as read-only: they never change files in the checkout, switch branches or move `HEAD`. They read files, `git log` and `git show origin/<default>:<path>`.
+
+They also never run the repo's own code in the checkout: no scripts, generators, builds or tests, not even with `--help`, `--version` or `--dry-run`. A script can ignore its flags and write anyway. To learn what code does, read it. To see it run, use a temporary worktree:
 
 ```sh
 tmp=$(mktemp -d) && git worktree add --detach "$tmp" origin/<default>

@@ -38,7 +38,7 @@ Explore the codebase enough to make the criteria concrete: what exists today, wh
 
 "Today" means the default branch. Run `git fetch origin <default>` and read with `git show origin/<default>:<path>`. If another branch is checked out, say so: its unmerged changes are not today's behavior, and a criterion must not depend on them.
 
-The working tree is read-only for this skill. Anything that writes runs in a temporary worktree; see **Working tree before implement** in `workflow.md`.
+The working tree is read-only for this skill, and the repo's code never runs in the checkout, not even with `--help`. Anything that runs code goes in a temporary worktree; see **Working tree before implement** in `workflow.md`.
 
 ### 4. Draft
 
@@ -65,6 +65,10 @@ Each criterion names how it is checked:
 - `test`: an automated test covers it. Say which behavior the test checks, not which file it lives in.
 - ``cmd `<command>` ``: a command whose output shows it.
 - `manual`: only a person can check it. `verify` lists it for them instead of guessing.
+
+A `cmd` check changes nothing where it runs, or says that it runs in a temporary worktree. It fails, by exit code or by visible output, when its criterion is unmet: one assertion per command, so a pass on one part cannot hide a failure on another.
+
+Never mention uncommitted, untracked or other local-only files. Readers of the Issue cannot see them.
 
 Keep it short. A spec that needs scrolling is usually two Issues.
 

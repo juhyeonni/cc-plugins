@@ -27,4 +27,6 @@ Finding _facts_ is your job, never the user's. When a frontier question needs a 
 
 The session is done when the frontier is empty: every branch of the design tree visited, nothing left silently assumed. Do not act on it until the user confirms you have reached a shared understanding.
 
-While grilling, the working tree is read-only: find facts by reading files, `git log` and `git show`. Anything that writes, such as a generator, a build or a test run that leaves files behind, runs in a temporary worktree (`tmp=$(mktemp -d) && git worktree add --detach "$tmp" HEAD`, removed afterwards with `git worktree remove --force "$tmp"`). Never use `git checkout -- .`, `git restore .`, `git reset --hard` or `git clean`: they throw away uncommitted work.
+While grilling, the working tree is read-only: find facts by reading files, `git log` and `git show`. Never run the repo's own scripts, generators, builds or tests in the checkout, not even with `--help` or `--dry-run`: a script can ignore its flags and write anyway. Read the code to learn what it does. To see it run, use a temporary worktree (`tmp=$(mktemp -d) && git worktree add --detach "$tmp" HEAD`, removed afterwards with `git worktree remove --force "$tmp"`). Never use `git checkout -- .`, `git restore .`, `git reset --hard` or `git clean`: they throw away uncommitted work.
+
+Read a GitHub Issue with REST: `gh api repos/{owner}/{repo}/issues/<n>` and `gh api --paginate repos/{owner}/{repo}/issues/<n>/comments`. `gh issue` and `gh pr` call GraphQL, which Claude Code cloud sessions block.

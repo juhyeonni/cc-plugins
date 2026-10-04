@@ -31,6 +31,11 @@ The implementer needs to know when it is done, and `verify` needs something to c
 - **Good:** "AC2. After triage moves an Issue to `needs-info`, listing open Issues with that label includes it · check: cmd `gh api 'repos/{owner}/{repo}/issues?labels=needs-info'`"
 - **Bad:** "Triage should work correctly"
 
+A `cmd` check must be safe and able to fail:
+
+- It changes nothing where it runs. If it has to write, such as running a generator, it says that it runs in a temporary worktree.
+- It fails, by exit code or visible output, when the criterion is unmet. `git check-ignore a b c` passes if any one path is ignored, so check each path on its own.
+
 ## Explicit scope
 
 State what is out of scope. It keeps the implementer from gold-plating, and gives `verify` a line to measure scope creep against.
