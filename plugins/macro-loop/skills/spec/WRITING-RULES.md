@@ -36,6 +36,7 @@ A `cmd` check must be safe and able to fail:
 - It names its exact command in backticks. "check: cmd in a temporary worktree" with no command gives `verify` nothing to run or ask about.
 - It changes nothing where it runs. If it has to write, such as running a generator, it says that it runs in a temporary worktree.
 - It fails, by exit code, when the criterion is unmet. `git check-ignore a b c` passes if any one path is ignored, so check each path on its own. `node script.mjs; echo $?` always exits 0, so drop the `echo`. For something that must not happen, negate the command: `! git check-ignore -q .env.example` fails once `.env.example` is ignored.
+- Its failure shows in the tool result. A bare `test`, `[` or `grep -q` prints nothing whether it passes or fails, and the Bash tool hides its exit code 1, so neither `spec` nor `verify` can read it. Use a command that prints or fails visibly: `ls <path>`, `git ls-files --error-unmatch <path>`, `grep -c` (it prints the count), `cmp`, or a `node -e` assertion. A `diff`, or a `grep` without `-q`, is readable through its output.
 - It is a plain command: no `$(…)`, `bash -c` or shell variables. Permission checks cannot read those, and `verify` runs each check exactly as written.
 - It fails on today's code when the criterion describes something not built yet. Run it once there before publishing; a check that already passes checks nothing. A check that guards existing behavior passes today; mark it `(guards existing behavior)`.
 

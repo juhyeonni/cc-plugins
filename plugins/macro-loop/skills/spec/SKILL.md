@@ -66,7 +66,7 @@ Each criterion names how it is checked:
 - ``cmd `<command>` ``: a command whose output shows it.
 - `manual`: only a person can check it. `verify` lists it for them instead of guessing.
 
-A `cmd` check names its exact command in backticks; a criterion you cannot express as a command is `test` or `manual`. A criterion that something must not happen is still a command: negate it with `!`, as in `! git check-ignore -q .env.example`. The command changes nothing where it runs, or says that it runs in a temporary worktree. It fails, by exit code, when its criterion is unmet: one assertion per command, and nothing after it that hides its exit code (no `; echo $?`).
+A `cmd` check names its exact command in backticks; a criterion you cannot express as a command is `test` or `manual`. A criterion that something must not happen is still a command: negate it with `!`, as in `! git check-ignore -q .env.example`. The command changes nothing where it runs, or says that it runs in a temporary worktree. It fails, by exit code, when its criterion is unmet: one assertion per command, and nothing after it that hides its exit code (no `; echo $?`). Its failure must also show in the tool result: a bare `test`, `[` or `grep -q` prints nothing either way, and the Bash tool hides its exit code 1. Use `ls <path>`, `git ls-files --error-unmatch <path>`, `grep -c`, `cmp` or a `node -e` assertion instead.
 
 Write each command plainly, without `$(…)`, `bash -c` or shell variables, so permission checks can read it and `verify` can run it exactly as written.
 
