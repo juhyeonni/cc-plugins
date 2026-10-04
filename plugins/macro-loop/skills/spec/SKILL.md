@@ -68,7 +68,9 @@ Each criterion names how it is checked:
 
 A `cmd` check names its exact command in backticks; a criterion you cannot express as a command is `test` or `manual`. The command changes nothing where it runs, or says that it runs in a temporary worktree. It fails, by exit code, when its criterion is unmet: one assertion per command, and nothing after it that hides its exit code (no `; echo $?`).
 
-Before publishing, run each `cmd` check once on today's code through a subagent with worktree isolation, and say what happened in the draft. A check for something not built yet must fail there; a check that already passes checks nothing, so fix it.
+Write each command plainly, without `$(…)`, `bash -c` or shell variables, so permission checks can read it and `verify` can run it exactly as written.
+
+Before publishing, run each `cmd` check once on today's code through a subagent with worktree isolation, and say what happened in the draft. A check for new behavior must fail there; one that already passes checks nothing, so fix it. A check that guards existing behavior passes today and must keep passing; mark it `(guards existing behavior)`.
 
 Never mention uncommitted, untracked or other local-only files. Readers of the Issue cannot see them.
 

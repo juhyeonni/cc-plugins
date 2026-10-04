@@ -43,7 +43,7 @@ The verifiers run code on this machine only with the user's go-ahead, and only i
 - **Spec commands.** When the spec comes from a trusted spec comment, list every `check: cmd` command in it; verify asks once whether the verifier may run them. On no, the verifier judges those criteria from the diff. When the judgment is against an Issue body, no command from it ever runs, and there is nothing to ask.
 - **Tests and lint.** When the PR's author is not trusted (see `github.md`), say so and ask before the verifier runs the repo's tests and lint at the PR head: the PR's author controls those commands. For a trusted author, or without a PR, they run.
 
-Ask both questions in one message.
+Ask both questions in one message. If the user already approved these same commands earlier in this session, for example when `implement` asked, say so and use that answer instead of asking again.
 
 ## 5. Identifiers only: start both verifiers
 
