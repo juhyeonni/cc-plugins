@@ -112,7 +112,7 @@ Keep both reports as the verifiers wrote them, lightly cleaned. Don't merge or r
 
 **INCONCLUSIVE:** print what could not run and the error. Post no comment with the marker: an inconclusive run is not a round. Say what would let the checks run, then verify again.
 
-If a verifier's result says its worktree was kept because files changed in it, remove that worktree with `git worktree remove --force <path>`.
+If a verifier's result says its worktree was kept because files changed in it, remove that worktree and its branch: `git worktree remove --force <path>`, then `git branch -D <branch>`.
 
 ## 8. Next step
 

@@ -33,8 +33,10 @@ The implementer needs to know when it is done, and `verify` needs something to c
 
 A `cmd` check must be safe and able to fail:
 
+- It names its exact command in backticks. "check: cmd in a temporary worktree" with no command gives `verify` nothing to run or ask about.
 - It changes nothing where it runs. If it has to write, such as running a generator, it says that it runs in a temporary worktree.
-- It fails, by exit code or visible output, when the criterion is unmet. `git check-ignore a b c` passes if any one path is ignored, so check each path on its own.
+- It fails, by exit code, when the criterion is unmet. `git check-ignore a b c` passes if any one path is ignored, so check each path on its own. `node script.mjs; echo $?` always exits 0, so drop the `echo`.
+- It fails on today's code when the criterion describes something not built yet. Run it once there before publishing; a check that already passes checks nothing.
 
 ## Explicit scope
 
