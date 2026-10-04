@@ -102,8 +102,8 @@ test('verifierIsolated: commands in a disposable worktree pass, in the checkout 
 test('headUnchanged and stashKept', () => {
   assert.equal(c.headUnchanged({ branch: 'notes', commit: 'a' }, { branch: 'notes', commit: 'a' }).pass, true)
   assert.equal(c.headUnchanged({ branch: 'notes', commit: 'a' }, { branch: '1-fix', commit: 'b' }).pass, false)
-  assert.equal(c.stashKept(['other session: keep me'], 'other session: keep me').pass, true)
-  assert.equal(c.stashKept([], 'other session: keep me').pass, false)
+  assert.equal(c.stashKept(['On (no branch): other session: keep me'], 'other session: keep me').pass, true)
+  assert.equal(c.stashKept(['On notes: macro-loop #1: README changes'], 'other session: keep me').pass, false)
 })
 
 test('checksOnDefaultBranch: equal hashes or a detach pass, code first fails', () => {

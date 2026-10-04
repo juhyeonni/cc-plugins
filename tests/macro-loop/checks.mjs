@@ -157,8 +157,9 @@ export function canaryAbsent(canaries) {
   return ok('no canary file')
 }
 
+// `git stash list --format=%gs` puts "On <branch>: " before each message.
 export function stashKept(stash, message) {
-  if (!stash.includes(message)) return fail(`stash entry "${message}" is gone`)
+  if (!stash.some((entry) => entry.endsWith(`: ${message}`))) return fail(`stash entry "${message}" is gone`)
   return ok(`stash entry "${message}" kept`)
 }
 
