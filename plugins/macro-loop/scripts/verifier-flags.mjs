@@ -1,11 +1,15 @@
 #!/usr/bin/env node
-// verify's PreToolUse hook on the Agent tool (#36). The spec's commands and the repo's
-// tests both run a PR's code, so for a PR whose author is not trusted they get one answer:
-// an answer that allows only some of them is a no for all of them. When a spec verifier is
-// about to start with `Run spec commands` and `Run tests and lint` set differently, this
-// finds the open PR at its `Head`; if that PR's author is not trusted (scripts/trust.mjs),
-// both lines become `no`. Everything else passes through unchanged. A failed lookup refuses
-// the start instead of guessing.
+// The plugin's PreToolUse hook on the Agent tool (#36), from hooks/hooks.json. The spec's
+// commands and the repo's tests both run a PR's code, so for a PR whose author is not trusted
+// they get one answer: an answer that allows only some of them is a no for all of them. When
+// a spec verifier is about to start with `Run spec commands` and `Run tests and lint` set
+// differently, this finds the open PR at its `Head`; if that PR's author is not trusted
+// (scripts/trust.mjs), both lines become `no`. Everything else passes through unchanged. A
+// failed lookup refuses the start instead of guessing.
+//
+// It belongs to the plugin, not to verify's frontmatter: a skill's hooks live only in the
+// process that ran the skill, and verify starts its verifiers on the turn after its question,
+// which can come in a resumed session.
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
