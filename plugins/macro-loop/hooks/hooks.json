@@ -1,11 +1,17 @@
 {
-  "description": "For a PR whose author is not trusted, gives verify's spec verifier the same answer for the spec's commands and the tests (scripts/verifier-flags.mjs). Every other Agent call passes through unchanged.",
+  "description": "Holds verify's verifiers to two rules: for a PR whose author is not trusted, the spec verifier gets the same answer for the spec's commands and the tests (scripts/verifier-flags.mjs), and a verifier runs commands only in its own worktree (scripts/verifier-worktree.mjs). Every other call passes through unchanged.",
   "hooks": {
     "PreToolUse": [
       {
         "matcher": "Agent",
         "hooks": [
           { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/verifier-flags.mjs"] }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/verifier-worktree.mjs"] }
         ]
       }
     ]

@@ -80,7 +80,11 @@ If something about the change seems worth a verifier's attention, it goes in you
 
 Never run a spec's checks yourself, and never offer to: this session may be the one that wrote the change. Only the verifiers' reports decide the verdict.
 
+Claude Code removes a verifier's worktree when it ends without changes, so a verifier continued with `SendMessage` would run in this checkout: never continue a verifier with `SendMessage`. This plugin's hook, `scripts/verifier-worktree.mjs`, refuses any command a verifier would run outside its own worktree.
+
 ## 6. Decide the verdict
+
+A verifier of either axis that stops without a report, or whose commands the hook refused, makes the run INCONCLUSIVE: print which axis did not report and why, post nothing, and say what would let it run. The verdict comment needs both reports, and one axis must not hide the other.
 
 From the Spec verifier's report:
 
