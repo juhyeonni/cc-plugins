@@ -35,6 +35,11 @@ If three or more verdicts exist and the newest is NEEDS-FIX, the cap is reached:
   - The local branch has commits the PR lacks: ask the user to push them first, or run `open-pr`.
   - The PR has commits the local checkout lacks, or verify was started on another branch: offer to check out the PR head (see `github.md`) and continue there.
 - **Diff:** stop here if `git diff origin/<base>...HEAD` is empty. The verifiers compute the diff themselves.
+- **Worktrees:** create two temporary worktrees, writing each path out in full, with no shell variables:
+  - `git worktree add --detach /tmp/macro-loop-verify-<first 7 characters of the head sha> <head sha>`
+  - `git worktree add --detach /tmp/macro-loop-verify-base-<first 7 characters of the base sha> origin/<base>`
+
+  The verifiers run everything there, never in this checkout. Remove both with `git worktree remove --force <path>` once the verdict is out.
 
 ## 4. Decide what may run
 
@@ -57,6 +62,8 @@ Issue: #<n>
 Spec comment: <id> | none
 Base: origin/<base>
 Head: <sha of HEAD>
+Worktree: /tmp/macro-loop-verify-<sha7>
+Base worktree: /tmp/macro-loop-verify-base-<sha7>
 Run spec commands: yes | no
 Run tests and lint: yes | no
 ```
@@ -69,6 +76,7 @@ Issue: #<n>
 Spec comment: <id> | none
 Base: origin/<base>
 Head: <sha of HEAD>
+Worktree: /tmp/macro-loop-verify-<sha7>
 ```
 
 If something about the change seems worth a verifier's attention, it goes in your own message to the user, never in a verifier's prompt.
@@ -109,6 +117,8 @@ Failures already present on the base branch, behavior outside the spec (scope cr
 Keep both reports as the verifiers wrote them, lightly cleaned. Don't merge or rerank findings across the axes: a change can follow every standard and still miss the spec, or match the spec and break the conventions, and one axis must not hide the other.
 
 **INCONCLUSIVE:** print what could not run and the error. Post no comment with the marker: an inconclusive run is not a round. Say what would let the checks run, then verify again.
+
+In every case, remove the two temporary worktrees.
 
 ## 8. Next step
 
