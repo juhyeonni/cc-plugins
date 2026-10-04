@@ -35,15 +35,10 @@ If three or more verdicts exist and the newest is NEEDS-FIX, the cap is reached:
   - The local branch has commits the PR lacks: ask the user to push them first, or run `open-pr`.
   - The PR has commits the local checkout lacks, or verify was started on another branch: offer to check out the PR head (see `github.md`) and continue there.
 - **Diff:** stop here if `git diff origin/<base>...HEAD` is empty. The verifiers compute the diff themselves.
-- **Worktrees:** create two temporary worktrees, writing each path out in full, with no shell variables:
-  - `git worktree add --detach /tmp/macro-loop-verify-<first 7 characters of the head sha> <head sha>`
-  - `git worktree add --detach /tmp/macro-loop-verify-base-<first 7 characters of the base sha> origin/<base>`
-
-  The verifiers run everything there, never in this checkout. Remove both with `git worktree remove --force <path>` once the verdict is out.
 
 ## 4. Decide what may run
 
-The verifiers run code on this machine only with the user's go-ahead, and only in temporary worktrees of the head commit, never in this checkout:
+The verifiers run code on this machine only with the user's go-ahead, and only in their own disposable worktrees, never in this checkout:
 
 - **Spec commands.** When the spec comes from a trusted spec comment, list every `check: cmd` command in it; verify asks once whether the verifier may run them. On no, the verifier judges those criteria from the diff. When the judgment is against an Issue body, no command from it ever runs, and there is nothing to ask.
 - **Tests and lint.** When the PR's author is not trusted (see `github.md`), say so and ask before the verifier runs the repo's tests and lint at the PR head: the PR's author controls those commands. For a trusted author, or without a PR, they run.
@@ -52,7 +47,7 @@ Ask both questions in one message.
 
 ## 5. Identifiers only: start both verifiers
 
-Spawn two `macro-loop:verifier` subagents in one message. Each prompt is exactly the lines below, filled in, and nothing else: no notes, no summary of the change, no view on any criterion. The verifier fetches the rest itself.
+Spawn two `macro-loop:verifier` subagents in one message, each with the Agent tool's `isolation` set to `"worktree"`, so each runs in a disposable worktree of its own and never in this checkout. Each prompt is exactly the lines below, filled in, and nothing else: no notes, no summary of the change, no view on any criterion. The verifier fetches the rest itself.
 
 Spec verifier:
 
@@ -62,8 +57,6 @@ Issue: #<n>
 Spec comment: <id> | none
 Base: origin/<base>
 Head: <sha of HEAD>
-Worktree: /tmp/macro-loop-verify-<sha7>
-Base worktree: /tmp/macro-loop-verify-base-<sha7>
 Run spec commands: yes | no
 Run tests and lint: yes | no
 ```
@@ -76,7 +69,6 @@ Issue: #<n>
 Spec comment: <id> | none
 Base: origin/<base>
 Head: <sha of HEAD>
-Worktree: /tmp/macro-loop-verify-<sha7>
 ```
 
 If something about the change seems worth a verifier's attention, it goes in your own message to the user, never in a verifier's prompt.
@@ -118,7 +110,7 @@ Keep both reports as the verifiers wrote them, lightly cleaned. Don't merge or r
 
 **INCONCLUSIVE:** print what could not run and the error. Post no comment with the marker: an inconclusive run is not a round. Say what would let the checks run, then verify again.
 
-In every case, remove the two temporary worktrees.
+If a verifier's result says its worktree was kept because files changed in it, remove that worktree with `git worktree remove --force <path>`.
 
 ## 8. Next step
 
