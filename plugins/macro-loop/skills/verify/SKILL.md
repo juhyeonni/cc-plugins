@@ -79,7 +79,7 @@ Never run a spec's checks yourself, and never offer to: this session may be the 
 
 From the Spec verifier's report:
 
-- **INCONCLUSIVE** if its **Could not run** list is not empty: a check it was allowed to run did not run at all. This holds even when the diff seems to settle the criterion.
+- **INCONCLUSIVE** if its **Could not run** list is not empty: a check it was allowed to run did not run at all, or ran without a result anyone can read. This holds even when the diff seems to settle the criterion.
 - **NEEDS-FIX** if an acceptance criterion is unmet or implemented wrongly, or if the diff introduces a test or lint failure.
 - **PASS** otherwise.
 
