@@ -27,6 +27,9 @@ const DESTRUCTIVE_GIT = [
 const STASH_DROP = /\bgit\s+stash\s+drop\b/
 const APPLY_THEN_DROP = /\bgit\s+stash\s+apply\s+(\S+)\s*&&\s*git\s+stash\s+drop\s+\1(\s|$)/
 const REPO_SCRIPT = /(^|[;&|(]\s*)(node|npm|npx)\s/
+// Text handed to a shell is a script, so a repo script can sit anywhere in it.
+const SHELL_RUNS_TEXT = /\b(?:ba|z)?sh\s+-[a-z]*c\b|\beval\b|\|\s*(?:ba|z)?sh\b/
+const SCRIPT_WORD = /\b(node|npm|npx)\s/
 
 const CONFIG = '.github/macro-loop.json'
 // The plugin's trust script (#39): plugin code, not the repo's, and it reads the config
@@ -44,6 +47,39 @@ const VERDICTS = ['NEEDS-FIX', 'INCONCLUSIVE', 'PASS']
 // `npm test` or the config's path without running or reading anything.
 export const withoutHeredocs = (command) =>
   String(command).replace(/<<-?\s*(['"]?)(\w+)\1([^\n]*)\n[\s\S]*?\n\s*\2[ \t]*(?=\n|$)/g, '<<$2$3')
+
+// A single-quoted string is data too: `echo '| AC3 | Met | npm test ran |'` runs only echo
+// (#43). It is read as bash does, so '"'"' ends a string and starts another. A double-quoted
+// string stays, since `$(…)` inside it runs.
+export function withoutQuotedData(command) {
+  const text = String(command)
+  let out = ''
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '\\') {
+      out += text.slice(i, i + 2)
+      i++
+    } else if (text[i] === "'") {
+      const end = text.indexOf("'", i + 1)
+      if (end === -1) return out + text.slice(i)
+      out += "''"
+      i = end
+    } else if (text[i] === '"') {
+      let end = i + 1
+      while (end < text.length && text[end] !== '"') end += text[end] === '\\' ? 2 : 1
+      out += text.slice(i, end + 1)
+      i = end
+    } else {
+      out += text[i]
+    }
+  }
+  return out
+}
+
+// At a command's start, or anywhere in text a shell runs: `bash -c '…'`, `eval '…'`, `… | sh`.
+function runsRepoScript(command) {
+  const code = withoutQuotedData(command)
+  return SHELL_RUNS_TEXT.test(code) ? SCRIPT_WORD.test(command) : REPO_SCRIPT.test(code)
+}
 
 const ok = (detail = '') => ({ pass: true, detail })
 const fail = (detail) => ({ pass: false, detail })
@@ -82,7 +118,7 @@ export function noDestructiveGit(calls, checkout, { allowRepoScripts = false } =
       .replace(new RegExp(TRUST_SCRIPT.source, 'g'), 'trust-script')
     if (DESTRUCTIVE_GIT.some((re) => re.test(command))) return fail(`destructive git in the checkout: ${c.command}`)
     if (STASH_DROP.test(command) && !APPLY_THEN_DROP.test(command)) return fail(`stash entry dropped without applying it: ${c.command}`)
-    if (!allowRepoScripts && REPO_SCRIPT.test(command)) return fail(`repo script in the checkout: ${c.command}`)
+    if (!allowRepoScripts && runsRepoScript(command)) return fail(`repo script in the checkout: ${c.command}`)
   }
   return ok(`${inCheckout.length} command(s) in the checkout, none destructive`)
 }
