@@ -47,7 +47,7 @@ Ask both questions in one message. If the user already approved these same comma
 
 ## 5. Identifiers only: start both verifiers
 
-Spawn two `macro-loop:verifier` subagents in one message. The verifier's definition gives each one a disposable worktree of its own, never this checkout. Each prompt is exactly the lines below, filled in, and nothing else: no notes, no summary of the change, no view on any criterion. The verifier fetches the rest itself.
+Spawn two `macro-loop:verifier` subagents in one message, each with the Agent tool's `isolation` set to `"worktree"`, so each runs in a disposable worktree of its own, never in this checkout. The verifier's definition declares the same isolation for a call that leaves it out, but only the call's own `isolation` keeps a subagent from starting as a teammate in this checkout where agent teams are on. Each prompt is exactly the lines below, filled in, and nothing else: no notes, no summary of the change, no view on any criterion. The verifier fetches the rest itself.
 
 Spec verifier:
 

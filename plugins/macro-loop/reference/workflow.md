@@ -100,7 +100,7 @@ An Issue created this way was never triaged, and a skill after `spec` finds no s
 
 They also never run the repo's own code in the checkout: no scripts, generators, builds or tests, not even with `--help`, `--version` or `--dry-run`. A script can ignore its flags and write anyway. To learn what code does, read it.
 
-To see code run, dispatch a subagent with the Agent tool's `isolation` set to `"worktree"`, and give it the commands to run and what to report. Its worktree starts on the default branch, which is today's code, and it runs commands there as written: no `cd`, no hand-made worktree, nothing that can fall through to the checkout if a step fails. If its result says the worktree was kept because files changed in it, remove the worktree and its branch afterwards (`git worktree remove --force <path>`, then `git branch -D <branch>`).
+To see code run, dispatch a subagent with the Agent tool's `isolation` set to `"worktree"`, and give it the commands to run and what to report. Its worktree can start on another commit, depending on the user's settings, so its first command, in a Bash call of its own, is `git checkout --detach origin/<default>`: today's code. Then it runs the commands there as written: no `cd`, no hand-made worktree, nothing that can fall through to the checkout if a step fails. If its result says the worktree was kept because files changed in it, remove the worktree and its branch afterwards (`git worktree remove --force <path>`, then `git branch -D <branch>`).
 
 Never create a worktree by hand and `cd` into it to run code: if creating it fails, the commands after it run in the checkout.
 
