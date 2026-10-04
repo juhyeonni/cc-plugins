@@ -101,9 +101,9 @@ An Issue created this way was never triaged, and a skill after `spec` finds no s
 They also never run the repo's own code in the checkout: no scripts, generators, builds or tests, not even with `--help`, `--version` or `--dry-run`. A script can ignore its flags and write anyway. To learn what code does, read it. To see it run, use a temporary worktree:
 
 ```sh
-tmp=$(mktemp -d) && git worktree add --detach "$tmp" origin/<default>
-# run it in "$tmp", then:
-git worktree remove --force "$tmp"
+git worktree add --detach /tmp/macro-loop-<stage>-<first 7 characters of the commit> origin/<default>
+# run it with "cd /tmp/macro-loop-<stage>-<sha> && <command>", then:
+git worktree remove --force /tmp/macro-loop-<stage>-<sha>
 ```
 
 Never use `git checkout -- .`, `git restore .`, `git reset --hard` or `git clean`: on a checkout with uncommitted work, they throw it away.
