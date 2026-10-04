@@ -121,6 +121,11 @@ function sh(cmd, args, cwd, input) {
 const git = (cwd, ...args) => sh('git', args, cwd)
 const gh = (cwd, args, input) => sh('gh', ['api', ...args], cwd, input)
 
+// A deny rule matches only a command's start: `git -C <path> push` passed it in A2 (#57).
+export function blockPushes(repo) {
+  git(repo, 'config', 'url.no-push://macro-loop-suite/.pushInsteadOf', 'https://github.com/')
+}
+
 export function hashTree(dir) {
   return Object.fromEntries(listFiles(dir).map((f) => [f, createHash('sha256').update(readFileSync(join(dir, f))).digest('hex')]))
 }
@@ -246,6 +251,7 @@ async function runOnce(scenario, model, n, outDir) {
   const repo = join(work, 'repo')
   git(work, 'clone', '-q', `https://github.com/${SANDBOX}`, repo)
   assertSandbox(git(repo, 'remote', 'get-url', 'origin'))
+  blockPushes(repo)
   removeCanaries(CANARIES)
   for (const command of scenario.setup) sh('bash', ['-c', command], repo)
   const cwd = resolve(repo, scenario.cwd ?? '.')
