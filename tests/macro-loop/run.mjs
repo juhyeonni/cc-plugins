@@ -159,21 +159,34 @@ function githubState(repo, numbers) {
   )
 }
 
+// Every Issue and PR in the sandbox: a run may comment on one its scenario does not name.
+function sandboxNumbers(repo) {
+  return gh(repo, ['--paginate', 'repos/{owner}/{repo}/issues?state=all', '--jq', '.[].number']).split('\n').filter(Boolean).map(Number)
+}
+
 // Puts labels back and deletes comments the run added, so every run starts alike.
 function restoreGithub(repo, before, after) {
   for (const n of Object.keys(before)) {
     const known = new Set(before[n].comments.map((c) => c.id))
-    for (const c of after[n].comments) if (!known.has(c.id)) deleteComment(repo, c.id)
+    for (const c of after[n].comments) if (!known.has(c.id)) gh(repo, ['-X', 'DELETE', `repos/{owner}/{repo}/issues/comments/${c.id}`])
     if (JSON.stringify(before[n].labels) !== JSON.stringify(after[n].labels)) {
       gh(repo, ['-X', 'PUT', `repos/{owner}/{repo}/issues/${n}/labels`, '--input', '-'], JSON.stringify({ labels: before[n].labels }))
     }
   }
 }
 
-// Another run on the same Issue may have deleted the comment already.
-function deleteComment(repo, id) {
-  const r = spawnSync('gh', ['api', '-X', 'DELETE', `repos/{owner}/{repo}/issues/comments/${id}`], { cwd: repo, encoding: 'utf8' })
-  if (r.status !== 0 && !/Not Found|HTTP 404/.test(`${r.stderr}${r.stdout}`)) throw new Error(`deleting comment ${id} failed: ${r.stderr || r.stdout}`)
+// One run at a time: runs share the sandbox's Issues and the canary files, and a
+// run that starts deletes the canaries another run may just have written.
+function lock() {
+  mkdirSync(WORK_ROOT, { recursive: true })
+  const path = join(WORK_ROOT, 'lock')
+  try {
+    writeFileSync(path, String(process.pid), { flag: 'wx' })
+  } catch (e) {
+    if (e.code !== 'EEXIST') throw e
+    throw new Error(`another run holds ${path} (pid ${readFileSync(path, 'utf8')}); remove it if no run is in progress`)
+  }
+  return () => rmSync(path, { force: true })
 }
 
 function claudeTurn(args, cwd, prompt) {
@@ -244,7 +257,7 @@ async function runOnce(scenario, model, n, outDir) {
   for (const command of scenario.setup) sh('bash', ['-c', command], repo)
   const cwd = resolve(repo, scenario.cwd ?? '.')
   const addDirs = (scenario.addDirs ?? []).map((d) => resolve(repo, d))
-  const numbers = [scenario.issue, scenario.pr].filter(Boolean)
+  const numbers = sandboxNumbers(repo)
   const before = snapshot(scenario, repo, cwd)
   const githubBefore = githubState(repo, numbers)
   const sessionId = randomUUID()
@@ -326,10 +339,15 @@ export async function main(argv) {
   const models = values.model ? [values.model] : undefined
   if (values.list) return console.log(scenarios.map((s) => `${s.id}  ${s.title}`).join('\n'))
   if (values['dry-run']) return console.log(dryRun(findScenario(values['dry-run']), models ?? MODELS))
-  if (values.seed) return seedSandbox()
-  if (positionals.length !== 1) throw new Error('usage: run.mjs --list | --dry-run <ID> | --seed | <ID> [--model m] [--runs n]')
-  const results = await runScenario(positionals[0], models, Number(values.runs ?? 3))
-  console.log(`\n${formatReport(aggregate(results))}`)
+  if (!values.seed && positionals.length !== 1) throw new Error('usage: run.mjs --list | --dry-run <ID> | --seed | <ID> [--model m] [--runs n]')
+  const unlock = lock()
+  try {
+    if (values.seed) return seedSandbox()
+    const results = await runScenario(positionals[0], models, Number(values.runs ?? 3))
+    console.log(`\n${formatReport(aggregate(results))}`)
+  } finally {
+    unlock()
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

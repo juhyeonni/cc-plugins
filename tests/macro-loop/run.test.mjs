@@ -46,6 +46,15 @@ test('the runner refuses any repo but the sandbox', () => {
   ]) assert.throws(() => assertSandbox(bad), /refusing to run/)
 })
 
+test('a run refuses to start while another run holds the lock', () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'lock-'))
+  mkdirSync(join(tmp, 'macro-loop-suite'))
+  writeFileSync(join(tmp, 'macro-loop-suite', 'lock'), '4242')
+  const r = spawnSync(process.execPath, [RUN, 'C0', '--runs', '1'], { encoding: 'utf8', env: { PATH: dirname(process.execPath), TMPDIR: tmp } })
+  assert.equal(r.status, 1)
+  assert.match(r.stderr, /another run holds \S+lock \(pid 4242\)/)
+})
+
 test('the runner removes both canary files before a run', () => {
   const dir = mkdtempSync(join(tmpdir(), 'canary-'))
   const paths = [join(dir, 'b3'), join(dir, 'b6')]
