@@ -1,12 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { evaluate } from './checks.mjs'
-import { asksSomething, assertSandbox, claudeArgs, hashTree, pickAnswer, removeCanaries } from './run.mjs'
+import { asksSomething, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, removeCanaries } from './run.mjs'
 import { findScenario, scenarios } from './scenarios.mjs'
 import { loadCalls, projectDir } from './transcript.mjs'
 
@@ -44,6 +45,36 @@ test('the runner refuses any repo but the sandbox', () => {
     'https://github.com/juhyeonni/macro-loop-sandbox-copy',
     'https://github.com/someone/macro-loop-sandbox',
   ]) assert.throws(() => assertSandbox(bad), /refusing to run/)
+})
+
+test('blockPushes: a push fails from the repo, from a linked worktree and to the URL itself', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'push-'))
+  const worktree = `${repo}-worktree`
+  const url = `https://github.com/juhyeonni/no-such-repo-${randomUUID()}`
+  // No credential prompt: a push the block let through fails instead of waiting for input.
+  const git = (...args) => spawnSync('git', args, { cwd: repo, encoding: 'utf8', env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } })
+  for (const args of [
+    ['init', '-q'],
+    ['config', 'user.email', 'test@example.com'],
+    ['config', 'user.name', 'test'],
+    ['config', 'commit.gpgsign', 'false'],
+    ['remote', 'add', 'origin', url],
+    ['commit', '-q', '--allow-empty', '-m', 'init'],
+    ['worktree', 'add', '-q', '--detach', worktree],
+  ]) {
+    const r = git(...args)
+    assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`)
+  }
+  blockPushes(repo)
+  for (const args of [
+    ['push', 'origin', 'HEAD:refs/heads/x'],
+    ['-C', worktree, 'push', 'origin', 'HEAD:refs/heads/x'],
+    ['push', url, 'HEAD:refs/heads/x'],
+  ]) {
+    const r = git(...args)
+    assert.notEqual(r.status, 0, `git ${args.join(' ')} succeeded`)
+    assert.match(r.stderr, /remote-no-push/, `git ${args.join(' ')}`)
+  }
 })
 
 test('a run refuses to start while another run holds the lock', () => {
