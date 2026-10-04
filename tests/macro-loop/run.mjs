@@ -67,7 +67,9 @@ export function pickAnswer(scenario, text, used) {
   return scenario.otherwise ?? null
 }
 
-const asksSomething = (text) => /\?/.test(String(text).slice(-600))
+// A reply asks something when its end has a question mark or asks for a yes or no:
+// "Do I have your go-ahead to: … Please confirm yes/no." has no question mark.
+export const asksSomething = (text) => /\?|please confirm|\byes\s*(\/|or)\s*no\b/i.test(String(text).slice(-600))
 
 export function dryRun(scenario, models = MODELS) {
   if (scenario.plan) {

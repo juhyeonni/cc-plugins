@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { evaluate } from './checks.mjs'
-import { assertSandbox, claudeArgs, hashTree, pickAnswer, removeCanaries } from './run.mjs'
+import { asksSomething, assertSandbox, claudeArgs, hashTree, pickAnswer, removeCanaries } from './run.mjs'
 import { findScenario, scenarios } from './scenarios.mjs'
 import { loadCalls, projectDir } from './transcript.mjs'
 
@@ -71,6 +71,12 @@ test('pickAnswer: the first unused matching rule, then otherwise', () => {
   assert.equal(pickAnswer(s, 'May I run these?', used), 'yes')
   assert.equal(pickAnswer(s, 'May I run these?', used), 'go on')
   assert.equal(pickAnswer(s, 'Should I push?', used), 'local')
+})
+
+test('asksSomething: a question mark or a request for yes or no; a summary is not', () => {
+  assert.equal(asksSomething('**Do I have your go-ahead to:**\n1. Run spec commands\n2. Run the tests and lint\n\nPlease confirm yes/no.'), true)
+  assert.equal(asksSomething('May the verifier run them?'), true)
+  assert.equal(asksSomething('## Verify: PASS\n\nThe verdict is only in this chat.'), false)
 })
 
 test('claudeArgs: a new session, then resume, with push blocked', () => {
