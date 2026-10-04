@@ -14,17 +14,17 @@ Two axes, reported side by side:
 
 Each axis runs in its own `macro-loop:verifier` subagent. The subagent gets identifiers only and fetches the spec and the diff itself, so nothing from the context that wrote the change, including this one, reaches it.
 
-Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`.
+Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. Trust, the Issue, the spec and the round come from one command, run in the repo's checkout: `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --pr <n>` when there is a PR, which finds the Issue from the PR's body itself, else `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --issue <n>`. **Configuration** in `workflow.md` says what it prints.
 
 ## 1. Find the PR, the Issue and the spec
 
 - **PR:** the one the user named, else the open PR for the current branch. Without a PR, verify the current branch against the default branch and print the verdict in the terminal instead of posting it.
-- **Issue:** the `Closes #<n>` line in the PR body. Without a PR, the Issue the user named or the branch name points to. If the PR has no such line, say that the PR is not linked to an Issue and ask which Issue it implements. If there is none, follow **No Issue yet** in `workflow.md`. Once the Issue is known, offer to add `Closes #<n>` to the PR body (see `github.md`), so the next round finds it.
-- **Spec:** the newest comment on the Issue that starts with `<!-- macro-loop:spec -->` and was written by a trusted author (see **Who is trusted** in `github.md`). Without one, follow **Missing inputs** in `workflow.md` (`skipped:spec`). On proceed, judge against the Issue body and say so in the verdict: "no spec; judged against the Issue body".
+- **Issue:** `pr.closes` in the trust command's output, from the `Closes #<n>` line in the PR body. Without a PR, the Issue the user named or the branch name points to. If the PR has no such line, say that the PR is not linked to an Issue and ask which Issue it implements, then run the trust command again with `--issue <n>` added. If there is none, follow **No Issue yet** in `workflow.md`. Once the Issue is known, offer to add `Closes #<n>` to the PR body (see `github.md`), so the next round finds it.
+- **Spec:** the comment whose id is `issue.spec` in the trust command's output. Without one, follow **Missing inputs** in `workflow.md` (`skipped:spec`). On proceed, judge against the Issue body and say so in the verdict: "no spec; judged against the Issue body".
 
 ## 2. Count the round
 
-Count the trusted verify comments on the PR (marker prefix `<!-- macro-loop:verify round=`; see `github.md`). This run is round N = count + 1.
+This run is round N = `pr.round` in the trust command's output: the trusted verify comments on the PR, plus one.
 
 If three or more verdicts exist and the newest is NEEDS-FIX, the cap is reached: say so, and that a person decides what happens next. Run another round only if the user asks for it explicitly.
 
@@ -41,7 +41,7 @@ If three or more verdicts exist and the newest is NEEDS-FIX, the cap is reached:
 The verifiers run code on this machine only with the user's go-ahead, and only in their own disposable worktrees, never in this checkout:
 
 - **Spec commands.** When the spec comes from a trusted spec comment, list every `check: cmd` command in it; verify asks once whether the verifier may run them. On no, the verifier judges those criteria from the diff. When the judgment is against an Issue body, no command from it ever runs, and there is nothing to ask.
-- **Tests and lint.** When the PR's author is not trusted (see `github.md`), say so and ask before the verifier runs the repo's tests and lint at the PR head: the PR's author controls those commands. For a trusted author, or without a PR, they run.
+- **Tests and lint.** When `pr.authorTrusted` is false, say that the PR's author is not trusted, and ask before the verifier runs the repo's tests and lint at the PR head: the PR's author controls those commands. For a trusted author, or without a PR, they run.
 
 Ask both questions in one message. If the user already approved these same commands earlier in this session, for example when `implement` asked, say so and use that answer instead of asking again.
 

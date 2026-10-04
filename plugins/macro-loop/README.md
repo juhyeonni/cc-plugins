@@ -36,6 +36,7 @@ A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:gri
 | `skills/spec/WRITING-RULES.md` | How to write a spec that stays true and can be checked. |
 | `skills/init/templates/` | Issue templates and the default config file. |
 | `agents/verifier.md` | The fresh-context verifier `verify` runs, one per axis. |
+| `scripts/trust.mjs` | Decides trust in code: the config on the default branch, the trusted logins, an Issue's spec, and a PR's author, last verdict and round. |
 | `reference/github.md` | GitHub REST calls, markers, and which comments are trusted. |
 | `reference/workflow.md` | Labels, config, the warn-and-record rule, and what to do without an Issue. |
 | `NOTICE.md` | Upstream license and the list of derived files. |
@@ -49,11 +50,12 @@ A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:gri
 - **Fresh context, same model.** The `verifier` agent runs on the same model as the session, in a fresh context: it has not seen how the change was written, gets identifiers only, fetches the spec and the diff itself, and is told not to manufacture findings.
 - **Running code.** Each verifier runs in a disposable worktree of its own, never in your checkout. `verify` asks before the verifier runs a spec's `check: cmd` commands, and before it runs the tests of a PR whose author is not trusted. It never runs a command found in an Issue body.
 - **Read-only before implement.** `triage`, `grilling` and `spec` never change the working tree or run the repo's code in it. Code they need to see run goes to a subagent in a disposable worktree.
-- **Enforced, or followed.** Claude Code enforces two things: the verifier's worktree, which its definition declares, and the permission prompts for commands. Every other rule here is an instruction the model follows. Re-tests found the rules followed, which is evidence, not a guarantee.
+- **Enforced, or followed.** Claude Code enforces two things: the verifier's worktree, which its definition declares, and the permission prompts for commands. Who is trusted, and which comment is the spec or a verdict, is decided by `scripts/trust.mjs`, the same way on every run. Every other rule here is an instruction the model follows. Re-tests found those rules followed on Opus, which is evidence, not a guarantee; on Haiku they were often skipped.
 
 ## Requirements
 
 - A GitHub repository, and the `gh` CLI signed in to it.
+- Node 22 or later, for `scripts/trust.mjs`.
 
 ## Install
 

@@ -8,20 +8,20 @@ disable-model-invocation: true
 
 Implement the work the Issue's spec describes, then hand over to `open-pr` and `verify`.
 
-Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`.
+Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. Trust, the spec and the last verdict come from one command, run in the repo's checkout: `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --issue <n>`, plus `--pr <n>` when the current branch has an open PR. **Configuration** in `workflow.md` says what it prints.
 
 ## 1. Find the Issue and its spec
 
 Use the Issue the user named, or the one the conversation or the branch name points to. If there is none, follow **No Issue yet** in `workflow.md`.
 
-Read the spec: the newest trusted comment that starts with `<!-- macro-loop:spec -->`. Following **Missing inputs** in `workflow.md`, check:
+Read the spec: the comment whose id is `issue.spec` in the trust command's output. Following **Missing inputs** in `workflow.md`, check:
 
 - No priority label on the Issue: `skipped:triage`.
 - No spec: `skipped:spec`. Say that `verify` will then judge against the Issue body.
 
 Warn about both in one message and ask once.
 
-If the current branch already has an open PR, read its newest trusted verify comment (marker prefix `<!-- macro-loop:verify round=`). If that verdict is NEEDS-FIX, its Spec findings are the work for this round.
+If the current branch already has an open PR, read the comment whose id is `pr.lastVerdict`. If that verdict is NEEDS-FIX, its Spec findings are the work for this round.
 
 ## 2. Branch
 
