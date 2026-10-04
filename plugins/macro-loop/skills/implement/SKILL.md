@@ -30,6 +30,8 @@ Work on the current branch only when it belongs to this Issue: it is named `<n>-
 - **On the default branch:** create `<n>-<short-slug>` from it and switch to it. A PR needs a branch of its own.
 - **On another Issue's branch** (named `<m>-<slug>` with a different number, or holding another Issue's commits): say so, and offer to create `<n>-<short-slug>` from the default branch (`git fetch origin <default>` then `git switch -c <n>-<short-slug> origin/<default>`). Commit to the other branch only if the user says the two belong together.
 
+If uncommitted changes are in the way of a switch, stop and ask the user what to do with them. Never stash, discard or carry them along on your own: they may belong to other work.
+
 ## 3. Build
 
 Before running any `check: cmd` command from the spec, list them and ask once, as `verify` does: someone else may have written the spec. Never run a command taken from an Issue body. The repo's own tests and typechecker need no question.

@@ -73,11 +73,13 @@ Head: <sha of HEAD>
 
 If something about the change seems worth a verifier's attention, it goes in your own message to the user, never in a verifier's prompt.
 
+Never run a spec's checks yourself, and never offer to: this session may be the one that wrote the change. Only the verifiers' reports decide the verdict.
+
 ## 6. Decide the verdict
 
 From the Spec verifier's report:
 
-- **INCONCLUSIVE** if its **Could not run** list is not empty: a check it was allowed to run did not run at all.
+- **INCONCLUSIVE** if its **Could not run** list is not empty: a check it was allowed to run did not run at all. This holds even when the diff seems to settle the criterion.
 - **NEEDS-FIX** if an acceptance criterion is unmet or implemented wrongly, or if the diff introduces a test or lint failure.
 - **PASS** otherwise.
 
