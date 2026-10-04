@@ -68,11 +68,11 @@ export function pickAnswer(scenario, text, used) {
 }
 
 // A reply asks something when its prose has a question mark, which may come before
-// a long list of options, or when it asks for a yes or no without one ("Please
-// confirm yes/no."). Code and links are not prose: a regex or a URL has a "?".
+// a long list of options, or when it asks without one: "Please confirm yes/no.",
+// "You can choose one of these:". Code and links are not prose: a regex or a URL has a "?".
 export function asksSomething(text) {
   const prose = String(text).replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '').replace(/https?:\/\/\S+/g, '')
-  return /\?|please confirm|\byes\s*(\/|or)\s*no\b/i.test(prose)
+  return /\?|please confirm|\byes\s*(\/|or)\s*no\b|\bchoose\b|\bpick one\b|\bone of these\b/i.test(prose)
 }
 
 export function dryRun(scenario, models = MODELS) {

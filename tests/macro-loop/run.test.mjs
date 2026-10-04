@@ -85,6 +85,7 @@ test('pickAnswer: the first unused matching rule, then otherwise', () => {
 test('asksSomething: a question in the prose or a request for yes or no; a summary is not', () => {
   assert.equal(asksSomething('**Do I have your go-ahead to:**\n1. Run spec commands\n2. Run the tests and lint\n\nPlease confirm yes/no.'), true)
   assert.equal(asksSomething('May the verifier run them?'), true)
+  assert.equal(asksSomething('You can choose one of these:\n1. **Proceed:** I add `skipped:spec`.\n2. **Stop:** run `/macro-loop:spec` first.'), true)
   assert.equal(asksSomething(`How do you want to go ahead?\n\n${'1. **Go ahead without a spec:** the change is judged against the Issue body.\n'.repeat(12)}`), true)
   assert.equal(asksSomething('## Verify: PASS\n\nThe verdict is only in this chat.'), false)
   assert.equal(asksSomething('Checked `/^-|-$/g` against https://github.com/o/r/pulls?state=open. Nothing to report.'), false)
