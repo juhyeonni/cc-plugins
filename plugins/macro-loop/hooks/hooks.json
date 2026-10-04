@@ -1,5 +1,5 @@
 {
-  "description": "Holds verify's verifiers to three rules: for a PR whose author is not trusted, the spec verifier gets the same answer for the spec's commands and the tests (scripts/verifier-flags.mjs); a verifier runs commands only in its own worktree (scripts/verifier-worktree.mjs); and a verifier leaves no worktree or branch behind, except a branch that holds a commit on no remote branch (scripts/verifier-cleanup.mjs). Every other call passes through unchanged.",
+  "description": "Holds verify's verifiers to three rules: for a PR whose author is not trusted, the spec verifier gets the same answer for the spec's commands and the tests (scripts/verifier-flags.mjs); a verifier runs commands only in its own worktree (scripts/verifier-worktree.mjs); and when a verifier stops, its worktree and branch go, except a branch that holds a commit on no remote branch (scripts/verifier-cleanup.mjs). Every other call, and every other agent's stop, passes through unchanged.",
   "hooks": {
     "PreToolUse": [
       {
@@ -15,9 +15,9 @@
         ]
       }
     ],
-    "PostToolUse": [
+    "SubagentStop": [
       {
-        "matcher": "Agent",
+        "matcher": "macro-loop:verifier",
         "hooks": [
           { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/verifier-cleanup.mjs"] }
         ]
