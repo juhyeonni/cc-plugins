@@ -1,0 +1,20 @@
+diff --git a/src/slugify.js b/src/slugify.js
+index a6cb845..f5a1b6f 100644
+--- a/src/slugify.js
++++ b/src/slugify.js
+@@ -1,11 +1,12 @@
+ 'use strict';
+ 
+-// Lower case, whitespace to dashes, then drop anything that is not a letter, digit or dash.
++// Lower case, turn every run of characters that are not letters into one dash,
++// then trim dashes at both ends.
+ function slugify(text) {
+   return String(text)
+     .toLowerCase()
+-    .replace(/\s/g, '-')
+-    .replace(/[^a-z0-9-]/g, '');
++    .replace(/[^a-z]+/g, '-')
++    .replace(/^-|-$/g, '');
+ }
+ 
+ module.exports = slugify;
