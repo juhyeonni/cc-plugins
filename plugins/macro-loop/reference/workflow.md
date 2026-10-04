@@ -11,8 +11,8 @@ Skills never read this file or decide trust themselves. Before a skill reads or 
 | `configFile` | Whether the default branch has the file. |
 | `config` | The file on the default branch over the defaults: a key the file sets overrides the default, and a key it leaves out keeps it. Without a file, the defaults. |
 | `trusted` | The trusted logins, in lowercase (see **Who is trusted** in `github.md`). |
-| `issue` | With `--issue <n>`: `spec`, the id of the Issue's spec comment, or `null`. |
-| `pr` | With `--pr <n>`: `author`, `authorTrusted`, `head` (the head SHA), `base`, `lastVerdict` (the id of the newest trusted verify comment, or `null`) and `round` (the trusted verify comments, plus one). |
+| `issue` | With `--issue <n>`, or with `--pr <n>` alone for the Issue the PR's body closes: `number`, and `spec`, the id of the Issue's spec comment, or `null`. |
+| `pr` | With `--pr <n>`: `author`, `authorTrusted`, `head` (the head SHA), `base`, `closes` (the Issue in the body's `Closes #<n>` line, or `null`), `lastVerdict` (the id of the newest trusted verify comment, or `null`) and `round` (the trusted verify comments, plus one). |
 
 If the script fails, it prints nothing and exits non-zero with the error. Stop and tell the user what failed. Never read the file or the comments yourself instead.
 

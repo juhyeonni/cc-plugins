@@ -5,6 +5,8 @@
 //
 //   node trust.mjs [--issue <n>] [--pr <n>]
 //
+// With --pr alone, the Issue is the one the PR's body closes.
+//
 // Run it in the repo's checkout: `gh` fills in {owner}/{repo} from there. It prints one
 // JSON object on one line. On any failure it prints nothing and exits non-zero.
 import { spawnSync } from 'node:child_process'
@@ -80,9 +82,11 @@ function decide(argv) {
       .filter((c) => trusted.includes(lower(c.user?.login)) && String(c.body ?? '').startsWith(marker))
 
   const out = { configFile: file !== null, config, trusted }
-  if (issue) out.issue = { number: Number(issue), spec: trustedMarked(issue, SPEC).at(-1)?.id ?? null }
+  let issueNumber = issue
   if (pr) {
     const p = api([`repos/{owner}/{repo}/pulls/${pr}`])
+    // The Issue a PR implements is the one its body closes (`Closes #<n>`, see verify).
+    const closes = Number(/^\s*closes\s+#(\d+)\b/im.exec(p.body ?? '')?.[1]) || null
     const verdicts = trustedMarked(pr, VERDICT)
     out.pr = {
       number: Number(pr),
@@ -90,10 +94,13 @@ function decide(argv) {
       authorTrusted: trusted.includes(lower(p.user.login)),
       head: p.head.sha,
       base: p.base.ref,
+      closes,
       lastVerdict: verdicts.at(-1)?.id ?? null,
       round: verdicts.length + 1,
     }
+    issueNumber ||= closes && String(closes)
   }
+  if (issueNumber) out.issue = { number: Number(issueNumber), spec: trustedMarked(issueNumber, SPEC).at(-1)?.id ?? null }
   return out
 }
 

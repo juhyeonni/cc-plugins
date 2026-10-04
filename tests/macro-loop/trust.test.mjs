@@ -120,9 +120,34 @@ test('--pr: author, trust, head, base, last trusted verdict and round', () => {
   })
   const r = run(responses, ['--pr', '3'])
   assert.equal(r.status, 0, r.stderr)
-  assert.deepEqual(r.out.pr, { number: 3, author: 'AnpanManni', authorTrusted: false, head: 'abc123', base: 'main', lastVerdict: 13, round: 3 })
+  assert.deepEqual(r.out.pr, { number: 3, author: 'AnpanManni', authorTrusted: false, head: 'abc123', base: 'main', closes: null, lastVerdict: 13, round: 3 })
   const listed = run({ ...responses, [CONFIG]: contents({ trusted: ['anpanmanni'] }) }, ['--pr', '3'])
   assert.equal(listed.out.pr.authorTrusted, true)
+})
+
+test('--pr alone: the Issue is the one the PR body closes, with its spec', () => {
+  const responses = base({
+    'api repos/{owner}/{repo}/pulls/3': { stdout: { user: { login: 'anpanmanni' }, head: { sha: 'abc123' }, base: { ref: 'main' }, body: 'Fixes the dashes.\r\n\r\nCloses #1\r\nCloses #8' } },
+    'api --paginate --slurp repos/{owner}/{repo}/issues/3/comments': { stdout: [[]] },
+    'api --paginate --slurp repos/{owner}/{repo}/issues/1/comments': { stdout: [[comment(21, 'juhyeonni', '<!-- macro-loop:spec -->\nAC1')]] },
+  })
+  const r = run(responses, ['--pr', '3'])
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(r.out.pr.closes, 1)
+  assert.deepEqual(r.out.issue, { number: 1, spec: 21 })
+})
+
+test('--pr: a body with no Closes line gives no Issue; --issue, when given, wins', () => {
+  const pr = { user: { login: 'carol' }, head: { sha: 'abc123' }, base: { ref: 'main' } }
+  const responses = base({
+    'api repos/{owner}/{repo}/pulls/3': { stdout: { ...pr, body: 'Mentions #1 but closes nothing.' } },
+    'api --paginate --slurp repos/{owner}/{repo}/issues/3/comments': { stdout: [[]] },
+    'api --paginate --slurp repos/{owner}/{repo}/issues/9/comments': { stdout: [[comment(31, 'carol', '<!-- macro-loop:spec -->')]] },
+  })
+  const none = run(responses, ['--pr', '3'])
+  assert.equal(none.out.pr.closes, null)
+  assert.equal(none.out.issue, undefined)
+  assert.deepEqual(run(responses, ['--pr', '3', '--issue', '9']).out.issue, { number: 9, spec: 31 })
 })
 
 test('--pr: no trusted verdict gives round 1 and no last verdict', () => {
