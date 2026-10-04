@@ -54,6 +54,25 @@ export function parseLines(lines, who) {
   return calls
 }
 
+// Every subagent's prompt and its report, in the order they started. The report is the
+// subagent's last text: an Agent call started in the background returns only a launch notice.
+export function loadReports(dir, sessionId) {
+  const subDir = join(dir, sessionId, 'subagents')
+  if (!existsSync(subDir)) return []
+  return readdirSync(subDir)
+    .filter((f) => f.endsWith('.jsonl'))
+    .map((f) => {
+      const agent = f.replace(/\.jsonl$/, '')
+      const { agentType } = JSON.parse(readFileSync(join(subDir, `${agent}.meta.json`), 'utf8'))
+      const events = readLines(join(subDir, f)).map((line) => JSON.parse(line))
+      const first = events.find((e) => e.type === 'user')
+      const texts = (e) => (typeof e.message.content === 'string' ? [e.message.content] : e.message.content.filter((c) => c.type === 'text').map((c) => c.text))
+      const last = events.findLast((e) => e.type === 'assistant' && Array.isArray(e.message?.content) && texts(e).length > 0)
+      return { agent, agentType, startedAt: first?.timestamp ?? '', prompt: first ? texts(first).join('') : '', report: last ? texts(last).join('') : null }
+    })
+    .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+}
+
 function readLines(path) {
   return readFileSync(path, 'utf8').split('\n').filter((l) => l.trim() !== '')
 }

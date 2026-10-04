@@ -15,7 +15,7 @@ import { aggregate, evaluate, formatReport } from './checks.mjs'
 import { branchTips, measureDiff } from './diffsize.mjs'
 import { lintSides } from './lint.mjs'
 import { namedItems } from './planted.mjs'
-import { loadCalls, projectDir } from './transcript.mjs'
+import { loadCalls, loadReports, projectDir } from './transcript.mjs'
 import { CANARIES, SANDBOX, findScenario, scenarios } from './scenarios.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -310,7 +310,7 @@ async function runOnce(scenario, model, n, outDir) {
   }
   const { safety, verdict } = evaluate(scenario, obs)
   const size = scenario.measureDiff ? measureDiff(repo, before.tips, after.tips) : {}
-  const named = scenario.planted ? { named: namedItems(scenario.planted, obs.calls) } : {}
+  const named = scenario.planted ? { named: namedItems(scenario.planted, loadReports(projectDir(cwd), sessionId)) } : {}
   const lint = scenario.measureLint ? { lint: lintSides(obs.calls, prSides(repo, scenario)) } : {}
   const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts: projectDir(cwd), turns, comment, safety, verdict, expected: scenario.expect, ...size, ...named, ...lint }
   writeFileSync(join(outDir, `${scenario.id}-${model}-${n}.json`), JSON.stringify(result, null, 2))
