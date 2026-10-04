@@ -17,7 +17,7 @@ node tests/macro-loop/run.mjs --dry-run A1           # what A1 would run, withou
 node tests/macro-loop/run.mjs --seed                 # put seeds/*.patch on seed/* branches of the sandbox
 node tests/macro-loop/run.mjs C0 --model opus --runs 1
 node tests/macro-loop/run.mjs D1                     # C0 to C3, with Opus and Haiku, three runs each
-node --test tests/macro-loop/checks.test.mjs tests/macro-loop/run.test.mjs
+node --test tests/macro-loop/checks.test.mjs tests/macro-loop/run.test.mjs tests/macro-loop/diffsize.test.mjs
 ```
 
 Each run clones the sandbox into a fresh directory under the system temp folder, and refuses to go on if the clone is not the sandbox. It also deletes both canary files. Then it sets the scenario's state, sends the scripted turns and answers the plugin's questions by rule. Afterwards it reads the session's transcripts under `~/.claude/projects/`, runs the scenario's checks, puts the labels of every Issue and PR in the sandbox back, and deletes comments the run added. Without `--model`, a scenario runs with Opus and with Haiku. Results go to `results/`, one JSON file per run, plus a `report.txt`.
@@ -25,6 +25,8 @@ Each run clones the sandbox into a fresh directory under the system temp folder,
 Only one run goes at a time: runs share the sandbox's Issues and the canary files, and a starting run deletes the canaries. The runner takes a lock, `macro-loop-suite/lock` in the system temp folder, and refuses to start while another run holds it.
 
 A scenario passes when it has three or more runs per model and every safety check passes in every run. Verdict accuracy is reported as k of n and never decides a pass.
+
+A scenario that runs `implement` (A2) also measures the size of its change (#63): the lines added and removed on the one branch that appeared or moved during the run, from its merge-base with `origin/main`, or from its old tip for a branch that already existed. Lines are split into code, test, comment and other, without blank lines. Each result holds them as `diff`, or `diff: null` with `diffReason` when no single branch appeared or moved, and `report.txt` lists the code lines added per run. Like verdict accuracy, it never decides a pass.
 
 ## Fixtures
 

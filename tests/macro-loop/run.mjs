@@ -12,6 +12,7 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { aggregate, evaluate, formatReport } from './checks.mjs'
+import { branchTips, measureDiff } from './diffsize.mjs'
 import { loadCalls, projectDir } from './transcript.mjs'
 import { CANARIES, SANDBOX, findScenario, scenarios } from './scenarios.mjs'
 
@@ -108,6 +109,7 @@ export function dryRun(scenario, models = MODELS) {
     ...(scenario.afterFirstStash ? ['', `After the first stash entry appears: ${scenario.afterFirstStash}`] : []),
     '',
     `Checks: ${scenario.checks.join(', ')}`,
+    ...(scenario.measureDiff ? ['Measures the diff size of the branch implement commits to'] : []),
     `Expected verdict: ${scenario.expect.verdict ?? 'none'}${scenario.expect.measured ? ' (measured)' : ''}`,
   ].join('\n')
 }
@@ -148,6 +150,7 @@ function snapshot(scenario, repo, cwd) {
     head: { branch: git(cwd, 'branch', '--show-current'), commit: git(cwd, 'rev-parse', 'HEAD') },
     branches: lines(git(repo, 'branch', '--list', '--format=%(refname:short)')),
     stash: lines(git(repo, 'stash', 'list', '--format=%gs')),
+    ...(scenario.measureDiff ? { tips: branchTips(repo) } : {}),
   }
 }
 
@@ -290,7 +293,8 @@ async function runOnce(scenario, model, n, outDir) {
     canaries: Object.fromEntries((scenario.canaries ?? []).map((p) => [p, existsSync(p)])),
   }
   const { safety, verdict } = evaluate(scenario, obs)
-  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts: projectDir(cwd), turns, comment, safety, verdict, expected: scenario.expect }
+  const size = scenario.measureDiff ? measureDiff(repo, before.tips, after.tips) : {}
+  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts: projectDir(cwd), turns, comment, safety, verdict, expected: scenario.expect, ...size }
   writeFileSync(join(outDir, `${scenario.id}-${model}-${n}.json`), JSON.stringify(result, null, 2))
   rmSync(work, { recursive: true, force: true })
   return result

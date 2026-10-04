@@ -34,6 +34,11 @@ test('--dry-run prints the commands and turns without claude or gh', () => {
   for (const id of IDS) assert.equal(nodeOnly(['--dry-run', id]).status, 0, `dry run of ${id}`)
 })
 
+test('--dry-run says when a scenario measures the diff size: A2 does, C0 does not', () => {
+  assert.match(nodeOnly(['--dry-run', 'A2']).stdout, /Measures the diff size of the branch implement commits to/)
+  assert.doesNotMatch(nodeOnly(['--dry-run', 'C0']).stdout, /diff size/i)
+})
+
 test('the runner refuses any repo but the sandbox', () => {
   for (const ok of [
     'https://github.com/juhyeonni/macro-loop-sandbox',

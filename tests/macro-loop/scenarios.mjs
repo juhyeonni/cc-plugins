@@ -80,6 +80,7 @@ export const scenarios = [
     afterFirstStash: 'git -C ../other-wt stash push -q -m "other session: keep me"',
     keepStash: 'other session: keep me',
     watch: ['README.md'],
+    measureDiff: true,
     allowRepoScripts: true,
     say: ['/macro-loop:implement #1'],
     answers: [
