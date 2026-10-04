@@ -25,14 +25,16 @@ If the current branch already has an open PR, read the comment whose id is `pr.l
 
 ## 2. Branch
 
-Work on the current branch only when it belongs to this Issue: it is named `<n>-<slug>` for this Issue's number `<n>`, or it holds commits for this Issue alone.
+Work on the current branch only when it belongs to this Issue: it is named `<n>-<slug>` for this Issue's number `<n>`, or it holds commits for this Issue alone. Then work in place.
 
-- **On the default branch:** create `<n>-<short-slug>` from it and switch to it. A PR needs a branch of its own.
-- **On another Issue's branch** (named `<m>-<slug>` with a different number, or holding another Issue's commits): say so, and offer to create `<n>-<short-slug>` from the default branch (`git fetch origin <default>` then `git switch -c <n>-<short-slug> origin/<default>`). Commit to the other branch only if the user says the two belong together.
+- **On the default branch:** make `<n>-<short-slug>`. A PR needs a branch of its own.
+- **On another Issue's branch** (named `<m>-<slug>` with a different number, or holding another Issue's commits): say so, and offer to make `<n>-<short-slug>`. Commit to the other branch only if the user says the two belong together.
 
 Never check out a branch to work on it unless you created it. If an open PR for another branch already closes this Issue, say so and ask the user what to do.
 
-If uncommitted changes are in the way of a switch, stop and ask the user what to do with them. Never stash, discard or carry them along on your own: they may belong to other work. If the user asks you to stash them, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/stash.mjs save --issue <n>` and keep the `entry` hash it prints: step 5 puts the changes back with it. Never stash, apply or drop with `git stash` yourself: the stash is shared by every worktree of the repo, and the script finds this entry by its hash.
+Never switch the user's checkout. Make a new branch in a worktree of your own: enter it with the `EnterWorktree` tool, named `<n>-<short-slug>`. In it, run `git fetch origin <default>`, then `git switch -c <n>-<short-slug> origin/<default>`, then `git branch -D worktree-<n>-<short-slug>` to delete the branch the worktree started on. Build, commit and hand over from the worktree.
+
+Uncommitted changes in the user's checkout are not in the way of a worktree. Never stash, discard or carry them along: they may belong to other work.
 
 ## 3. Build
 
@@ -46,12 +48,10 @@ If the work shows that the spec is wrong or incomplete, stop and tell the user w
 
 Commit your work to the current branch.
 
-## 5. Put back the user's changes
+## 5. Hand over
 
-If step 2 stashed the user's changes, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/stash.mjs restore --entry <entry>` with the hash `save` printed. It switches back to the branch the changes came from, applies them only where they cannot conflict, and only then drops the entry. If it fails, tell the user the changes are still in the stash, with the script's error, which says how to apply them by hand, and stop. Never drop, apply, restore or check out anything yourself to get past it.
-
-## 6. Hand over
-
-Call the Skill tool for `macro-loop:open-pr`, then for `macro-loop:verify`, each with the branch name: the branch you committed to in step 4, whatever is checked out now. A skill does not run by itself: the Skill tool loads its steps into this turn. Carry out each skill's steps to the end before calling the next one. `open-pr` pushes the branch and opens the PR, or pushes to the PR that already exists. `verify` judges the PR in a fresh context and posts the verdict.
+Call the Skill tool for `macro-loop:open-pr`, then for `macro-loop:verify`, each with the branch name: the branch you committed to in step 4. A skill does not run by itself: the Skill tool loads its steps into this turn. Carry out each skill's steps to the end before calling the next one. `open-pr` pushes the branch and opens the PR, or pushes to the PR that already exists. `verify` judges the PR in a fresh context and posts the verdict.
 
 If the user declines the push or the PR, still call `macro-loop:verify` with the branch name and carry out its steps: it judges that branch against the default branch without a PR. Never say that verify needs a PR.
+
+On either path, stay in the worktree until verify has posted or printed its verdict. Then leave it with the `ExitWorktree` tool, removing it. If it refuses only because the branch has commits, call it again with `discard_changes: true`: the commits stay on the branch. Tell the user the branch's name, and that the branch stays in the repo, checked out nowhere. If you worked in place, there is no worktree to leave.

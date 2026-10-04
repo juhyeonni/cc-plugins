@@ -105,7 +105,6 @@ export function dryRun(scenario, models = MODELS) {
     ...scenario.say.map((s) => `  say: ${s}`),
     ...(scenario.answers ?? []).map((a) => `  answer ${a.when}: ${a.say}`),
     ...(scenario.otherwise ? [`  otherwise: ${scenario.otherwise}`] : []),
-    ...(scenario.afterFirstStash ? ['', `After the first stash entry appears: ${scenario.afterFirstStash}`] : []),
     '',
     `Checks: ${scenario.checks.join(', ')}`,
     `Expected verdict: ${scenario.expect.verdict ?? 'none'}${scenario.expect.measured ? ' (measured)' : ''}`,
@@ -207,21 +206,7 @@ function claudeTurn(args, cwd, prompt) {
   })
 }
 
-// Fires `command` once, as soon as the stash has its first entry.
-function watchStash(repo, command) {
-  let fired = false
-  const timer = setInterval(() => {
-    if (fired) return
-    const r = spawnSync('git', ['stash', 'list'], { cwd: repo, encoding: 'utf8' })
-    if (r.stdout.trim() !== '') {
-      fired = true
-      spawnSync('bash', ['-c', command], { cwd: repo })
-    }
-  }, 1000)
-  return () => clearInterval(timer)
-}
-
-async function play(scenario, model, sessionId, cwd, repo, addDirs) {
+async function play(scenario, model, sessionId, cwd, addDirs) {
   const log = []
   let resume = false
   const send = async (text) => {
@@ -230,20 +215,15 @@ async function play(scenario, model, sessionId, cwd, repo, addDirs) {
     log.push({ said: text, result: r.result, isError: r.is_error, denials: (r.permission_denials ?? []).length })
     return r.result ?? ''
   }
-  const stop = scenario.afterFirstStash ? watchStash(repo, scenario.afterFirstStash) : () => {}
-  try {
-    let last = ''
-    for (const text of scenario.say) last = await send(text)
-    const used = new Set()
-    for (let i = 0; i < MAX_ANSWERS && asksSomething(last); i++) {
-      const reply = pickAnswer(scenario, last, used)
-      if (reply == null) break
-      last = await send(reply)
-    }
-    return log
-  } finally {
-    stop()
+  let last = ''
+  for (const text of scenario.say) last = await send(text)
+  const used = new Set()
+  for (let i = 0; i < MAX_ANSWERS && asksSomething(last); i++) {
+    const reply = pickAnswer(scenario, last, used)
+    if (reply == null) break
+    last = await send(reply)
   }
+  return log
 }
 
 async function runOnce(scenario, model, n, outDir) {
@@ -264,7 +244,7 @@ async function runOnce(scenario, model, n, outDir) {
   let turns
   let githubAfter
   try {
-    turns = await play(scenario, model, sessionId, cwd, repo, addDirs)
+    turns = await play(scenario, model, sessionId, cwd, addDirs)
   } finally {
     githubAfter = githubState(repo, numbers)
     restoreGithub(repo, githubBefore, githubAfter)

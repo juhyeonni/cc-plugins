@@ -37,7 +37,6 @@ A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:gri
 | `skills/init/templates/` | Issue templates and the default config file. |
 | `agents/verifier.md` | The fresh-context verifier `verify` runs, one per axis. |
 | `scripts/trust.mjs` | Decides trust in code: the config on the default branch, the trusted logins, an Issue's spec, and a PR's author, last verdict and round. |
-| `scripts/stash.mjs` | Stashes the user's changes for `implement` and puts them back by the entry's hash, applying them only where the apply cannot conflict. |
 | `hooks/hooks.json` | Runs `scripts/verifier-flags.mjs` before every Agent call and `scripts/verifier-worktree.mjs` before every Bash call. The first changes only a spec verifier that `verify` starts for a PR whose author is not trusted; the second refuses only a verifier's command outside its own worktree. Every other call passes through unchanged. |
 | `reference/github.md` | GitHub REST calls, markers, and which comments are trusted. |
 | `reference/workflow.md` | Labels, config, the warn-and-record rule, and what to do without an Issue. |
