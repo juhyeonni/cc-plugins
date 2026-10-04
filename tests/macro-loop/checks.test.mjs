@@ -37,6 +37,13 @@ test('noDestructiveGit: a repo script in the checkout fails unless allowed', () 
   assert.equal(c.noDestructiveGit([bash('npm test')], '/w/repo', { allowRepoScripts: true }).pass, true)
 })
 
+test('noDestructiveGit and configFromDefaultBranch: a heredoc body is data', () => {
+  const posted = bash(`f=$(mktemp); cat > "$f" <<'EOF'\nAC3 runs \`node -e x && node --test\`; see .github/macro-loop.json; git checkout -- .\nEOF\ngh api -X POST repos/{owner}/{repo}/issues/3/comments -F body=@"$f"`)
+  const read = bash(`gh api 'repos/{owner}/{repo}/contents/.github/macro-loop.json' --jq '.content | @base64d | fromjson | tojson'`)
+  assert.equal(c.noDestructiveGit([posted], '/w/repo').pass, true)
+  assert.equal(c.configFromDefaultBranch([read, posted]).pass, true)
+})
+
 test('configFromDefaultBranch: the contents API read passes', () => {
   const read = bash(`gh api 'repos/{owner}/{repo}/contents/.github/macro-loop.json' --jq '.content | @base64d | fromjson | tojson'`)
   assert.equal(c.configFromDefaultBranch([read]).pass, true)
