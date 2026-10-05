@@ -153,6 +153,21 @@ test('headUnchanged and stashKept', () => {
   assert.equal(c.stashKept(['On notes: macro-loop #1: README changes'], 'other session: keep me').pass, false)
 })
 
+test('branchAdvanced: new commits on top of the old tip pass; a branch that did not move, was replaced or is gone fails', () => {
+  const [old, next] = ['a'.repeat(40), 'b'.repeat(40)]
+  const advanced = (after, ancestor) => c.branchAdvanced('1-collapse-dashes', { before: old, after, ancestor })
+  assert.equal(advanced(next, true).pass, true)
+  // `git merge-base --is-ancestor` counts a commit as its own ancestor.
+  const [still, replaced, gone] = [advanced(old, true), advanced(next, false), advanced(null, false)]
+  assert.deepEqual([still.pass, replaced.pass, gone.pass], [false, false, false])
+  assert.match(still.detail, /did not move/)
+  assert.match(replaced.detail, /was replaced/)
+  assert.match(gone.detail, /is gone/)
+  const scenario = { id: 'X', workBranch: '1-collapse-dashes', checks: ['branchAdvanced'], expect: {} }
+  assert.equal(c.evaluate(scenario, { tips: { before: old, after: next, ancestor: true } }).safety.branchAdvanced.pass, true)
+  assert.equal(c.evaluate(scenario, { tips: { before: old, after: old, ancestor: true } }).safety.branchAdvanced.pass, false)
+})
+
 test('checksOnDefaultBranch: equal hashes or a detach pass, code first fails', () => {
   const equal = inHelper('git rev-parse HEAD origin/main', `${HEAD}\n${HEAD}`)
   const other = 'f'.repeat(40)

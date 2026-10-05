@@ -12,7 +12,7 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { aggregate, evaluate, formatReport } from './checks.mjs'
-import { loadCalls, projectDir } from './transcript.mjs'
+import { findProjectDir, loadCalls } from './transcript.mjs'
 import { CANARIES, SANDBOX, findScenario, scenarios } from './scenarios.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -105,9 +105,9 @@ export function dryRun(scenario, models = MODELS) {
     ...scenario.say.map((s) => `  say: ${s}`),
     ...(scenario.answers ?? []).map((a) => `  answer ${a.when}: ${a.say}`),
     ...(scenario.otherwise ? [`  otherwise: ${scenario.otherwise}`] : []),
-    ...(scenario.afterFirstStash ? ['', `After the first stash entry appears: ${scenario.afterFirstStash}`] : []),
     '',
     `Checks: ${scenario.checks.join(', ')}`,
+    ...(scenario.workBranch ? [`Branch the user names: ${scenario.workBranch}`] : []),
     `Expected verdict: ${scenario.expect.verdict ?? 'none'}${scenario.expect.measured ? ' (measured)' : ''}`,
   ].join('\n')
 }
@@ -126,11 +126,8 @@ export function blockPushes(repo) {
   git(repo, 'config', 'url.no-push://macro-loop-suite/.pushInsteadOf', 'https://github.com/')
 }
 
-export function hashTree(dir, only) {
-  const files = only ?? listFiles(dir)
-  return Object.fromEntries(
-    files.map((f) => [f, existsSync(join(dir, f)) ? createHash('sha256').update(readFileSync(join(dir, f))).digest('hex') : null]),
-  )
+export function hashTree(dir) {
+  return Object.fromEntries(listFiles(dir).map((f) => [f, createHash('sha256').update(readFileSync(join(dir, f))).digest('hex')]))
 }
 
 function listFiles(dir, root = dir) {
@@ -144,11 +141,26 @@ function listFiles(dir, root = dir) {
 function snapshot(scenario, repo, cwd) {
   const lines = (s) => s.split('\n').filter(Boolean)
   return {
-    tree: hashTree(cwd, scenario.watch),
+    tree: hashTree(cwd),
     head: { branch: git(cwd, 'branch', '--show-current'), commit: git(cwd, 'rev-parse', 'HEAD') },
     branches: lines(git(repo, 'branch', '--list', '--format=%(refname:short)')),
     stash: lines(git(repo, 'stash', 'list', '--format=%gs')),
+    ...(scenario.workBranch ? { tip: tipOf(repo, scenario.workBranch) } : {}),
   }
+}
+
+// The commit a branch points to, or null when there is no such branch.
+function tipOf(repo, branch) {
+  const r = spawnSync('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd: repo, encoding: 'utf8' })
+  return r.status === 0 ? r.stdout.trim() : null
+}
+
+// `git merge-base --is-ancestor` exits 0 when `old` is an ancestor of `tip`, 1 when it is not.
+function isAncestor(repo, old, tip) {
+  if (old == null || tip == null) return false
+  const r = spawnSync('git', ['merge-base', '--is-ancestor', old, tip], { cwd: repo, encoding: 'utf8' })
+  if (r.status !== 0 && r.status !== 1) throw new Error(`git merge-base --is-ancestor ${old} ${tip} failed in ${repo}: ${r.stderr}`)
+  return r.status === 0
 }
 
 function githubState(repo, numbers) {
@@ -212,21 +224,7 @@ function claudeTurn(args, cwd, prompt) {
   })
 }
 
-// Fires `command` once, as soon as the stash has its first entry.
-function watchStash(repo, command) {
-  let fired = false
-  const timer = setInterval(() => {
-    if (fired) return
-    const r = spawnSync('git', ['stash', 'list'], { cwd: repo, encoding: 'utf8' })
-    if (r.stdout.trim() !== '') {
-      fired = true
-      spawnSync('bash', ['-c', command], { cwd: repo })
-    }
-  }, 1000)
-  return () => clearInterval(timer)
-}
-
-async function play(scenario, model, sessionId, cwd, repo, addDirs) {
+async function play(scenario, model, sessionId, cwd, addDirs) {
   const log = []
   let resume = false
   const send = async (text) => {
@@ -235,20 +233,15 @@ async function play(scenario, model, sessionId, cwd, repo, addDirs) {
     log.push({ said: text, result: r.result, isError: r.is_error, denials: (r.permission_denials ?? []).length })
     return r.result ?? ''
   }
-  const stop = scenario.afterFirstStash ? watchStash(repo, scenario.afterFirstStash) : () => {}
-  try {
-    let last = ''
-    for (const text of scenario.say) last = await send(text)
-    const used = new Set()
-    for (let i = 0; i < MAX_ANSWERS && asksSomething(last); i++) {
-      const reply = pickAnswer(scenario, last, used)
-      if (reply == null) break
-      last = await send(reply)
-    }
-    return log
-  } finally {
-    stop()
+  let last = ''
+  for (const text of scenario.say) last = await send(text)
+  const used = new Set()
+  for (let i = 0; i < MAX_ANSWERS && asksSomething(last); i++) {
+    const reply = pickAnswer(scenario, last, used)
+    if (reply == null) break
+    last = await send(reply)
   }
+  return log
 }
 
 async function runOnce(scenario, model, n, outDir) {
@@ -270,7 +263,7 @@ async function runOnce(scenario, model, n, outDir) {
   let turns
   let githubAfter
   try {
-    turns = await play(scenario, model, sessionId, cwd, repo, addDirs)
+    turns = await play(scenario, model, sessionId, cwd, addDirs)
   } finally {
     githubAfter = githubState(repo, numbers)
     restoreGithub(repo, githubBefore, githubAfter)
@@ -280,17 +273,19 @@ async function runOnce(scenario, model, n, outDir) {
   const comment = scenario.pr
     ? githubAfter[scenario.pr].comments.find((c) => !known.has(c.id) && c.body.startsWith('<!-- macro-loop:verify'))?.body ?? null
     : null
+  const transcripts = findProjectDir(sessionId)
   const obs = {
-    calls: loadCalls(projectDir(cwd), sessionId),
+    calls: loadCalls(transcripts, sessionId),
     checkout: cwd,
     before,
     after,
     comment,
     texts: turns.map((t) => t.result ?? ''),
     canaries: Object.fromEntries((scenario.canaries ?? []).map((p) => [p, existsSync(p)])),
+    tips: scenario.workBranch && { before: before.tip, after: after.tip, ancestor: isAncestor(repo, before.tip, after.tip) },
   }
   const { safety, verdict } = evaluate(scenario, obs)
-  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts: projectDir(cwd), turns, comment, safety, verdict, expected: scenario.expect }
+  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts, turns, comment, safety, verdict, expected: scenario.expect }
   writeFileSync(join(outDir, `${scenario.id}-${model}-${n}.json`), JSON.stringify(result, null, 2))
   rmSync(work, { recursive: true, force: true })
   return result

@@ -16,9 +16,10 @@ Each axis runs in its own `macro-loop:verifier` subagent. The subagent gets iden
 
 Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. Trust, the Issue, the spec and the round come from one command, run in the repo's checkout: `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --pr <n>` when there is a PR, which finds the Issue from the PR's body itself, else `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --issue <n>`. **Configuration** in `workflow.md` says what it prints.
 
-## 1. Find the PR, the Issue and the spec
+## 1. Find the branch, the PR, the Issue and the spec
 
-- **PR:** the one the user named, else the open PR for the current branch. Without a PR, verify the current branch against the default branch and print the verdict in the terminal instead of posting it.
+- **Branch:** judge the branch given by name, by the user or by `implement`. With no branch named, use the current branch, resolved to its name with `git branch --show-current` first, so no step refers to `HEAD`.
+- **PR:** the one the user named, else the open PR for the branch. Without a PR, verify the branch against the default branch and print the verdict in the terminal instead of posting it.
 - **Issue:** `pr.closes` in the trust command's output, from the `Closes #<n>` line in the PR body. Without a PR, the Issue the user named or the branch name points to. If the PR has no such line, say that the PR is not linked to an Issue and ask which Issue it implements, then run the trust command again with `--issue <n>` added. If there is none, follow **No Issue yet** in `workflow.md`. Once the Issue is known, offer to add `Closes #<n>` to the PR body (see `github.md`), so the next round finds it.
 - **Spec:** the comment whose id is `issue.spec` in the trust command's output. Without one, follow **Missing inputs** in `workflow.md` (`skipped:spec`). On proceed, judge against the Issue body and say so in the verdict: "no spec; judged against the Issue body".
 
@@ -31,10 +32,10 @@ If three or more verdicts exist and the newest is NEEDS-FIX, the cap is reached:
 ## 3. Pin the diff
 
 - **Base:** the PR's base branch, else the default branch. Run `git fetch origin <base>`.
-- **Head:** the local checkout must match the PR head. Compare `git rev-parse HEAD` with the PR's `.head.sha`. If they differ, read the PR once more, since GitHub can lag a few seconds after a push. If they still differ:
-  - The local branch has commits the PR lacks: ask the user to push them first, or run `open-pr`.
-  - The PR has commits the local checkout lacks, or verify was started on another branch: offer to check out the PR head (see `github.md`) and continue there.
-- **Diff:** stop here if `git diff origin/<base>...HEAD` is empty. The verifiers compute the diff themselves.
+- **Head:** the branch must match the PR head. Compare `git rev-parse <branch>` with the PR's `.head.sha`. If they differ, read the PR once more, since GitHub can lag a few seconds after a push. If they still differ:
+  - The branch has commits the PR lacks: ask the user to push them first, or run `open-pr` with the branch name.
+  - The PR has commits the branch lacks, or the PR is for another branch: offer to check out the PR head (see `github.md`) and judge that branch instead.
+- **Diff:** stop here if `git diff origin/<base>...<branch>` is empty. The verifiers compute the diff themselves.
 
 ## 4. Decide what may run
 
@@ -61,7 +62,7 @@ Axis: spec
 Issue: #<n>
 Spec comment: <id> | none
 Base: origin/<base>
-Head: <sha of HEAD>
+Head: <sha of the branch>
 Run spec commands: yes | no
 Run tests and lint: yes | no
 ```
@@ -73,7 +74,7 @@ Axis: standards
 Issue: #<n>
 Spec comment: <id> | none
 Base: origin/<base>
-Head: <sha of HEAD>
+Head: <sha of the branch>
 ```
 
 If something about the change seems worth a verifier's attention, it goes in your own message to the user, never in a verifier's prompt.
@@ -126,6 +127,6 @@ Keep both reports as the verifiers wrote them, lightly cleaned. Add nothing of y
 ## 8. Next step
 
 - **PASS:** the PR is ready for a person to review and merge.
-- **NEEDS-FIX in round 1 or 2:** run `/macro-loop:implement` to fix the Spec findings; it hands back to verify.
+- **NEEDS-FIX in round 1 or 2:** run `/macro-loop:implement <branch>`, with this branch's name, to fix the Spec findings; it hands back to verify.
 - **NEEDS-FIX in round 3:** stop. Two re-verifications have not converged, and a person decides what happens next.
 - **INCONCLUSIVE:** fix what kept the checks from running, then verify again; the round number stays the same.

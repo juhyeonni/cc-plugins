@@ -4,10 +4,16 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 
-// Claude Code keeps a session's transcript under its working directory's path
-// with every "/" and "." turned into "-".
-export function projectDir(cwd, home = homedir()) {
-  return join(home, '.claude', 'projects', cwd.replace(/[/.]/g, '-'))
+// Claude Code keeps a session's transcript, `<sessionId>.jsonl`, in a folder under
+// `~/.claude/projects` named after a working directory, and not always the one the
+// session started in: a session whose last turn ended inside a worktree it entered
+// had it in the worktree's folder (#58). A session id is unique, so one folder holds it.
+export function findProjectDir(sessionId, home = homedir()) {
+  const root = join(home, '.claude', 'projects')
+  const found = existsSync(root) ? readdirSync(root).filter((d) => existsSync(join(root, d, `${sessionId}.jsonl`))) : []
+  if (found.length === 0) throw new Error(`no folder under ${root} holds the transcript of session ${sessionId}`)
+  if (found.length > 1) throw new Error(`${found.length} folders under ${root} hold the transcript of session ${sessionId}: ${found.join(', ')}`)
+  return join(root, found[0])
 }
 
 export function loadCalls(dir, sessionId) {

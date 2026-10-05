@@ -2,7 +2,7 @@
 
 Every skill in this plugin reads and writes GitHub through the REST API with `gh api`. Do not use `gh issue`, `gh pr`, `gh repo` or any other `gh` subcommand: they call GraphQL, which Claude Code cloud sessions block with HTTP 403.
 
-Run `gh api` from inside the repo's clone. `{owner}`, `{repo}` and `{branch}` in an endpoint are filled in from the clone's git remote and current branch.
+Run `gh api` from inside the repo's clone. `{owner}` and `{repo}` in an endpoint are filled in from the clone's git remote.
 
 Write a comment, Issue or PR body with the Write tool into a file in a directory made with `mktemp -d`, and pass it with `-F body=@<file>`, so quotes and newlines survive. Remove the directory afterwards; never write the file into the repo or next to it. A body's text never goes inside a Bash command, not in a heredoc and not in `echo`: Claude Code's permission check cannot read such a command, and stops it before it runs.
 
@@ -87,7 +87,7 @@ Trust is decided by login, never by the author association GitHub attaches to a 
 | Purpose | Command |
 |---|---|
 | Default branch | `gh api repos/{owner}/{repo} --jq .default_branch` |
-| Open PR for the current branch | `gh api 'repos/{owner}/{repo}/pulls?head={owner}:{branch}&state=open' --jq '.[0].number // empty'` |
+| Open PR for a branch (the one named, else the current branch) | `gh api 'repos/{owner}/{repo}/pulls?head={owner}:<branch>&state=open' --jq '.[0].number // empty'` |
 | Read a PR | `gh api repos/{owner}/{repo}/pulls/<n>` (`.body`, `.base.ref`, `.head.ref`, `.head.sha`, `.html_url`) |
 | Create a PR | `gh api -X POST repos/{owner}/{repo}/pulls -f title='<title>' -f head='<branch>' -f base='<base>' -F body=@<file> --jq '.html_url'` |
 | Edit a PR body | `gh api -X PATCH repos/{owner}/{repo}/pulls/<n> -F body=@<file>` |
