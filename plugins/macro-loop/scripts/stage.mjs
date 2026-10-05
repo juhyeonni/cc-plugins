@@ -74,7 +74,7 @@ function run(cmd, args) {
   return r.stdout
 }
 
-const api = (args) => JSON.parse(run('gh', ['api', ...args]))
+export const api = (args) => JSON.parse(run('gh', ['api', ...args]))
 
 // The PR is the one whose body closes the Issue; an open one wins over a merged one.
 // A PR closed without merging is ignored. The list is newest first.
@@ -90,11 +90,7 @@ function branchAhead(n, base) {
   return branches.some((b) => Number(run('git', ['rev-list', '--count', `origin/${base}..${b}`])) > 0)
 }
 
-function decide(argv) {
-  const { values } = parseArgs({ args: argv, options: { issue: { type: 'string' } } })
-  if (!/^\d+$/.test(values.issue ?? '')) throw new Error('--issue takes a number')
-  const n = Number(values.issue)
-
+export function stageOfIssue(n) {
   const issue = api([`repos/{owner}/{repo}/issues/${n}`])
   const comments = api(['--paginate', '--slurp', `repos/{owner}/{repo}/issues/${n}/comments`]).flat()
   const pr = findPr(n)
@@ -118,6 +114,12 @@ function decide(argv) {
     },
     note: noteState(comments, trust.trusted),
   })
+}
+
+function decide(argv) {
+  const { values } = parseArgs({ args: argv, options: { issue: { type: 'string' } } })
+  if (!/^\d+$/.test(values.issue ?? '')) throw new Error('--issue takes a number')
+  return stageOfIssue(Number(values.issue))
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
