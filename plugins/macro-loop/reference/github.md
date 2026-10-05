@@ -58,7 +58,7 @@ Skills find their own comments by a hidden HTML marker on the comment's first li
 | Marker | Where | Written by |
 |---|---|---|
 | `<!-- macro-loop:spec -->` | Issue comment | `spec` |
-| `<!-- macro-loop:verify round=N -->` | PR comment | `verify` |
+| `<!-- macro-loop:verify round=N sha=<head> -->` | PR comment | `verify` |
 
 A marker counts only when the comment body starts with it. A comment that quotes or mentions a marker further down is not a spec or a verdict.
 

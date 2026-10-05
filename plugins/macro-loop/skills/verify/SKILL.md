@@ -99,7 +99,7 @@ Failures already present on the base branch, behavior outside the spec (scope cr
 **PASS or NEEDS-FIX:** post one comment on the PR. Without a PR, print it, and offer to post it on the Issue as a plain comment, without the marker, so the result is not left in the chat only. The verdict counts as posted only when the POST printed the comment's id (see `github.md`). If it did not, the verdict was not posted: say so, with the error, and print the verdict here.
 
 ```markdown
-<!-- macro-loop:verify round=N -->
+<!-- macro-loop:verify round=N sha=<head> -->
 ## Verify: PASS | NEEDS-FIX (round N of 3)
 
 **Judged against:** the spec comment on #<n> | no spec; judged against the Issue body
@@ -116,6 +116,8 @@ Failures already present on the base branch, behavior outside the spec (scope cr
 
 **Next:** <from step 8>
 ```
+
+`sha` is the `Head` from step 5: the commit the verifiers judged. Later stages compare it with the PR's head to tell whether a verdict is current.
 
 Keep both reports as the verifiers wrote them, lightly cleaned. Add nothing of your own to them, such as a check this session ran earlier: a gap you see goes in your message to the user, outside the verdict. Don't merge or rerank findings across the axes: a change can follow every standard and still miss the spec, or match the spec and break the conventions, and one axis must not hide the other.
 

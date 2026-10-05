@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Decides trust for the macro-loop skills the same way every time (#39): the config on
 // the default branch over the init template's defaults, the trusted logins, and, when
-// asked, an Issue's spec comment and a PR's author, last verdict and round.
+// asked, an Issue's spec comment and a PR's author, last verdict (its id, result and the
+// head SHA it judged, null for a verdict written before the SHA was recorded) and round.
 //
 //   node trust.mjs [--issue <n>] [--pr <n>]
 //
@@ -96,6 +97,8 @@ function decide(argv) {
       base: p.base.ref,
       closes,
       lastVerdict: verdicts.at(-1)?.id ?? null,
+      lastVerdictResult: /^## Verify: (PASS|NEEDS-FIX)\b/m.exec(verdicts.at(-1)?.body ?? '')?.[1] ?? null,
+      lastVerdictSha: /^<!-- macro-loop:verify round=\d+ sha=([0-9a-f]{7,40}) -->/.exec(verdicts.at(-1)?.body ?? '')?.[1] ?? null,
       round: verdicts.length + 1,
     }
     issueNumber ||= closes && String(closes)
