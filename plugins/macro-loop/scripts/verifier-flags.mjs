@@ -5,7 +5,8 @@
 // a spec verifier is about to start with `Run spec commands` and `Run tests and lint` set
 // differently, this finds the open PR at its `Head`; if that PR's author is not trusted
 // (scripts/trust.mjs), both lines become `no`. Everything else passes through unchanged. A
-// failed lookup refuses the start instead of guessing.
+// `Head` GitHub does not have (HTTP 422 "No commit found") cannot be any PR's head, so it counts
+// as no open PR (#66). Every other failed lookup refuses the start instead of guessing.
 //
 // It belongs to the plugin, not to verify's frontmatter: a skill's hooks live only in the
 // process that ran the skill, and verify starts its verifiers on the turn after its question,
@@ -23,6 +24,15 @@ function run(cmd, args, cwd) {
   return JSON.parse(r.stdout)
 }
 
+function pullsAt(head) {
+  try {
+    return run('gh', ['api', `repos/{owner}/{repo}/commits/${head}/pulls`], input.cwd)
+  } catch (e) {
+    if (/No commit found for SHA.*\(HTTP 422\)/.test(e.message)) return []
+    throw e
+  }
+}
+
 const answer = (fields) => process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', ...fields } }))
 
 const input = JSON.parse(readFileSync(0, 'utf8'))
@@ -36,9 +46,7 @@ if (call.subagent_type === 'macro-loop:verifier' && /^Axis: spec$/m.test(prompt)
   try {
     const head = /^Head: ([0-9a-f]{7,40})$/m.exec(prompt)?.[1]
     if (!head) throw new Error('the spec verifier has no Head line')
-    const prs = run('gh', ['api', `repos/{owner}/{repo}/commits/${head}/pulls`], input.cwd).filter(
-      (pr) => pr.state === 'open' && pr.head.sha.startsWith(head),
-    )
+    const prs = pullsAt(head).filter((pr) => pr.state === 'open' && pr.head.sha.startsWith(head))
     const untrusted = prs.map((pr) => run(process.execPath, [TRUST, '--pr', String(pr.number)], input.cwd).pr).find((pr) => !pr.authorTrusted)
     if (untrusted) {
       const no = prompt.replace(/^Run spec commands: (yes|no)$/m, 'Run spec commands: no').replace(/^Run tests and lint: (yes|no)$/m, 'Run tests and lint: no')
