@@ -12,7 +12,7 @@ Skills never read this file or decide trust themselves. Before a skill reads or 
 | `config` | The file on the default branch over the defaults: a key the file sets overrides the default, and a key it leaves out keeps it. Without a file, the defaults. |
 | `trusted` | The trusted logins, in lowercase (see **Who is trusted** in `github.md`). |
 | `issue` | With `--issue <n>`, or with `--pr <n>` alone for the Issue the PR's body closes: `number`, and `spec`, the id of the Issue's spec comment, or `null`. |
-| `pr` | With `--pr <n>`: `author`, `authorTrusted`, `head` (the head SHA), `base`, `closes` (the Issue in the body's `Closes #<n>` line, or `null`), `lastVerdict` (the id of the newest trusted verify comment, or `null`), `lastVerdictResult` (`PASS` or `NEEDS-FIX`, or `null`), `lastVerdictSha` (the head SHA that verdict judged, or `null` for a verdict written without one) and `round` (the trusted verify comments, plus one). |
+| `pr` | With `--pr <n>`: `number`, `author`, `authorTrusted`, `head` (the head SHA), `base`, `closes` (the Issue in the body's `Closes #<n>` line, or `null`), `lastVerdict` (the id of the newest trusted verify comment, or `null`), `lastVerdictResult` (`PASS` or `NEEDS-FIX`, or `null`), `lastVerdictSha` (the head SHA that verdict judged, or `null` for a verdict written without one) and `round` (the trusted verify comments, plus one). |
 
 If the script fails, it prints nothing and exits non-zero with the error. Stop and tell the user what failed. Never read the file or the comments yourself instead.
 

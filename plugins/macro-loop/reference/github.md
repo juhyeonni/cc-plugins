@@ -90,7 +90,7 @@ Trust is decided by login, never by the author association GitHub attaches to a 
 
 ### Lookup
 
-`scripts/trust.mjs` finds the newest trusted comment that starts with a marker. `--issue <n>` gives the spec's id. `--pr <n>` gives the newest trusted verdict's id, and the round, which counts the trusted verdicts. Read a comment by its id (see **Comments**).
+`scripts/trust.mjs` finds the newest trusted comment that starts with a marker. `--issue <n>` gives the spec's id. `--pr <n>` gives the newest trusted verdict's id, and the round, which is the trusted verdicts plus one. Read a comment by its id (see **Comments**).
 
 ## Pull requests
 
@@ -103,8 +103,4 @@ Trust is decided by login, never by the author association GitHub attaches to a 
 | Edit a PR body | `gh api -X PATCH repos/{owner}/{repo}/pulls/<n> -F body=@<file>` |
 | Fetch a PR's head into a local branch, without switching to it | `git fetch origin pull/<n>/head:pr-<n>` |
 
-`open-pr` writes `Closes #<n>` into every PR body it creates, and `verify` reads the Issue from there. The Issue a PR closes (empty output when the body has no such line):
-
-```sh
-gh api repos/{owner}/{repo}/pulls/<n> --jq '.body // "" | capture("Closes #(?<n>[0-9]+)") | .n'
-```
+`open-pr` writes `Closes #<n>` into every PR body it creates, and `verify` reads the Issue from there. The Issue a PR closes is `pr.closes` in the output of `scripts/trust.mjs --pr <n>` (see **Configuration** in `workflow.md`); never match the body by hand.

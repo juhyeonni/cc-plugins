@@ -28,7 +28,7 @@ Each decision states why it was made. A decision without its reason gets reverse
 
 The implementer needs to know when it is done, and `verify` needs something to check. Every criterion is concrete, can be checked on its own, and says how it is checked.
 
-- **Good:** "AC2. After triage moves an Issue to `needs-info`, listing open Issues with that label includes it · check: cmd `gh api 'repos/{owner}/{repo}/issues?labels=needs-info'`"
+- **Good:** "AC2. After triage moves Issue #12 to `needs-info`, the Issue carries that label · check: cmd `gh api repos/{owner}/{repo}/issues/12/labels --jq 'map(.name) | index("needs-info") // error("needs-info missing")'`"
 - **Bad:** "Triage should work correctly"
 
 A `cmd` check must be safe and able to fail:

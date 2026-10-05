@@ -45,6 +45,7 @@ A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:gri
 | `reference/github.md` | GitHub REST calls, markers, and which comments are trusted. |
 | `reference/workflow.md` | Labels, config, the warn-and-record rule, and what to do without an Issue. |
 | `NOTICE.md` | Upstream license and the list of derived files. |
+| `skills/open-pr/CREDITS.md` | Where the PR body template comes from. |
 
 ## Design notes
 
