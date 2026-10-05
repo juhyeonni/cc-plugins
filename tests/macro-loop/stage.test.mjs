@@ -157,6 +157,7 @@ test('run: an Issue with a spec and no branch or PR gives implement, and makes n
   assert.equal(r.status, 0, r.stderr)
   assert.deepEqual([r.out.stage, r.out.gate], ['implement', false])
   assert.equal(r.calls.some((call) => /(^| )-X /.test(call)), false)
+  assert.equal(r.calls.filter((call) => call === ISSUE_COMMENTS).length, 1)
 })
 
 test('run: the proxy label comes from the config, so a renamed label gives wait and source:proxy does not', () => {
@@ -179,14 +180,14 @@ test('run: a local branch ahead of the default branch gives open-pr', () => {
   assert.equal(r.out.stage, 'open-pr')
 })
 
-test('run: an open PR with a PASS for its head gives merge, reading the verdict through trust.mjs', () => {
+test('run: an open PR with a PASS for its head gives merge, taking the PR from the list without reading it again', () => {
   const r = runStage(base({
-    [PULLS]: { stdout: [[{ number: 5, state: 'open', merged_at: null, body: 'Closes #77' }]] },
-    'api repos/{owner}/{repo}/pulls/5': { stdout: { user: { login: 'carol' }, head: { sha: 'abc1234' }, base: { ref: 'main' }, body: 'Closes #77' } },
+    [PULLS]: { stdout: [[{ number: 5, state: 'open', merged_at: null, body: 'Closes #77', user: { login: 'carol' }, head: { sha: 'abc1234' }, base: { ref: 'main' } }]] },
     'api --paginate --slurp repos/{owner}/{repo}/issues/5/comments': { stdout: [[{ id: 2, user: { login: 'carol' }, body: '<!-- macro-loop:verify round=1 sha=abc1234 -->\n## Verify: PASS (round 1 of 3)' }]] },
   }))
   assert.equal(r.status, 0, r.stderr)
   assert.deepEqual([r.out.stage, r.out.gate], ['merge', true])
+  assert.equal(r.calls.includes('api repos/{owner}/{repo}/pulls/5'), false)
 })
 
 test('run: a failing gh call prints nothing on stdout, the error on stderr, and exits non-zero', () => {
