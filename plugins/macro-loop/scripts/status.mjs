@@ -8,10 +8,11 @@
 // Issue, and per PR that closes no Issue, then `{"more": <count>}` when Issues were left out.
 // On any failure it prints nothing and exits non-zero with the error.
 import { fileURLToPath } from 'node:url'
-import { api, stageOfIssue } from './stage.mjs'
+import { list, runContext, stageOfIssue } from './stage.mjs'
 import { CLOSES } from './trust.mjs'
 
-// Each Issue costs about ten gh calls, so only the most recently updated ones are checked.
+// Each Issue costs one or two gh calls on top of the run's few shared ones, so only the
+// most recently updated Issues are checked.
 const LIMIT = 30
 
 const rank = (row) => (row.stage === 'resumable' ? 0 : row.gate ? 1 : 2)
@@ -21,7 +22,7 @@ export function statusLines({ issues, prs, stageFor, limit = LIMIT }) {
   const checked = recent.slice(0, limit).map((i) => {
     let result
     try {
-      result = stageFor(i.number)
+      result = stageFor(i)
     } catch (e) {
       result = { stage: 'error', why: e.message, gate: true }
     }
@@ -36,15 +37,12 @@ export function statusLines({ issues, prs, stageFor, limit = LIMIT }) {
   return recent.length > limit ? [...rows, { more: recent.length - limit }] : rows
 }
 
-function list(path) {
-  return api(['--paginate', '--slurp', path]).flat()
-}
-
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
     const issues = list('repos/{owner}/{repo}/issues?state=open&per_page=100').filter((i) => !i.pull_request)
-    const prs = list('repos/{owner}/{repo}/pulls?state=open&per_page=100')
-    const lines = statusLines({ issues, prs, stageFor: stageOfIssue })
+    const ctx = runContext()
+    const prs = ctx.prs.filter((p) => p.state === 'open')
+    const lines = statusLines({ issues, prs, stageFor: (i) => stageOfIssue(i.number, i, ctx) })
     process.stdout.write(lines.map((row) => `${JSON.stringify(row)}\n`).join(''))
   } catch (e) {
     process.stderr.write(`status.mjs: ${e.message}\n`)

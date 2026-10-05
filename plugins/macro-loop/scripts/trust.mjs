@@ -67,46 +67,57 @@ function number(flag, value) {
   return value
 }
 
+// What is the same for every Issue and PR in a run: stage.mjs builds it once and passes it on.
+export function trustContext() {
+  const file = readConfig()
+  const config = merge(JSON.parse(readFileSync(TEMPLATE, 'utf8')), file ?? {})
+  if (!Array.isArray(config.trusted)) throw new Error('`trusted` in .github/macro-loop.json must be a list of logins')
+  const me = api(['user']).login
+  const repo = api(['repos/{owner}/{repo}'])
+  // Who is trusted (reference/github.md): you, plus the list, or without one the owner when a person owns the repo.
+  const others = config.trusted.length > 0 ? config.trusted : repo.owner.type === 'User' ? [repo.owner.login] : []
+  const trusted = [...new Set([me, ...others].map(lower))]
+  return { configFile: file !== null, config, trusted, defaultBranch: repo.default_branch }
+}
+
+const trustedMarked = (comments, trusted, marker) =>
+  comments.filter((c) => trusted.includes(lower(c.user?.login)) && String(c.body ?? '').startsWith(marker))
+
+export const specOf = (comments, trusted) => trustedMarked(comments, trusted, SPEC).at(-1)?.id ?? null
+
+// `p` is a PR as the pulls API returns it, `comments` its comments.
+export function prState(p, comments, trusted) {
+  const verdicts = trustedMarked(comments, trusted, VERDICT)
+  return {
+    author: p.user.login,
+    authorTrusted: trusted.includes(lower(p.user.login)),
+    head: p.head.sha,
+    base: p.base.ref,
+    // The Issue a PR implements is the one its body closes (`Closes #<n>`, see verify).
+    closes: Number(CLOSES.exec(p.body ?? '')?.[1]) || null,
+    lastVerdict: verdicts.at(-1)?.id ?? null,
+    lastVerdictResult: /^## Verify: (PASS|NEEDS-FIX)\b/m.exec(verdicts.at(-1)?.body ?? '')?.[1] ?? null,
+    lastVerdictSha: /^<!-- macro-loop:verify round=\d+ sha=([0-9a-f]{7,40}) -->/.exec(verdicts.at(-1)?.body ?? '')?.[1] ?? null,
+    round: verdicts.length + 1,
+  }
+}
+
+const comments = (n) => api(['--paginate', '--slurp', `repos/{owner}/{repo}/issues/${n}/comments`]).flat()
+
 function decide(argv) {
   const { values } = parseArgs({ args: argv, options: { issue: { type: 'string' }, pr: { type: 'string' } } })
   const issue = values.issue && number('issue', values.issue)
   const pr = values.pr && number('pr', values.pr)
 
-  const file = readConfig()
-  const config = merge(JSON.parse(readFileSync(TEMPLATE, 'utf8')), file ?? {})
-  if (!Array.isArray(config.trusted)) throw new Error('`trusted` in .github/macro-loop.json must be a list of logins')
-  const me = api(['user']).login
-  const owner = api(['repos/{owner}/{repo}']).owner
-  // Who is trusted (reference/github.md): you, plus the list, or without one the owner when a person owns the repo.
-  const others = config.trusted.length > 0 ? config.trusted : owner.type === 'User' ? [owner.login] : []
-  const trusted = [...new Set([me, ...others].map(lower))]
-  const trustedMarked = (n, marker) =>
-    api(['--paginate', '--slurp', `repos/{owner}/{repo}/issues/${n}/comments`])
-      .flat()
-      .filter((c) => trusted.includes(lower(c.user?.login)) && String(c.body ?? '').startsWith(marker))
-
-  const out = { configFile: file !== null, config, trusted }
+  const { configFile, config, trusted } = trustContext()
+  const out = { configFile, config, trusted }
   let issueNumber = issue
   if (pr) {
     const p = api([`repos/{owner}/{repo}/pulls/${pr}`])
-    // The Issue a PR implements is the one its body closes (`Closes #<n>`, see verify).
-    const closes = Number(CLOSES.exec(p.body ?? '')?.[1]) || null
-    const verdicts = trustedMarked(pr, VERDICT)
-    out.pr = {
-      number: Number(pr),
-      author: p.user.login,
-      authorTrusted: trusted.includes(lower(p.user.login)),
-      head: p.head.sha,
-      base: p.base.ref,
-      closes,
-      lastVerdict: verdicts.at(-1)?.id ?? null,
-      lastVerdictResult: /^## Verify: (PASS|NEEDS-FIX)\b/m.exec(verdicts.at(-1)?.body ?? '')?.[1] ?? null,
-      lastVerdictSha: /^<!-- macro-loop:verify round=\d+ sha=([0-9a-f]{7,40}) -->/.exec(verdicts.at(-1)?.body ?? '')?.[1] ?? null,
-      round: verdicts.length + 1,
-    }
-    issueNumber ||= closes && String(closes)
+    out.pr = { number: Number(pr), ...prState(p, comments(pr), trusted) }
+    issueNumber ||= out.pr.closes && String(out.pr.closes)
   }
-  if (issueNumber) out.issue = { number: Number(issueNumber), spec: trustedMarked(issueNumber, SPEC).at(-1)?.id ?? null }
+  if (issueNumber) out.issue = { number: Number(issueNumber), spec: specOf(comments(issueNumber), trusted) }
   return out
 }
 
