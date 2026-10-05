@@ -23,10 +23,10 @@ Any stage can be the entry point. When a stage's input is missing, the skill war
 | `/macro-loop:grilling` | Interviews you until every decision is settled | Decisions in the conversation |
 | `/macro-loop:spec` | Writes the spec: goal, decisions with reasons, testable acceptance criteria, out of scope | A pinned Issue comment |
 | `/macro-loop:implement` | Builds what the spec asks for, commits, and hands over to `open-pr` and `verify` | Commits |
-| `/macro-loop:open-pr` | Pushes the branch and opens the PR with `Closes #n` | A PR |
+| `/macro-loop:open-pr` | Pushes the branch and opens a draft PR with `Closes #n`, asking first unless you asked for the push | A draft PR |
 | `/macro-loop:verify` | Judges the PR against the spec in fresh-context subagents and posts PASS or NEEDS-FIX | A PR comment |
 
-A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:grilling #12`, then `/macro-loop:spec #12`, then `/macro-loop:implement #12`, which ends with the PR opened and verified.
+A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:grilling #12`, then `/macro-loop:spec #12`, then `/macro-loop:implement #12`, which ends with a draft PR opened and verified. `open-pr` asks before it pushes, unless you asked for the push yourself. A draft cannot be merged until you mark it "Ready for review", after reading the verdict.
 
 `/macro-loop:next #12` runs those stages for you in order and stops where a person has to act: an interview, an answer from the requester, the merge.
 

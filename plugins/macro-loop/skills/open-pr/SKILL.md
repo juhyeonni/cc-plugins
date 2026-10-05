@@ -1,6 +1,6 @@
 ---
 name: open-pr
-description: "Push the named or current branch and open its pull request, linked to the GitHub Issue with Closes #n and written to be fast to review. If the branch already has an open PR, push to it instead. Use when implement hands over, or when the user asks to open a PR for an Issue."
+description: "Push the named or current branch, asking first unless the user asked for it, and open its pull request as a draft, linked to the GitHub Issue with Closes #n and written to be fast to review. If the branch already has an open PR, push to it instead. Use when implement hands over, or when the user asks to open a PR for an Issue."
 ---
 
 # Open PR
@@ -21,7 +21,14 @@ The branch is the one given by name, by the user or by `implement`. With no bran
 - It has commits that the default branch does not have.
 - If it is checked out, the working tree is clean, or the user agrees to leave the uncommitted changes out.
 
-Then push: `git push -u origin <branch>`.
+Look up the branch's open PR (see `github.md`). Then decide whether to ask before pushing:
+
+- **The branch has an open PR:** push without asking. Nothing new is published, and the PR stays a draft until a person marks it ready.
+- **The user asked for it in this conversation:** they ran `/macro-loop:open-pr`, or said "push" or "open a PR". Push without asking. Being called by `implement` or `next` is not the user asking.
+- **Otherwise:** ask once, naming the branch, the remote (`origin`) and the base: "Push `<branch>` to `origin` and open a draft PR against `<base>`?" On no, push nothing and open no PR; when `implement` called this skill, it continues with `verify` on the local branch.
+- **Nobody can answer** (you run as a subagent or in a Workflow run): do not push. Say that the branch was not pushed and no PR was opened.
+
+Push in a shell call of its own, with nothing that could hide its exit code (no pipe, no `;`, no `||`): `git push -u origin <branch>`. If the push fails, stop: report the error and send no PR request.
 
 ## 3. Reuse an open PR
 
@@ -190,4 +197,8 @@ The blast radius is the potential impact or scope of the changes introduced by t
 - **Title:** what the change does, in the imperative, under 70 characters.
 - **Base:** the default branch.
 
-Create it with REST (see `github.md`) and report its URL. The next step is `/macro-loop:verify`.
+Create it as a draft with REST (see `github.md`): a draft cannot be merged until a person marks it "Ready for review", so nobody merges before `verify` has posted its verdict. Report its URL. The next step is `/macro-loop:verify`.
+
+If GitHub answers 422 because the repo cannot hold a draft (as on a Free plan's private repo), ask before opening a ready PR, which can be merged at once. On yes, send the same request without `-F draft=true`. On no, open no PR; when `implement` called this skill, it continues with `verify` on the branch.
+
+Never mark the draft ready yourself: that is the person's step, after reading the verdict.
