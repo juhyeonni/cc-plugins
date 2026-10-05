@@ -34,8 +34,10 @@ If three or more verdicts exist and the newest is NEEDS-FIX, the cap is reached:
 - **Base:** the PR's base branch, else the default branch. Run `git fetch origin <base>`.
 - **Head:** the branch must match the PR head. Compare `git rev-parse <branch>` with the PR's `.head.sha`. If they differ, read the PR once more, since GitHub can lag a few seconds after a push. If they still differ:
   - The branch has commits the PR lacks: ask the user to push them first, or run `open-pr` with the branch name.
-  - The PR has commits the branch lacks, or the PR is for another branch: offer to check out the PR head (see `github.md`) and judge that branch instead.
+  - The PR has commits the branch lacks, or the PR is for another branch: offer to judge the PR head instead. On yes, fetch it into the local branch `pr-<n>` without switching to it (see `github.md`), and judge `pr-<n>` by name from here on.
 - **Diff:** stop here if `git diff origin/<base>...<branch>` is empty. The verifiers compute the diff themselves.
+
+Never switch or check out a branch in the user's checkout: the verifiers fetch the head by sha in worktrees of their own.
 
 ## 4. Decide what may run
 
