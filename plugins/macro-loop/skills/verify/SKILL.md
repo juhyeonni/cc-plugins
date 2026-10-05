@@ -105,6 +105,8 @@ Failures already present on the base branch, behavior outside the spec (scope cr
 <!-- macro-loop:verify round=N sha=<head> -->
 ## Verify: PASS | NEEDS-FIX (round N of 3)
 
+**Manual checks left for a person:** <list, or "none">
+
 **Judged against:** the spec comment on #<n> | no spec; judged against the Issue body
 
 ### Spec
@@ -115,10 +117,10 @@ Failures already present on the base branch, behavior outside the spec (scope cr
 
 <Standards verifier report>
 
-**Manual checks left for a person:** <list, or "none">
-
 **Next:** <from step 8>
 ```
+
+The manual checks come right under the heading, before both reports: a person reads the verdict before marking the PR ready, and a PASS must not hide what they still have to look at.
 
 `sha` is the `Head` from step 5: the commit the verifiers judged. Later stages compare it with the PR's head to tell whether a verdict is current.
 
