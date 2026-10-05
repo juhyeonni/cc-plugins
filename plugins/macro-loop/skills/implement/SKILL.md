@@ -1,7 +1,6 @@
 ---
 name: implement
 description: "Implement the work a GitHub Issue's spec comment describes, commit it, then hand over to open-pr and verify. Use when the user wants an Issue implemented, or the findings of a NEEDS-FIX verdict fixed."
-disable-model-invocation: true
 ---
 
 # Implement

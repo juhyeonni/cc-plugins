@@ -1,7 +1,6 @@
 ---
 name: triage
 description: "Triage GitHub Issues: propose a priority, a state and a source label for each untriaged Issue, and apply them after approval. Use when the user wants to see what needs attention, or to triage or re-label a specific Issue."
-disable-model-invocation: true
 ---
 
 # Triage
