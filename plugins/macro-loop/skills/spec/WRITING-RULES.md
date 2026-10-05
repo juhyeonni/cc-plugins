@@ -31,6 +31,11 @@ The implementer needs to know when it is done, and `verify` needs something to c
 - **Good:** "AC2. After triage moves an Issue to `needs-info`, listing open Issues with that label includes it · check: cmd `gh api 'repos/{owner}/{repo}/issues?labels=needs-info'`"
 - **Bad:** "Triage should work correctly"
 
+A string match, such as a `grep` for a class name, shows the change was written, not how the page behaves. A criterion about what a person sees on a screen is a `test` on rendered output, or a `manual` check that names what to look at: the page, the viewport and what must be true there.
+
+- **Good:** "AC3. The table's columns line up with the header at 950px wide and wider · check: manual, open the task list at 950px and 1440px and compare each column with its header"
+- **Bad:** "AC3. The table uses fixed layout · check: cmd `grep -c table-fixed TaskTable.tsx`"
+
 A `cmd` check must be safe and able to fail:
 
 - It names its exact command in backticks. "check: cmd in a temporary worktree" with no command gives `verify` nothing to run or ask about.
