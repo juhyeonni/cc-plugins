@@ -27,6 +27,8 @@ A triaged Issue carries exactly one label of each kind:
 - **State:** `ready-for-agent`, `needs-info`, `needs-decision`, `wontfix`
 - **Source:** `source:requester`, `source:proxy`, `source:discovery`, `source:developer`
 
+A duplicate is the exception: it is closed as a duplicate and carries no priority, state or source label. `wontfix` means "will not be done", which is false for a request that another Issue holds.
+
 If an Issue carries two labels of one kind, flag it and ask before changing anything. The maintainer can override any role at any time; flag transitions that look unusual and ask before making them.
 
 ## Invocation
@@ -52,13 +54,15 @@ Show the count of each bucket and one line per Issue. With three or fewer Issues
 For each Issue being triaged:
 
 1. **Gather context.** Read the body, comments, labels, author and dates. Read earlier triage notes so you don't re-ask settled questions. Search the codebase for an existing implementation of the request, by concept rather than by its wording, and say where you looked. If it already exists, propose `wontfix` (already implemented).
+
+   Search the repo's Issues, open and closed, for the same request, through `search/issues` (see **Issues** in `github.md`). Search by concept, not by the title's wording: run two or three queries made from the request's key terms, and say which queries you ran. If another Issue holds the same request, propose closing this one as a duplicate of it instead of proposing labels, and skip steps 2 and 3 for it. Name the original, its state, and why it matches. If the original was closed as not planned, say that it was declined, so the maintainer can reopen it instead.
 2. **Source.** Take it from the Issue form's "How was this opened?" answer (mapping in `workflow.md`). Without one, infer it from the author and the text, and say that it is inferred.
 3. **Recommend** a priority, a state and a source, each with a one-line reason.
 4. **Optional checks.** Offer these only when they could change the recommendation, and run them only if the maintainer agrees:
    - **Reproduce** a bug from the reporter's steps. Report confirmed (with the code path), failed, or not enough detail; the last is a strong `needs-info` signal.
    - **Grill** a request that needs fleshing out: call the Skill tool for `macro-loop:grilling` and work it a round at a time.
 
-When triaging several Issues, show all proposals in one table (Issue, priority, state, source, reasons) and let the maintainer approve all of them, approve some, or change rows. Apply nothing before approval.
+When triaging several Issues, show all proposals in one table (Issue, priority, state, source, reasons; a duplicate's row names the original instead of labels) and let the maintainer approve all of them, approve some, or change rows. Apply nothing before approval.
 
 ## Apply
 
@@ -68,6 +72,8 @@ Add the approved labels, and remove any other label of the same kind, so a re-tr
 - `needs-info`: post triage notes addressed to the requester (template below).
 - `needs-decision`: post triage notes that name the decision a person has to make, with the options you see.
 - `wontfix`: post a short comment with the reason, then close the Issue as not planned. If the request is already implemented, point to where it lives.
+
+An approved duplicate gets no labels. Post a comment on the original carrying any new evidence from the new Issue, then a short comment on the new Issue naming the original, then close the new Issue as a duplicate (see `github.md`).
 
 When the maintainer decides something while triaging, such as which fix to take or what is out of scope, write the decision and its reason into the triage comment, whatever the state. A decision left only in the conversation is lost to the next session.
 

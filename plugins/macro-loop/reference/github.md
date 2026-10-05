@@ -15,6 +15,7 @@ A comment, Issue or PR counts as posted only when the POST printed its id: `.id`
 | Read an Issue | `gh api repos/{owner}/{repo}/issues/<n>` |
 | Create an Issue | `gh api -X POST repos/{owner}/{repo}/issues -f title='<title>' -F body=@<file> --jq '.number'` |
 | Close as won't do | `gh api -X PATCH repos/{owner}/{repo}/issues/<n> -f state=closed -f state_reason=not_planned` |
+| Close as a duplicate | `gh api -X PATCH repos/{owner}/{repo}/issues/<n> -f state=closed -f state_reason=duplicate` |
 
 List open Issues, one JSON object per line. Add `&labels=<label>` to the query to list only Issues with that label:
 
@@ -24,6 +25,15 @@ gh api --paginate 'repos/{owner}/{repo}/issues?state=open&per_page=100' \
 ```
 
 The issues endpoints also return pull requests. `select(.pull_request == null)` drops them.
+
+Search the repo's Issues, open and closed, pull requests excluded. `-f` URL-encodes the query:
+
+```sh
+gh api -X GET search/issues -f q='repo:<owner>/<repo> is:issue <terms>' -f per_page=20 \
+  --jq '.items[] | {number, title, state, state_reason, author: .user.login}'
+```
+
+`gh api` fills in `{owner}` and `{repo}` only in the endpoint, not in `q`, so write the owner and name from `git remote get-url origin` there. `state_reason` tells an Issue closed as `completed` from one closed as `not_planned` or `duplicate`.
 
 ## Labels
 
