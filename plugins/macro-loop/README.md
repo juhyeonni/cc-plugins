@@ -17,6 +17,8 @@ Any stage can be the entry point. When a stage's input is missing, the skill war
 | Skill | What it does | Leaves behind |
 |---|---|---|
 | `/macro-loop:init` | Optional setup: labels, bug and feature Issue templates, `.github/macro-loop.json` | Labels and files |
+| `/macro-loop:status` | Shows every open Issue and PR with its stage, what a person does next, and one recommended step | Nothing (read-only) |
+| `/macro-loop:next` | Takes one Issue through the stages in order, calling each skill, and stops where a person has to act | What each stage leaves behind |
 | `/macro-loop:triage` | Proposes a priority, a state and a source for each Issue, and applies them after approval | Labels |
 | `/macro-loop:grilling` | Interviews you until every decision is settled | Decisions in the conversation |
 | `/macro-loop:spec` | Writes the spec: goal, decisions with reasons, testable acceptance criteria, out of scope | A pinned Issue comment |
@@ -26,7 +28,9 @@ Any stage can be the entry point. When a stage's input is missing, the skill war
 
 A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:grilling #12`, then `/macro-loop:spec #12`, then `/macro-loop:implement #12`, which ends with the PR opened and verified.
 
-`triage`, `spec`, `implement` and `init` start only from their slash command, so typing "What needs attention?" on its own does not run triage. `grilling`, `open-pr` and `verify` also start from plain words, or when another skill hands over to them.
+`/macro-loop:next #12` runs those stages for you in order and stops where a person has to act: an interview, an answer from the requester, the merge.
+
+`init` and `next` start only from their slash command. The other skills also start from plain words, or when another skill hands over to them.
 
 ## Contents
 

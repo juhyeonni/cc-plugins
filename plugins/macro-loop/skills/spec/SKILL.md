@@ -1,7 +1,6 @@
 ---
 name: spec
 description: "Turn the decisions in this conversation into the spec comment on a GitHub Issue: goal, decisions with reasons, testable acceptance criteria, and out of scope. The comment is pinned and is what verify judges against. Use after grilling, before implement."
-disable-model-invocation: true
 ---
 
 # Spec
