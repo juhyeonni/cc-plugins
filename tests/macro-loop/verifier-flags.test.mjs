@@ -95,3 +95,21 @@ test('a failed lookup refuses to start the verifier', () => {
   assert.equal(r.out.permissionDecision, 'deny')
   assert.match(r.out.permissionDecisionReason, /HTTP 500/)
 })
+
+test('a head GitHub does not have counts as no open PR: unchanged, and trust is not checked', () => {
+  const r = hook(verifier(lines('spec', 'no', 'yes')), {
+    [`api repos/{owner}/{repo}/commits/${HEAD}/pulls`]: { stderr: `gh: No commit found for SHA: ${HEAD} (HTTP 422)\n`, code: 1 },
+  })
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(r.stdout, '')
+  assert.deepEqual(r.calls, [`api repos/{owner}/{repo}/commits/${HEAD}/pulls`])
+})
+
+test('a 422 with another message still refuses to start the verifier', () => {
+  const r = hook(verifier(lines('spec', 'no', 'yes')), {
+    [`api repos/{owner}/{repo}/commits/${HEAD}/pulls`]: { stderr: 'gh: Validation Failed (HTTP 422)\n', code: 1 },
+  })
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(r.out.permissionDecision, 'deny')
+  assert.match(r.out.permissionDecisionReason, /HTTP 422/)
+})
