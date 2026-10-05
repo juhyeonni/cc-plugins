@@ -28,7 +28,7 @@ What a person does, by stage:
 | `resumable` | Read the new comment, then move the Issue on |
 | `grilling` | Answer the interview; for `needs-info`, the note says who is asked |
 | `wait` | Ask the requester; the triage note holds the questions |
-| `merge` | Review the PR and merge it |
+| `merge` | Read the verdict, mark the draft PR "Ready for review", then merge it |
 | `stop` | Read `why` and decide |
 | `unlinked-pr` | Link the PR to its Issue with a `Closes #<n>` line |
 | `error` | Read `why`; this Issue could not be checked |

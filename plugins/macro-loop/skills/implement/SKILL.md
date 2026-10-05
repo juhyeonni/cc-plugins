@@ -58,7 +58,7 @@ Commit your work to the current branch.
 
 ## 5. Hand over
 
-Call the Skill tool for `macro-loop:open-pr`, then for `macro-loop:verify`, each with the branch name: the branch you committed to in step 4. A skill does not run by itself: the Skill tool loads its steps into this turn. Carry out each skill's steps to the end before calling the next one. `open-pr` pushes the branch and opens the PR, or pushes to the PR that already exists. `verify` judges the PR in a fresh context and posts the verdict.
+Call the Skill tool for `macro-loop:open-pr`, then for `macro-loop:verify`, each with the branch name: the branch you committed to in step 4. A skill does not run by itself: the Skill tool loads its steps into this turn. Carry out each skill's steps to the end before calling the next one. `open-pr` may ask before it pushes the branch and opens a draft PR, or pushes to the PR that already exists. `verify` judges the PR in a fresh context and posts the verdict.
 
 If the user declines the push or the PR, still call `macro-loop:verify` with the branch name and carry out its steps: it judges that branch against the default branch without a PR. Never say that verify needs a PR.
 

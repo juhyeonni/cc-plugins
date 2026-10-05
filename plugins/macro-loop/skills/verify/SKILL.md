@@ -126,7 +126,7 @@ Keep both reports as the verifiers wrote them, lightly cleaned. Add nothing of y
 
 ## 8. Next step
 
-- **PASS:** the PR is ready for a person to review and merge.
+- **PASS:** the PR is ready for a person: read the verdict, mark the draft "Ready for review", then merge.
 - **NEEDS-FIX in round 1 or 2:** run `/macro-loop:implement <branch>`, with this branch's name, to fix the Spec findings; it hands back to verify.
 - **NEEDS-FIX in round 3:** stop. Two re-verifications have not converged, and a person decides what happens next.
 - **INCONCLUSIVE:** fix what kept the checks from running, then verify again; the round number stays the same.
