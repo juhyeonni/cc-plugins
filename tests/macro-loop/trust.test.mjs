@@ -196,3 +196,11 @@ test('an Issue or PR number that is not a number is refused before any call', ()
   assert.equal(r.stdout, '')
   assert.deepEqual(r.calls, [])
 })
+
+test('import: trust.mjs exports CLOSES and prints nothing when imported', () => {
+  const code = `import(${JSON.stringify(SCRIPT)}).then((m) => console.error(m.CLOSES.exec('Closes #7')[1]))`
+  const r = spawnSync(process.execPath, ['-e', code], { encoding: 'utf8' })
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(r.stdout, '')
+  assert.equal(r.stderr.trim(), '7')
+})

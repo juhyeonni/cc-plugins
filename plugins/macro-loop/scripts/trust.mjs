@@ -12,8 +12,11 @@
 // JSON object on one line. On any failure it prints nothing and exits non-zero.
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
+// The line that links a PR to the Issue it implements; stage.mjs and status.mjs import it.
+export const CLOSES = /^\s*closes\s+#(\d+)\b/im
 const SPEC = '<!-- macro-loop:spec -->'
 const VERDICT = '<!-- macro-loop:verify round='
 const TEMPLATE = new URL('../skills/init/templates/macro-loop.json', import.meta.url)
@@ -87,7 +90,7 @@ function decide(argv) {
   if (pr) {
     const p = api([`repos/{owner}/{repo}/pulls/${pr}`])
     // The Issue a PR implements is the one its body closes (`Closes #<n>`, see verify).
-    const closes = Number(/^\s*closes\s+#(\d+)\b/im.exec(p.body ?? '')?.[1]) || null
+    const closes = Number(CLOSES.exec(p.body ?? '')?.[1]) || null
     const verdicts = trustedMarked(pr, VERDICT)
     out.pr = {
       number: Number(pr),
@@ -107,9 +110,11 @@ function decide(argv) {
   return out
 }
 
-try {
-  process.stdout.write(`${JSON.stringify(decide(process.argv.slice(2)))}\n`)
-} catch (e) {
-  process.stderr.write(`trust.mjs: ${e.message}\n`)
-  process.exitCode = 1
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  try {
+    process.stdout.write(`${JSON.stringify(decide(process.argv.slice(2)))}\n`)
+  } catch (e) {
+    process.stderr.write(`trust.mjs: ${e.message}\n`)
+    process.exitCode = 1
+  }
 }

@@ -9,10 +9,10 @@
 // On any failure it prints nothing and exits non-zero with the error.
 import { fileURLToPath } from 'node:url'
 import { api, stageOfIssue } from './stage.mjs'
+import { CLOSES } from './trust.mjs'
 
 // Each Issue costs about ten gh calls, so only the most recently updated ones are checked.
 const LIMIT = 30
-const CLOSES = /^\s*closes\s+#(\d+)\b/im
 
 const rank = (row) => (row.stage === 'resumable' ? 0 : row.gate ? 1 : 2)
 

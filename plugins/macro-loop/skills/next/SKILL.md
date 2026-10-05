@@ -14,7 +14,7 @@ Use the Issue number the user gave. Without one, ask for it. Do not pick an Issu
 
 ## Each round
 
-1. In the repo's checkout, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/stage.mjs --issue <n>`. It prints one JSON line, `{stage, why, gate}`. If it fails, say what failed and stop. Never work out a stage yourself.
+1. In the repo's checkout, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/stage.mjs --issue <n>`. It prints one JSON line, `{stage, why, gate}`; `gate` only orders `status`'s list, and `next` ignores `gate`. If it fails, say what failed and stop. Never work out a stage yourself.
 2. If the line is the same as the one from the round before, stop and say that nothing changed. After 8 rounds, stop and say so.
 3. Do what the stage says, below. Then go back to 1.
 
