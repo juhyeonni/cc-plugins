@@ -91,7 +91,7 @@ Trust is decided by login, never by the author association GitHub attaches to a 
 | Read a PR | `gh api repos/{owner}/{repo}/pulls/<n>` (`.body`, `.base.ref`, `.head.ref`, `.head.sha`, `.html_url`) |
 | Create a PR | `gh api -X POST repos/{owner}/{repo}/pulls -f title='<title>' -f head='<branch>' -f base='<base>' -F body=@<file> --jq '.html_url'` |
 | Edit a PR body | `gh api -X PATCH repos/{owner}/{repo}/pulls/<n> -F body=@<file>` |
-| Check out a PR's head | `git fetch origin pull/<n>/head:pr-<n>` then `git switch pr-<n>` |
+| Fetch a PR's head into a local branch, without switching to it | `git fetch origin pull/<n>/head:pr-<n>` |
 
 `open-pr` writes `Closes #<n>` into every PR body it creates, and `verify` reads the Issue from there. The Issue a PR closes (empty output when the body has no such line):
 
