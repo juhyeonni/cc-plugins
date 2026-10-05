@@ -11,7 +11,7 @@ Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` a
 
 ## 1. Find the Issue
 
-Use the Issue the user or `implement` named, or the one the conversation or the branch name points to. If there is none, follow **No Issue yet** in `workflow.md`: without an Issue, `verify` has no spec to judge against.
+Use the Issue the user or `implement` named, or the one the conversation or the branch name points to. If there is none, follow **No Issue yet** in `workflow.md`: without an Issue, `verify` has no spec to judge against. Before it adds the first label to the new Issue, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs` in the repo's checkout and use the label names in its `config.labels`: a repo can rename them (see **Configuration** in `workflow.md`).
 
 ## 2. Check the branch and push
 
