@@ -1,14 +1,14 @@
 // The band's glue (#108): turns the engine's events into band.mjs events, keeps the state in
 // module memory, and draws AbovePrompt from render(). It only observes: every hook returns
 // what its next(e) settled to, and a parse failure never changes that.
-import { initial, reduce, render, signature } from './band.mjs'
+import { initial, reduce, render, repoOf, signature } from './band.mjs'
 
 // Color only repeats the symbol.
 const TONE = { run: 'suggestion', you: 'warning', other: 'inactive', unknown: 'error', done: 'success' }
 
 // Matched by script name, so any quoting of the path and any compound prefix still match.
 const STAGE = /(?:^|[\s"'\/\\])stage\.mjs["']?\s+(?:[^|;&\n]*?\s)?--issue(?:=|\s+)["']?(\d+)/
-const TRUST = /(?:^|[\s"'\/\\])trust\.mjs["']?\s+(?:[^|;&\n]*?\s)?--pr(?:=|\s+)["']?(\d+)/
+const TRUST = /(?:^|[\s"'\/\\])trust\.mjs["']?\s+(?:[^|;&\n]*?\s)?--(?:pr|issue)(?:=|\s+)["']?\d+/
 const GH_API = /\bgh\s+api\b/
 const POST = /(?:-X\s*|--method[=\s]+)POST\b/
 const PULLS = /repos\/\S+?\/pulls(?=["'\s]|$)/
@@ -18,6 +18,25 @@ const PR_URL = /\/pull\/(\d+)/
 let state = initial()
 let lastSig = ''
 let timer = null
+// The origin remote's { owner, repo }, null when it is no GitHub remote (D15). Read once per
+// session (and per load), at the first band drawn, so a session with no macro-loop activity
+// runs nothing; not awaited, so no hook waits on git, and the band redraws once it is read.
+let repo = null
+let reading = null
+
+function readRemote($) {
+  reading ??= (async () => {
+    try {
+      // Absent, cwd is the session's anyway.
+      const cwd = await $.session.cwd().catch(() => undefined)
+      const r = await $.process.run(['git', 'remote', 'get-url', 'origin'], cwd ? { cwd, timeoutMs: 5_000 } : { timeoutMs: 5_000 })
+      repo = r.exitCode === 0 ? repoOf(r.stdout) : null
+    } catch {
+      repo = null
+    }
+    if (repo) await redraw($)
+  })().catch(() => {})
+}
 
 async function feed($, ev) {
   const s = reduce(state, ev)
@@ -28,13 +47,14 @@ async function feed($, ev) {
 
 async function redraw($) {
   if ((await $.session.surfaces()).length === 0) return
+  if (state.cur) readRemote($)
   if (!state.cur && timer) {
     timer.cancel()
     timer = null
   }
   // Started lazily: a reload drops timers and no session.start follows it.
   if (state.cur && !timer) timer = $.clock.every(60_000, () => { redraw($).catch(() => {}) })
-  const sig = signature(state, await $.clock.now())
+  const sig = signature(state, await $.clock.now(), repo)
   if (sig === lastSig) return
   lastSig = sig
   $.ui.invalidate('ui.render')
@@ -71,8 +91,18 @@ function bashEvents(command, r, at) {
   }
   const trust = !r.isError && cmd.match(TRUST)
   if (trust) {
-    const o = lastJson(out, (x) => x.pr && typeof x.pr === 'object' && num(x.pr.number) !== null)
-    if (o) evs.push({ type: 'trust', pr: o.pr.number, round: o.pr.round ?? null, issue: o.pr.closes ?? o.issue?.number ?? null, at })
+    const isObj = (x) => x !== null && typeof x === 'object' && !Array.isArray(x)
+    const o = lastJson(out, (x) => (isObj(x.pr) && num(x.pr.number) !== null) || (isObj(x.issue) && num(x.issue.number) !== null))
+    if (o) {
+      const pr = isObj(o.pr) ? o.pr : null
+      const issue = isObj(o.issue) ? o.issue : null
+      evs.push({
+        type: 'trust', pr: num(pr?.number), round: pr?.round ?? null, issue: num(issue?.number) ?? num(pr?.closes),
+        // undefined: the output named no Issue, so the spec seen before stays.
+        spec: issue ? issue.spec ?? null : undefined,
+        verdict: pr?.lastVerdict ?? null, verdictResult: pr?.lastVerdictResult ?? null, at,
+      })
+    }
   }
   if (!r.isError && GH_API.test(cmd) && POST.test(cmd) && PULLS.test(cmd)) {
     const text = String(out).trim()
@@ -132,6 +162,13 @@ export const register = (on) => {
     return next(e)
   })
 
+  // A new session may run in another checkout: its remote is read afresh.
+  on('session.start', async ($, e, next) => {
+    reading = null
+    repo = null
+    return next(e)
+  })
+
   on('session.end', async ($, e, next) => {
     try {
       await feed($, { type: 'sessionEnd', reason: e.reason, at: await $.clock.now() })
@@ -154,10 +191,12 @@ export const register = (on) => {
     if (e.props.hasSurvey) return next(e)
     let out = null
     try {
-      out = render(state, { isWorking: e.props.isWorking, now: await $.clock.now(), columns: e.props.bodyColumns })
+      out = render(state, { isWorking: e.props.isWorking, now: await $.clock.now(), columns: e.props.bodyColumns, repo })
     } catch {}
     if (!out) return next(e)
-    const { Text } = $.ui.resolve(e)
-    return h(Text, { color: TONE[out.tone], wrap: 'truncate-end' }, out.text)
+    const { Link, Text } = $.ui.resolve(e)
+    // Each link inline after the band text, ' · ' between them (D15).
+    const links = out.links.flatMap((l) => [' · ', h(Link, { href: l.href, label: l.label })])
+    return h(Text, { color: TONE[out.tone], wrap: 'truncate-end' }, out.text, ...links)
   })
 }

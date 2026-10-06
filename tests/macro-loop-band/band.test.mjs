@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const MOD = join(ROOT, 'plugins/macro-loop-band/hooks/band.mjs')
-const { SKILLS, STAGES, initial, reduce, band, fit, render, elapsed, clean, signature } = await import(
+const { SKILLS, STAGES, initial, reduce, band, fit, render, elapsed, clean, signature, repoOf } = await import(
   pathToFileURL(MOD).href
 )
 
@@ -19,6 +19,8 @@ const failed = (issue, at = 0) => ({ type: 'stage', issue, ok: false, at })
 const trust = (pr, round, issue, at = 0) => ({ type: 'trust', pr, round, issue, at })
 const turnStart = (at = 0) => ({ type: 'turnStart', at })
 const turnEnd = (at = 0) => ({ type: 'turnEnd', at })
+// trust.mjs output as the glue normalizes it: spec undefined when the output had no Issue.
+const trustFull = (o, at = 0) => ({ type: 'trust', round: null, issue: null, at, ...o })
 const run = (events, s = initial()) => events.reduce(reduce, s)
 const text = (s, now, isWorking) => render(s, { isWorking, now, columns: WIDE })?.text ?? null
 const working = (s, now) => text(s, now, true)
@@ -303,4 +305,161 @@ test('clean strips control and invisible characters from every part', () => {
   assert.equal(clean({ toString() { throw new Error('x') } }), '')
   const b = { tone: 'you', parts: [{ text: '◆', rank: 0 }, { text: '#1', rank: 0 }, { text: 'x\u202ey', rank: 6 }] }
   assert.equal(fit(b, 50), '◆ #1 xy')
+})
+
+// D15: links to the GitHub objects the next action needs.
+const REPO = { owner: 'o', repo: 'r' }
+const GH = 'https://github.com/o/r'
+const at = (s, o) => render(s, { columns: WIDE, now: 0, ...o, repo: REPO })
+const labels = (s, o) => at(s, o).links.map((l) => l.label)
+const line = (s, o) => fit(band(s, { now: 0, ...o, repo: REPO }), WIDE)
+const SPEC = 6018031462
+const VERDICT = 777
+
+test('AC19: each stage D15 lists carries its links in order, built from the remote', async (t) => {
+  await t.test('triage and grilling link the Issue', () => {
+    const tr = run([skill('next', 0), stage(7, 'triage', 1), turnEnd(2)])
+    assert.deepEqual(at(tr).links, [{ label: '#7', href: `${GH}/issues/7` }])
+    const g = run([skill('next', 0), stage(108, 'grilling', 1), turnEnd(2)])
+    assert.deepEqual(at(g).links, [{ label: '#108', href: `${GH}/issues/108` }])
+    assert.equal(line(g), '◆ #108 grilling · answer the questions above · #108')
+    // No Issue number, no Issue link.
+    assert.deepEqual(at(run([skill('grilling', 0)]), { isWorking: true }).links, [])
+  })
+  await t.test('spec and implement link the spec comment', () => {
+    const sp = run([skill('spec', 0), trustFull({ issue: 12, spec: SPEC }, 1)])
+    assert.deepEqual(at(sp, { isWorking: true }).links, [{ label: 'spec', href: `${GH}/issues/12#issuecomment-${SPEC}` }])
+    const im = run([skill('next', 0), stage(12, 'implement', 1), skill('implement', 2), trustFull({ issue: 12, spec: SPEC }, 3)])
+    assert.deepEqual(labels(im, { isWorking: true }), ['spec'])
+    assert.deepEqual(labels(reduce(im, turnEnd(4))), ['spec'])
+  })
+  await t.test('open-pr and verify link the PR, then the spec', () => {
+    const base = [skill('next', 0), stage(12, 'implement', 1), skill('implement', 2), trustFull({ issue: 12, spec: SPEC }, 3)]
+    const op = run([...base, skill('open-pr', 4), { type: 'pr', pr: 109, at: 5 }])
+    assert.deepEqual(at(op, { isWorking: true }).links, [
+      { label: 'PR #109', href: `${GH}/pull/109` },
+      { label: 'spec', href: `${GH}/issues/12#issuecomment-${SPEC}` },
+    ])
+    const v = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2 * MIN),
+      trustFull({ pr: 109, round: 2, issue: 12, spec: SPEC, verdict: VERDICT, verdictResult: 'NEEDS-FIX' }, 3 * MIN)])
+    assert.deepEqual(labels(v, { isWorking: true }), ['PR #109', 'spec'])
+    // The PR number moves out of the text into its link (D6 changed).
+    assert.equal(at(v, { isWorking: true, now: 16 * MIN }).text, '▶ #12 verify · round 2 · 14m')
+    assert.equal(line(v, { isWorking: true, now: 16 * MIN }), '▶ #12 verify · round 2 · 14m · PR #109 · spec')
+  })
+  await t.test('NEEDS-FIX links the verdict, then the PR', () => {
+    const nf = trustFull({ pr: 109, round: 2, issue: 12, spec: SPEC, verdict: VERDICT, verdictResult: 'NEEDS-FIX' }, 3)
+    const im = run([skill('next', 0), stage(12, 'implement', 1), skill('implement', 2), nf])
+    assert.deepEqual(at(im, { isWorking: true }).links, [
+      { label: 'verdict', href: `${GH}/pull/109#issuecomment-${VERDICT}` },
+      { label: 'PR #109', href: `${GH}/pull/109` },
+    ])
+    const st = run([skill('next', 0), nf, stage(12, 'stop', 4, '3 verdicts and the newest is NEEDS-FIX'), turnEnd(5)])
+    assert.deepEqual(labels(st), ['verdict', 'PR #109'])
+    assert.equal(line(st), '◆ #12 stopped · NEEDS-FIX 3× · decide · verdict · PR #109')
+  })
+  await t.test('PASS links the PR, then the verdict', () => {
+    const s = run([skill('verify', 0), trustFull({ pr: 109, round: 1, issue: 12, spec: SPEC, verdict: VERDICT, verdictResult: 'PASS' }, 1),
+      stage(12, 'merge', 2, 'the verdict for the current head is PASS'), turnEnd(3)])
+    assert.deepEqual(at(s).links, [
+      { label: 'PR #109', href: `${GH}/pull/109` },
+      { label: 'verdict', href: `${GH}/pull/109#issuecomment-${VERDICT}` },
+    ])
+    assert.equal(line(s), '◆ #12 PASS · read verdict, merge the PR · PR #109 · verdict')
+  })
+  await t.test('rows D15 does not list carry none', () => {
+    for (const [st, why] of [['resumable', ''], ['wait', ''], ['stop', 'no rule fits']]) {
+      const s = run([skill('next', 0), trustFull({ issue: 12, spec: SPEC, pr: 109 }, 1), stage(12, st, 2, why), turnEnd(3)])
+      assert.deepEqual(at(s).links, [], st)
+    }
+    assert.deepEqual(at(run([skill('next', 0), failed(12, 1)])).links, [])
+    assert.deepEqual(at(run([skill('next', 0), stage(12, 'done', 1)])).links, [])
+  })
+})
+
+test('AC20: an id not observed leaves its link out and the others stay', () => {
+  // verify with no spec seen: the PR alone.
+  const v = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2), trustFull({ pr: 109, round: 1 }, 3)])
+  assert.deepEqual(labels(v, { isWorking: true }), ['PR #109'])
+  // PASS with no verdict id: the PR alone; with no PR either, no links and the plain wording.
+  const p = run([skill('next', 0), trustFull({ pr: 109, issue: 12, spec: null, verdict: null, verdictResult: 'PASS' }, 1), stage(12, 'merge', 2), turnEnd(3)])
+  assert.deepEqual(labels(p), ['PR #109'])
+  const bare = run([skill('next', 0), stage(12, 'merge', 1), turnEnd(2)])
+  assert.deepEqual(at(bare).links, [])
+  assert.equal(at(bare).text, '◆ #12 PASS · read verdict, merge the PR')
+  // implement with no spec seen has none; a spec link needs the Issue number.
+  assert.deepEqual(labels(run([skill('next', 0), stage(12, 'implement', 1), skill('implement', 2)]), { isWorking: true }), [])
+  assert.deepEqual(labels(run([skill('spec', 0)]), { isWorking: true }), [])
+  // trust.mjs --pr with no Issue keeps the spec seen before; a spec of null clears it.
+  const kept = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2), trustFull({ issue: 12, spec: SPEC }, 3), trustFull({ pr: 109 }, 4)])
+  assert.deepEqual(labels(kept, { isWorking: true }), ['PR #109', 'spec'])
+  assert.deepEqual(labels(reduce(kept, trustFull({ issue: 12, spec: null }, 5)), { isWorking: true }), ['PR #109'])
+  // A new PR drops the old PR's verdict.
+  const nf = run([skill('next', 0), trustFull({ pr: 109, issue: 12, verdict: VERDICT, verdictResult: 'NEEDS-FIX' }, 1), stage(12, 'stop', 2, '3 verdicts'), turnEnd(3)])
+  assert.deepEqual(labels(nf), ['verdict', 'PR #109'])
+  const moved = run([skill('next', 0), stage(12, 'implement', 1), skill('implement', 2),
+    trustFull({ pr: 109, issue: 12, verdict: VERDICT, verdictResult: 'NEEDS-FIX' }, 3), { type: 'pr', pr: 110, at: 4 }])
+  assert.equal(moved.cur.pr, 110)
+  assert.deepEqual(labels(moved, { isWorking: true }), [])
+  // Garbage ids are not observed.
+  const g = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2), trustFull({ pr: 109, issue: 12, spec: -1, verdict: 1.5, verdictResult: 'MAYBE' }, 3)])
+  assert.deepEqual(labels(g, { isWorking: true }), ['PR #109'])
+  assert.equal(g.cur.verdictResult, null)
+  for (const ev of [trustFull({ pr: NaN, issue: 12 }), trustFull({ pr: 109, issue: '12' }), trustFull({})])
+    assert.equal(reduce(g, ev), g, JSON.stringify(ev))
+})
+
+test('AC21: owner and repo come from https, git@ and ssh:// remotes; any other gives no links', () => {
+  for (const url of ['https://github.com/o/r.git', 'https://github.com/o/r', 'https://github.com/o/r/', 'git@github.com:o/r.git',
+    'git@github.com:o/r', 'ssh://git@github.com/o/r', 'ssh://git@github.com/o/r.git', 'ssh://git@github.com:22/o/r',
+    'https://token@github.com/o/r.git', ' https://github.com/o/r.git\r\n'])
+    assert.deepEqual(repoOf(url), REPO, url)
+  assert.deepEqual(repoOf('https://github.com/juhyeonni/cc-plugins.git'), { owner: 'juhyeonni', repo: 'cc-plugins' })
+  for (const url of ['https://gitlab.com/o/r.git', 'http://github.com/o/r', 'git@gitlab.com:o/r.git', 'https://github.com/o',
+    'https://github.com/o/r/x', 'https://github.com.evil.io/o/r', 'file:///c/repo', 'C:\\repo', '../r', '', 'https://github.com/o/..',
+    'https://github.com/o/r\u001b]8;;x', 'https://github.com/o/r?x=1', null, undefined, 42, {}])
+    assert.equal(repoOf(url), null, String(url))
+  // No GitHub remote: no links, and exactly the text the band shows without links.
+  const s = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2 * MIN), trust(109, 2, 12, 3 * MIN),
+    trustFull({ issue: 12, spec: SPEC }, 3 * MIN)])
+  const o = { isWorking: true, now: 16 * MIN, columns: WIDE }
+  for (const repo of [null, repoOf('https://gitlab.com/o/r.git'), undefined, 'o/r', { owner: 'o' }]) {
+    assert.deepEqual(render(s, { ...o, repo }), { text: '▶ #12 verify · PR #109 · round 2 · 14m', links: [], tone: 'run' }, String(repo))
+    assert.equal(signature(s, 16 * MIN, repo), signature(s, 16 * MIN))
+  }
+  // With a remote the signature changes, so the glue redraws once the remote is read.
+  assert.notEqual(signature(s, 16 * MIN, REPO), signature(s, 16 * MIN))
+})
+
+test('AC22: as the width shrinks, links drop from the right before the action, and #<n> stays', () => {
+  const steps = (s, o, from) => {
+    const b = band(s, { now: 0, ...o, repo: REPO })
+    const seen = []
+    for (let c = from; c >= 0; c--) {
+      const t = fit(b, c)
+      if (seen.at(-1) !== t) seen.push(t)
+    }
+    return seen
+  }
+  const v = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2 * MIN),
+    trustFull({ pr: 109, round: 2, issue: 12, spec: SPEC }, 3 * MIN)])
+  assert.deepEqual(steps(v, { isWorking: true, now: 16 * MIN }, 80), ['▶ #12 verify · round 2 · 14m · PR #109 · spec',
+    '▶ #12 verify · round 2 · PR #109 · spec', '▶ #12 verify · PR #109 · spec', '▶ #12 verify · PR #109', '▶ #12 verify', '▶ #12'])
+  const p = run([skill('verify', 0), trustFull({ pr: 109, issue: 12, verdict: VERDICT, verdictResult: 'PASS' }, 1), stage(12, 'merge', 2), turnEnd(3)])
+  assert.deepEqual(steps(p, {}, 80), ['◆ #12 PASS · read verdict, merge the PR · PR #109 · verdict',
+    '◆ #12 PASS · read verdict, merge the PR · PR #109', '◆ #12 PASS · read verdict, merge the PR', '◆ #12 PASS', '◆ #12'])
+  // The kept links are the ones drawn.
+  assert.deepEqual(render(p, { now: 0, columns: 49, repo: REPO }).links.map((l) => l.label), ['PR #109'])
+  assert.equal(render(p, { now: 0, columns: 49, repo: REPO }).text, '◆ #12 PASS · read verdict, merge the PR')
+  // The Issue link of triage and grilling is never dropped.
+  const g = run([skill('next', 0), stage(108, 'grilling', 1), stage(12, 'merge', 2), stage(108, 'grilling', 3), turnEnd(4)])
+  assert.deepEqual(steps(g, {}, 90), ['◆ #108 grilling · answer the questions above · +1 waiting (#12 merge) · #108',
+    '◆ #108 grilling · answer the questions above · #108', '◆ #108 grilling · #108', '◆ #108 · #108'])
+  for (let c = 0; c <= 90; c++) assert.deepEqual(render(g, { now: 0, columns: c, repo: REPO }).links.map((l) => l.label), ['#108'], String(c))
+})
+
+test('D15: the PR link rewrites only the PASS row, not an ask or a running next at merge', () => {
+  const m = run([skill('next', 0), trustFull({ pr: 109, issue: 12, spec: 5, verdict: 7, verdictResult: 'PASS' }, 1), stage(12, 'merge', 2)])
+  assert.equal(at(reduce(m, { type: 'ask', id: 't1', at: 3 })).text, '◆ #12 next · approve the tool call')
+  assert.equal(at(m, { isWorking: true }).text, '▶ #12 next · 0m')
 })

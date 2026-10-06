@@ -8,3 +8,5 @@ node_modules/
 
 # The engine writes type declarations into a loaded mod plugin folder.
 plugins/*/.claude-plugin/types/
+# Its local tsconfig extends that engine-written folder, so it is not committed either.
+plugins/macro-loop-band/tsconfig.json
