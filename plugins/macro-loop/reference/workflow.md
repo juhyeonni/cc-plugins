@@ -18,6 +18,8 @@ If the script fails, it prints nothing and exits non-zero with the error. Stop a
 
 `trusted` in the file lists the GitHub logins whose spec and verdict comments count, and whose `check: cmd` commands `verify` may run after asking. An empty list means the default described in **Who is trusted** in `github.md`.
 
+`uiKit` is the claude.ai URL of an artifact that renders the repo's UI markup, for `grilling` to build comparison pages on. `null` means the repo has none.
+
 The rest of this plugin names labels by their default strings.
 
 ## Labels

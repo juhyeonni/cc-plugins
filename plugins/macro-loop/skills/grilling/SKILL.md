@@ -25,6 +25,13 @@ Each round the user answers reshapes the tree: settled decisions push the fronti
 
 Finding _facts_ is your job, never the user's. When a frontier question needs a fact from the environment (filesystem, tools, etc.), dispatch a sub-agent to find it; don't ask the user for anything you could look up yourself. Don't block on it: a running exploration is an unsettled prerequisite, so only the questions downstream of it wait for the sub-agent to report; ask the rest of the frontier now. The _decisions_ are the user's: put each to them and wait.
 
+A question about how something looks (placement, density, color, a rendered state) is hard to answer from words, so show the options instead of describing them:
+
+- **Structure only**, such as what goes where or what is shown: give each option an ASCII wireframe in an `AskUserQuestion` `preview`.
+- **Look and feel**, when the repo has a UI kit: run `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs` in the checkout and take `config.uiKit` (see **Configuration** in `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`). Read that artifact once for its usage, then publish one comparison page per Issue with the Artifact tool, copying the kit's files from it server side through `files` (`{"artifact": <uiKit>, "path": <file>}`). Render today's screen and each option from the real markup, transcribed from the default branch, with example data marked as examples. Republish the same page as rounds go on rather than one per question.
+
+Next to the question, name the page and each option's key (`Q3: options a / b / c on <url>`). Never run the app or a browser to capture screens for this; a comparison costs one HTML file.
+
 The session is done when the frontier is empty: every branch of the design tree visited, nothing left silently assumed. Do not act on it until the user confirms you have reached a shared understanding.
 
 While grilling, the working tree is read-only: find facts by reading files, `git log` and `git show`. Never run the repo's own scripts, generators, builds or tests in the checkout, not even with `--help` or `--dry-run`: a script can ignore its flags and write anyway. Read the code to learn what it does. To see it run, dispatch the sub-agent with the Agent tool's `isolation` set to `"worktree"`: it runs in a disposable worktree, never in the checkout. That worktree can start on another commit, so the sub-agent first runs `git rev-parse HEAD origin/<default>`, and only if the two hashes differ, `git checkout --detach origin/<default>`, each in a Bash call of its own. Never make a worktree by hand and `cd` into it. Never use `git checkout -- .`, `git restore .`, `git reset --hard` or `git clean`: they throw away uncommitted work.

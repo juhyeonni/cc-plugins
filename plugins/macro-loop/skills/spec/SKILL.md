@@ -73,6 +73,8 @@ Write each command plainly, without `$(…)`, `bash -c` or shell variables, so p
 
 Before publishing, run each `cmd` check once on today's code through a subagent with worktree isolation, and say what happened in the draft. A check for new behavior must fail there; one that already passes checks nothing, so fix it. A check that guards existing behavior passes today and must keep passing; mark it `(guards existing behavior)`.
 
+A decision settled on a grilling comparison page links that page and names the chosen option's key (`D2. <decision>: <reason> (option b on <url>)`), so `implement` can take the markup from it. The page is private to its owner; if someone else will implement or review, say that it has to be shared with them.
+
 Never mention uncommitted, untracked or other local-only files. Readers of the Issue cannot see them.
 
 Keep it short. A spec that needs scrolling is usually two Issues.
