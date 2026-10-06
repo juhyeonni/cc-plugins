@@ -1,7 +1,7 @@
 {
   "name": "annotated-ui-pdf",
   "displayName": "Annotated UI PDF",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Screenshot a web app and produce a PDF that outlines chosen UI elements with numbered boxes and short captions. A general-purpose visual explainer for release notes, bug reports, design/QA review, how-to guides, and design specs. Needs a Playwright MCP and a headless Chrome/Chromium/Edge.",
   "requirements": "Node.js / Playwright MCP / headless Chrome",
   "author": {

@@ -232,7 +232,7 @@ ul.blk-check li .cb { position:absolute; left:2px; top:3px; font-weight:700; col
 .pageno { position:absolute; top:2px; right:0; margin:0; color:#94a3b8; font-size:9px; }`
 
 const total = spec.pages.length
-const html = `<!doctype html><html lang="${spec.lang || 'ja'}"><head><meta charset="utf-8"><style>${css}</style></head><body>
+const html = `<!doctype html><html lang="${spec.lang || 'en'}"><head><meta charset="utf-8"><style>${css}</style></head><body>
 ${spec.pages.map((p, i) => pageHtml(p, i, total)).join('\n')}
 </body></html>`
 
