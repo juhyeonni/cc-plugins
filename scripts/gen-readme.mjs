@@ -77,7 +77,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const readmePath = join(root, 'README.md')
   const marketplace = JSON.parse(readFileSync(marketplacePath, 'utf8'))
   const listed = listedPlugins(marketplace, readManifests(join(root, 'plugins')))
-  if (listed.length === 0) throw new Error('No plugins found under plugins/*')
+  if (listed.length === 0) throw new Error('No marketplace-listed plugins found under plugins/*')
   writeFileSync(marketplacePath, JSON.stringify(syncMarketplace(marketplace, listed), null, 2) + '\n')
   const readme = readFileSync(readmePath, 'utf8')
   writeFileSync(readmePath, replaceBlock(readme, readmeBlock(marketplace.name, listed)))
