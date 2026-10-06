@@ -1,6 +1,6 @@
 ---
 name: triage
-description: "Triage GitHub Issues: propose a priority, a state and a source label for each untriaged Issue, and apply them after approval. Use when the user wants to triage or re-label an Issue. To only see what needs attention, use status."
+description: "Triage GitHub Issues: propose a priority, a state and a source label for each untriaged Issue, and apply them after approval. Also takes a new request described in the conversation and, after approval, opens its Issue already triaged. Use when the user wants to triage or re-label an Issue, or to register a bug or a feature request as an Issue. To only see what needs attention, use status."
 ---
 
 # Triage
@@ -9,7 +9,7 @@ Give each open Issue a priority, a state and a source, so the queue says what to
 
 Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. The labels and their meanings are in `workflow.md`. The repo's own label names come from `config.labels` in the output of `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs`, run in the repo's checkout (see **Configuration** in `workflow.md`).
 
-Triage treats the working tree as read-only: it changes labels and comments on GitHub, never files in the checkout, and it never runs the repo's code there. To run something, such as reproducing a bug, follow **Working tree before implement** in `workflow.md`.
+Triage treats the working tree as read-only: it changes Issues, labels and comments on GitHub, never files in the checkout, and it never runs the repo's code there. To run something, such as reproducing a bug, follow **Working tree before implement** in `workflow.md`.
 
 Every comment posted during triage starts with this line:
 
@@ -39,6 +39,19 @@ The maintainer runs `/macro-loop:triage` and says what they want in plain words,
 - "Triage #42"
 - "Move #42 to needs-decision"
 - "What's ready to implement?"
+- "verify skips the tests on a large diff, register it"
+
+Text that names no Issue number and is none of the requests above is a new request: see **New request**. When it is unclear which one is meant, ask in one line.
+
+## New request
+
+A request described in the conversation becomes an Issue in one step, already triaged. Nothing is created before approval.
+
+1. **Check the account.** Show the active login with `gh api user --jq .login`, and read its access with `gh api repos/{owner}/{repo} --jq .permissions`. Without at least `triage` access, labels cannot be added: say so, and create nothing. An Issue created without its labels is left half-done.
+2. **Search for duplicates** in open and closed Issues, as in **Propose** step 1, before anything is created. If another Issue holds the same request, create nothing: name the original, its state and why it matches, and say when it was closed as not planned, so the maintainer can reopen it. If the conversation holds evidence the original lacks, offer to post it there as a comment, after approval.
+3. **Fill the gaps in the conversation.** The requester is here, so ask what the Issue would otherwise need from them now. A new request is never proposed as `needs-info`.
+4. **Propose** in one message: a title; a body following the matching Issue template's sections (bug: what happened, steps to reproduce; feature: the problem, what should happen), starting with the AI line above and ending with the "How was this opened?" answer; and a priority, a state and a source, each with a one-line reason. Infer the source from the conversation: `source:developer` by default, `source:proxy` when the request is on someone else's behalf, `source:requester` when it is the user's own need. Say that it is inferred. Several requests go in one table, one row each, as in **Propose**.
+5. **On approval,** create each Issue (see **Issues** in `github.md`) and continue with **Apply** for it: labels, the comment its state needs, the decisions settled in the conversation, and reading the labels back.
 
 ## Show what needs attention
 

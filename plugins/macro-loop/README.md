@@ -19,7 +19,7 @@ Any stage can be the entry point. When a stage's input is missing, the skill war
 | `/macro-loop:init` | Optional setup: labels, bug and feature Issue templates, `.github/macro-loop.json` | Labels and files |
 | `/macro-loop:status` | Shows every open Issue and PR with its stage, what a person does next, and one recommended step | Nothing (read-only) |
 | `/macro-loop:next` | Takes one Issue through the stages in order, calling each skill, and stops where a person has to act | What each stage leaves behind |
-| `/macro-loop:triage` | Proposes a priority, a state and a source for each Issue, and applies them after approval | Labels |
+| `/macro-loop:triage` | Proposes a priority, a state and a source for each Issue, and applies them after approval. Given a request in plain words instead of an Issue number, it opens the Issue, already triaged | Labels, and new Issues |
 | `/macro-loop:grilling` | Interviews you until every decision is settled | Decisions in the conversation |
 | `/macro-loop:spec` | Writes the spec: goal, decisions with reasons, testable acceptance criteria, out of scope | A pinned Issue comment |
 | `/macro-loop:implement` | Builds what the spec asks for, commits, and hands over to `open-pr` and `verify` | Commits |
