@@ -1,0 +1,11 @@
+{
+  "name": "macro-loop-band",
+  "displayName": "Macro Loop Band",
+  "description": "A one-line band above the Claude Code prompt that says which Issue a macro-loop skill is working on, its stage, and whose turn it is. Experimental: needs Claude Code 2.1.287 or later, drawn in the terminal and the desktop app only.",
+  "requirements": "Claude Code 2.1.287+ / macro-loop",
+  "author": { "name": "Juhyeon Lee", "email": "l.juhyeonni@gmail.com" },
+  "homepage": "https://github.com/juhyeonni/cc-plugins/tree/main/plugins/macro-loop-band",
+  "license": "MIT",
+  "keywords": ["macro-loop", "mod", "band", "github-issues", "status"],
+  "dependencies": ["macro-loop"]
+}
