@@ -68,7 +68,9 @@ Then remove the verifiers' worktrees that are still there. For each worktree und
 1. Run `git worktree remove --force --force <path>`.
 2. Delete its branch `worktree-<name>` only when `git rev-list -n 1 refs/heads/worktree-<name> --not --remotes` prints nothing. Otherwise keep the branch and say why.
 
-Leave every other worktree alone: one on an Issue's branch holds that Issue's commits.
+Then delete the run's `worktree-wf_<run>-*` branches whose worktree is already gone (the run id is in the Workflow tool's result), each only when `git rev-list -n 1 refs/heads/<branch> --not --remotes` prints nothing. A verifier's worktree can go while its branch stays.
+
+Leave every other worktree and branch alone: one on an Issue's branch holds that Issue's commits.
 
 Under the table, list:
 
