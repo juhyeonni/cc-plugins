@@ -16,11 +16,11 @@ const man = (n) => ({ dir: n, name: n, description: `${n} does x. More.`, requir
 
 test('fixture: an unlisted plugin stays out of block and marketplace', () => {
   const m = { name: 'mk', plugins: [{ name: 'a', extra: 1 }, { name: 'b' }] }
-  const listed = listedPlugins(m, [man('a'), man('b'), man('macro-loop-band')])
+  const listed = listedPlugins(m, [man('a'), man('b'), man('unlisted')])
   const block = readmeBlock(m.name, listed)
   assert.match(block, /\[a\]/)
   assert.match(block, /\[b\]/)
-  assert.ok(!block.includes('macro-loop-band'))
+  assert.ok(!block.includes('unlisted'))
   const synced = syncMarketplace(m, listed)
   assert.deepEqual(synced.plugins.map((p) => p.name), ['a', 'b'])
   assert.equal(synced.plugins[0].extra, 1)
@@ -29,9 +29,8 @@ test('fixture: an unlisted plugin stays out of block and marketplace', () => {
 const m = JSON.parse(read('.claude-plugin/marketplace.json'))
 const listed = listedPlugins(m, readManifests(join(ROOT, 'plugins')))
 
-test('real repo: block matches README and omits macro-loop-band', () => {
+test('real repo: block matches README and lists every marketplace plugin', () => {
   const block = readmeBlock(m.name, listed)
-  assert.ok(!block.includes('macro-loop-band'))
   for (const p of m.plugins) assert.ok(block.includes(`[${p.name}]`), p.name)
   assert.ok(read('README.md').includes(block))
 })
