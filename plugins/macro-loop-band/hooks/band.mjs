@@ -13,28 +13,24 @@ export const STAGES = ['triage', 'grilling', 'implement', 'open-pr', 'verify', '
 // D16: the track's six cells, and the cell each stage or skill sits on.
 export const TRACK = ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'merge']
 const POS = { triage: 0, wait: 0, resumable: 0, grilling: 1, spec: 1, implement: 2, 'open-pr': 3, verify: 4, merge: 5 }
+// D15: one column per GitHub document a row can link; the Issue itself is the row's number.
+export const LINK_COLUMNS = ['spec', 'pr', 'verdict']
 // D17: the columns in order, and the order whole columns drop in when the band is narrow.
-export const COLUMNS = ['symbol', 'number', 'track', 'stage', 'action', 'round', 'time', 'links']
-const DROP = ['round', 'time', 'action', 'links', 'track']
+export const COLUMNS = ['symbol', 'number', 'track', 'stage', 'action', 'round', 'time', ...LINK_COLUMNS]
+const DROP = ['round', 'time', 'action', 'verdict', 'spec', 'pr', 'track']
 // D3: rows shown before the rest fold into one '+N more' row.
 export const MAX_ROWS = 4
 // Wide enough for every elapsed time up to 23h59m, so the links after it stay put (D17).
 const TIME_WIDTH = 6
+// Cells between columns; the glue draws with the same value.
+export const GAP = 2
 
 const SKILL = /^macro-loop:([a-z-]+)$/
 const SYMBOL = { run: '▶', you: '◆', other: '◇', unknown: '?', done: '✓' }
 const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/g
-const LINK_SEP = ' · '
 // Stages that leave a run on the person's turn: a skill started after one starts a new run.
 const STOPPED = ['merge', 'stop', 'resumable']
 const RESULTS = ['PASS', 'NEEDS-FIX']
-// D15: the links a row shows, first link first, by the stage or skill it is about. The Issue
-// itself is the row's number.
-const LINKS = {
-  spec: ['spec'], implement: ['spec'], 'open-pr': ['pr', 'spec'], verify: ['pr', 'spec'], merge: ['pr', 'verdict'],
-}
-// After a NEEDS-FIX verdict, the rows that fix it or stop on it.
-const NEEDS_FIX = ['implement', 'stop']
 // Owner and repo as GitHub names them, after an https, scp-like or ssh:// GitHub host.
 const REMOTE = /^(?:https:\/\/(?:[^@/\s]+@)?github\.com\/|git@github\.com:|ssh:\/\/git@github\.com(?::\d+)?\/)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/i
 
@@ -205,19 +201,18 @@ const repoBase = (repo) => {
   return ok && ok.owner === repo.owner && ok.repo === repo.repo ? `https://github.com/${ok.owner}/${ok.repo}` : null
 }
 
-// D15: the links of the row a Run shows, by the stage or skill it is about; an id not
-// observed leaves its link out.
-const linksOf = (run, key, base) => {
-  if (!base) return []
-  const names = run.verdictResult === 'NEEDS-FIX' && NEEDS_FIX.includes(key) ? ['verdict', 'pr'] : LINKS[key] ?? []
+// D15: a Run's documents, whatever its stage: each one whose id the session observed, null
+// for one it did not. Labels are bracketed, so they read as documents beside the Issue number.
+const linksOf = (run, base) => {
+  const none = { spec: null, pr: null, verdict: null }
+  if (!base) return none
   const issue = posInt(run.issue) ? run.issue : null
   const pr = posInt(run.pr) ? run.pr : null
-  const make = {
-    spec: () => issue && posInt(run.spec) && { label: 'spec', href: `${base}/issues/${issue}#issuecomment-${run.spec}` },
-    pr: () => pr && { label: `PR #${pr}`, href: `${base}/pull/${pr}` },
-    verdict: () => pr && posInt(run.verdict) && { label: 'verdict', href: `${base}/pull/${pr}#issuecomment-${run.verdict}` },
+  return {
+    spec: issue && posInt(run.spec) ? { label: '[Spec]', href: `${base}/issues/${issue}#issuecomment-${run.spec}` } : null,
+    pr: pr ? { label: `[PR#${pr}]`, href: `${base}/pull/${pr}` } : null,
+    verdict: pr && posInt(run.verdict) ? { label: '[Verdict]', href: `${base}/pull/${pr}#issuecomment-${run.verdict}` } : null,
   }
-  return names.map((n) => make[n]()).filter(Boolean)
 }
 
 // D16: the six cells, '' when no position was seen.
@@ -243,24 +238,20 @@ const personRow = (run) => {
 // One Run's row: { tone, issue, href, track, stage, action, round, time, links }.
 function rowOf(run, { isWorking, now, base }, isCur) {
   const issue = posInt(run.issue) ? run.issue : null
-  let row, key = null
+  let row
   if (run.failed) row = { tone: 'unknown', stage: stageAt(run, ''), action: 'run /macro-loop:status' }
   else if (run.done) row = { tone: 'done', stage: 'merge' }
   else if (isCur && run.running && isWorking) {
-    // The stage or skill the row is about: a working next is about its Issue's stage.
-    key = run.skill === 'next' || !run.skill ? run.stage : run.skill
-    row = { tone: 'run', stage: key ?? 'next', time: since(run, now, false) }
-  } else {
-    key = run.stage ?? run.skill
-    row = { ...personRow(run), time: since(run, now, true) }
-  }
+    // A working next is about its Issue's stage.
+    row = { tone: 'run', stage: (run.skill === 'next' || !run.skill ? run.stage : run.skill) ?? 'next', time: since(run, now, false) }
+  } else row = { ...personRow(run), time: since(run, now, true) }
   return {
     ...row,
     issue,
     href: base && issue ? `${base}/issues/${issue}` : null,
     track: track(run.pos),
     round: !run.done && Number.isInteger(run.round) ? `r${run.round}` : '',
-    links: run.done || run.failed ? [] : linksOf(run, key, base),
+    links: linksOf(run, base),
   }
 }
 
@@ -280,46 +271,42 @@ export function rows(state, opts) {
   }
 }
 
-// A cell's text in a column, with `nLinks` links kept.
-const cellText = (r, col, nLinks) => {
+// A cell's text in a column.
+const cellText = (r, col) => {
   if (col === 'symbol') return SYMBOL[r.tone] ?? ''
   if (col === 'number') return r.issue ? `#${r.issue}` : ''
-  if (col === 'links') return r.links.slice(0, nLinks).map((l) => l.label).join(LINK_SEP)
+  if (LINK_COLUMNS.includes(col)) return r.links[col]?.label ?? ''
   return clean(r[col] ?? '')
 }
 
+// A row's links as layout keeps them: each one with an address, its label cleaned.
+const cleanLinks = (links) => Object.fromEntries(LINK_COLUMNS.map((c) => {
+  const l = isObj(links) ? links[c] : null
+  return [c, isObj(l) && typeof l.href === 'string' && l.href ? { label: clean(l.label), href: l.href } : null]
+}))
+
 // D17: fixed columns, each as wide as its widest cell (time fixed); whole columns drop in
-// DROP's order, links one at a time from the right, until the rows fit `columns`. A column no
-// row fills takes no room.
+// DROP's order until the rows fit `columns`. A column no row fills takes no room.
 export function layout(rs, columns) {
   try {
     if (!Array.isArray(rs) || !rs.length) return null
-    const list = rs.filter(isObj).map((r) => ({
-      ...r,
-      links: (Array.isArray(r.links) ? r.links : [])
-        .filter((l) => isObj(l) && typeof l.href === 'string' && l.href)
-        .map((l) => ({ label: clean(l.label), href: l.href })),
-    }))
+    const list = rs.filter(isObj).map((r) => ({ ...r, links: cleanLinks(r.links) }))
     const shown = list.slice(0, list.length > MAX_ROWS ? MAX_ROWS : list.length)
     const more = list.length - shown.length
     const max = typeof columns === 'number' && !Number.isNaN(columns) ? columns : Infinity
-    let nLinks = Math.max(0, ...shown.map((r) => r.links.length))
     const dropped = new Set()
     const widths = () => Object.fromEntries(COLUMNS.map((c) => {
       if (dropped.has(c)) return [c, 0]
-      const w = Math.max(0, ...shown.map((r) => width(cellText(r, c, nLinks))))
+      const w = Math.max(0, ...shown.map((r) => width(cellText(r, c))))
       return [c, c === 'time' && w ? TIME_WIDTH : w]
     }))
     const total = (w) => {
       const used = COLUMNS.filter((c) => w[c] > 0)
-      return used.reduce((n, c) => n + w[c], 0) + Math.max(0, used.length - 1)
+      return used.reduce((n, c) => n + w[c], 0) + GAP * Math.max(0, used.length - 1)
     }
     for (const c of DROP) {
       if (total(widths()) <= max) break
-      if (c === 'links') {
-        while (nLinks > 0 && total(widths()) > max) nLinks--
-        if (nLinks === 0) dropped.add('links')
-      } else dropped.add(c)
+      dropped.add(c)
     }
     const w = widths()
     const cols = COLUMNS.filter((c) => w[c] > 0)
@@ -328,9 +315,9 @@ export function layout(rs, columns) {
       rows: shown.map((r) => ({
         tone: r.tone,
         cells: cols.map((c) => {
-          const cell = { col: c, text: cellText(r, c, nLinks), width: w[c] }
+          const cell = { col: c, text: cellText(r, c), width: w[c] }
           if (c === 'number' && r.href) cell.href = r.href
-          if (c === 'links') cell.links = r.links.slice(0, nLinks)
+          if (LINK_COLUMNS.includes(c) && r.links[c]) cell.href = r.links[c].href
           return cell
         }),
       })),
@@ -350,12 +337,12 @@ export function render(state, opts) {
   }
 }
 
-// The laid-out band as lines of text: cells padded to their column, one space between.
+// The laid-out band as lines of text: cells padded to their column, GAP spaces between.
 export function lines(laid) {
   try {
     if (!isObj(laid) || !Array.isArray(laid.rows)) return []
     const pad = (c, last) => (last ? c.text : c.text + ' '.repeat(Math.max(0, c.width - width(c.text))))
-    const out = laid.rows.map((r) => r.cells.map((c, i) => pad(c, i === r.cells.length - 1)).join(' ').trimEnd())
+    const out = laid.rows.map((r) => r.cells.map((c, i) => pad(c, i === r.cells.length - 1)).join(' '.repeat(GAP)).trimEnd())
     return laid.more ? [...out, laid.more] : out
   } catch {
     return []

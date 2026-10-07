@@ -23,13 +23,13 @@ Several folders are separated by the platform's path-list separator (`;` on Wind
 ## The band
 
 ```text
-▶ #12  ●●●●◐○ verify                r2 14m    PR #109 · spec
-◆ #7   ●●●●●◐ merge    merge the PR r3 34m    PR #110 · verdict
-◆ #108 ●◐○○○○ grilling answer Qs       24m
-◇ #101 ◐○○○○○ triage   (requester)     2h
+▶  #12   ●●●●◐○  verify                  r2  14m     [Spec]  [PR#109]
+◆  #7    ●●●●●◐  merge     merge the PR  r3  34m     [Spec]  [PR#110]  [Verdict]
+◆  #108  ●◐○○○○  grilling  answer Qs         24m
+◆  #93   ◐○○○○○  triage    read reply        24m
 ```
 
-Each row is one Issue, in fixed columns: symbol, Issue number, progress track and stage, what you do, verify round, elapsed time, links. A column keeps its place on every row, so a time or an action that changes length moves nothing after it. The Issue being worked on comes first, then the others in the order they stopped, oldest first. Past four Issues the band shows four rows and `+N more · /macro-loop:status`. A done Issue leaves at the next turn.
+Each row is one Issue, in fixed columns: symbol, Issue number, progress track and stage, what you do, verify round, elapsed time, then one column per document: spec, PR, verdict. A column keeps its place on every row, so a time or an action that changes length moves nothing after it. The Issue being worked on comes first, then the others in the order they stopped, oldest first. Past four Issues the band shows four rows and `+N more · /macro-loop:status`. A done Issue leaves at the next turn.
 
 | Symbol | Meaning |
 |---|---|
@@ -60,23 +60,21 @@ The symbol, the track and the action are drawn in the row's color; the stage, ro
 
 ## Links
 
-Each row's Issue number opens the Issue. After the time, a row shows up to two links to the GitHub objects its next step needs, first link first:
+Each row's Issue number opens the Issue. After the time come the Issue's documents, each in its own column whatever the stage, so they line up from row to row:
 
-| Row | Links |
+| Column | Opens |
 |---|---|
-| `spec`, `implement` | `spec` |
-| `open-pr`, `verify` | `PR #<p>` · `spec` |
-| after a NEEDS-FIX verdict (`implement`, `stop`) | `verdict` · `PR #<p>` |
-| PASS | `PR #<p>` · `verdict` |
+| `[Spec]` | the Issue's spec comment |
+| `[PR#<p>]` | the pull request |
+| `[Verdict]` | the PR's last verify verdict |
 
-- `spec` opens the spec comment, `PR #<p>` the pull request, `verdict` the PR's last verify verdict.
-- A link shows only for an id the session saw: the spec, the PR's last verdict and its result come from macro-loop's `trust.mjs` output, the PR also from `open-pr` creating it. One not seen is left out; the others stay.
-- Owner and repo come from `git remote get-url origin`, read once per session (`https://github.com/o/r.git`, `git@github.com:o/r.git` and `ssh://git@github.com/o/r`). With no GitHub remote the band shows no links and the Issue number is plain text.
+- A document shows only once the session saw its id: the spec, the PR's last verdict and its result come from macro-loop's `trust.mjs` output, the PR also from `open-pr` creating it. A cell not seen stays empty; the others stay.
+- Owner and repo come from `git remote get-url origin`, read once per session (`https://github.com/o/r.git`, `git@github.com:o/r.git` and `ssh://git@github.com/o/r`). With no GitHub remote the band shows no documents and the Issue number is plain text.
 - The labels read as plain text where a terminal cannot click. The terminal draws each as an OSC 8 hyperlink, the desktop app as an anchor.
 
 ## Narrow terminals
 
-Whole columns drop, never parts of one row, so the rows stay lined up: the round first, then the time, then the action, then the links from the right, then the track. The symbol, the Issue number and the stage always stay.
+Whole columns drop, never parts of one row, so the rows stay lined up: the round first, then the time, then the action, then `[Verdict]`, `[Spec]` and `[PR#<p>]`, then the track. The symbol, the Issue number and the stage always stay.
 
 ## Limits
 

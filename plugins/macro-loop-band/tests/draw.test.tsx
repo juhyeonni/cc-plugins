@@ -117,7 +117,7 @@ test('the elapsed time moves on the timer alone', async ($, on) => {
   await again.unmount()
 })
 
-test('a drawn band links the Issue, the PR and the verdict on the remote read once', async ($, on) => {
+test('a drawn band links the Issue and each document seen, on the remote read once', async ($, on) => {
   const runs: unknown[] = []
   await setup($, on, 'git@github.com:o/r.git', runs)
 
@@ -130,10 +130,11 @@ test('a drawn band links the Issue, the PR and the verdict on the remote read on
   const links = await ui.findAll({ type: 'Link' })
   expect(links.map((l: any) => l.props.href)).toEqual([
     'https://github.com/o/r/issues/12',
+    'https://github.com/o/r/issues/12#issuecomment-555',
     'https://github.com/o/r/pull/109',
     'https://github.com/o/r/pull/109#issuecomment-777',
   ])
-  expect(links.map((l: any) => l.props.label)).toEqual(['#12', 'PR #109', 'verdict'])
+  expect(links.map((l: any) => l.props.label)).toEqual(['#12', '[Spec]', '[PR#109]', '[Verdict]'])
   await ui.unmount()
   expect(runs).toEqual([{ argv: ['git', 'remote', 'get-url', 'origin'], cwd: '/work' }])
 })

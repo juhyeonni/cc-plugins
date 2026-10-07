@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const MOD = join(ROOT, 'plugins/macro-loop-band/hooks/band.mjs')
-const { SKILLS, STAGES, TRACK, COLUMNS, MAX_ROWS, initial, reduce, rows, layout, render, lines, track, elapsed, clean, signature, repoOf } =
+const { SKILLS, STAGES, TRACK, COLUMNS, MAX_ROWS, GAP, initial, reduce, rows, layout, render, lines, track, elapsed, clean, signature, repoOf } =
   await import(pathToFileURL(MOD).href)
 
 const MIN = 60_000
@@ -32,8 +32,9 @@ test('constants: the skills, stages, track cells and columns the band knows', ()
   assert.deepEqual(SKILLS, ['next', 'triage', 'grilling', 'spec', 'implement', 'open-pr', 'verify'])
   assert.deepEqual(STAGES, ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'resumable', 'wait', 'merge', 'stop', 'done'])
   assert.deepEqual(TRACK, ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'merge'])
-  assert.deepEqual(COLUMNS, ['symbol', 'number', 'track', 'stage', 'action', 'round', 'time', 'links'])
+  assert.deepEqual(COLUMNS, ['symbol', 'number', 'track', 'stage', 'action', 'round', 'time', 'spec', 'pr', 'verdict'])
   assert.equal(MAX_ROWS, 4)
+  assert.equal(GAP, 2)
   assert.deepEqual(initial(), { cur: null, waiting: [] })
 })
 
@@ -41,7 +42,7 @@ test('AC7: each Band row comes from its events', async (t) => {
   await t.test('claude working: no action', () => {
     const s = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2 * MIN), trust(109, 2, 12, 3 * MIN)])
     assert.deepEqual(pick(working(s, 16 * MIN)), { tone: 'run', stage: 'verify', action: undefined, track: '●●●●◐○', round: 'r2', time: '14m' })
-    assert.deepEqual(text(s, 16 * MIN, true), ['▶ #12 ●●●●◐○ verify r2 14m'])
+    assert.deepEqual(text(s, 16 * MIN, true), ['▶  #12  ●●●●◐○  verify  r2  14m'])
   })
   await t.test('interview waiting on the person', () => {
     const s = run([skill('next', 0), stage(108, 'grilling', 1, 'a decision is needed'), turnEnd(2 * MIN)])
@@ -56,7 +57,7 @@ test('AC7: each Band row comes from its events', async (t) => {
   await t.test('PASS: merge the PR', () => {
     const s = run([skill('verify', 0), trust(109, 1, 12, 1), stage(12, 'merge', 2, 'the verdict for the current head is PASS'), turnEnd(3)])
     assert.deepEqual(pick(idle(s, MIN)), { tone: 'you', stage: 'merge', action: 'merge the PR', track: '●●●●●◐', round: 'r1', time: '0m' })
-    assert.deepEqual(text(s, MIN, false), ['◆ #12 ●●●●●◐ merge merge the PR r1 0m'])
+    assert.deepEqual(text(s, MIN, false), ['◆  #12  ●●●●●◐  merge  merge the PR  r1  0m'])
   })
   await t.test('stop, with each short reason, at the last stage seen', () => {
     const at = (why) => idle(run([skill('next', 0), stage(12, 'verify', 1), stage(12, 'stop', 2, why), turnEnd(3)]), MIN)
@@ -82,7 +83,7 @@ test('AC7: each Band row comes from its events', async (t) => {
   await t.test('wait', () => {
     const s = run([skill('next', 0), stage(101, 'wait', 1), turnEnd(5 * MIN)])
     assert.deepEqual(pick(idle(s, 125 * MIN)), { tone: 'other', stage: 'triage', action: '(requester)', track: '◐○○○○○', round: '', time: '2h' })
-    assert.deepEqual(text(s, 125 * MIN, false), ['◇ #101 ◐○○○○○ triage (requester) 2h'])
+    assert.deepEqual(text(s, 125 * MIN, false), ['◇  #101  ◐○○○○○  triage  (requester)  2h'])
   })
   await t.test('stage.mjs failed', () => {
     const s = run([skill('next', 0), stage(12, 'verify', 1), failed(12, 2)])
@@ -90,18 +91,18 @@ test('AC7: each Band row comes from its events', async (t) => {
       const r = row(s, MIN, w)
       assert.deepEqual([r.tone, r.stage, r.action, r.track], ['unknown', 'verify', 'run /macro-loop:status', '●●●●◐○'])
     }
-    assert.deepEqual(text(s, MIN, false), ['? #12 ●●●●◐○ verify run /macro-loop:status'])
+    assert.deepEqual(text(s, MIN, false), ['?  #12  ●●●●◐○  verify  run /macro-loop:status'])
   })
   await t.test('done, then gone at the next turn', () => {
     const s = run([skill('next', 0), stage(12, 'done', 1), turnEnd(2)])
-    assert.deepEqual(text(s, MIN, false), ['✓ #12 ●●●●●● merge'])
-    assert.deepEqual(text(s, MIN, true), ['✓ #12 ●●●●●● merge'])
+    assert.deepEqual(text(s, MIN, false), ['✓  #12  ●●●●●●  merge'])
+    assert.deepEqual(text(s, MIN, true), ['✓  #12  ●●●●●●  merge'])
     assert.equal(render(reduce(s, turnStart(3)), { isWorking: true, now: MIN, columns: WIDE }), null)
   })
   await t.test('a skill with no Issue', () => {
     const s = run([skill('verify', 0)])
-    assert.deepEqual(text(s, 3 * MIN, true), ['▶ ●●●●◐○ verify 3m'])
-    assert.deepEqual(text(run([skill('next', 0)]), 3 * MIN, true), ['▶ next 3m'])
+    assert.deepEqual(text(s, 3 * MIN, true), ['▶  ●●●●◐○  verify  3m'])
+    assert.deepEqual(text(run([skill('next', 0)]), 3 * MIN, true), ['▶  next  3m'])
   })
   await t.test('tones follow the symbol', () => {
     const s = run([skill('next', 0), stage(12, 'merge', 1)])
@@ -218,14 +219,14 @@ test('AC13: session end for clear or resume clears every row', () => {
   for (const reason of ['logout', 'prompt_input_exit', 'other', undefined]) assert.equal(reduce(s, { type: 'sessionEnd', reason, at: 4 }), s)
 })
 
-// D15: links to the GitHub objects the next action needs.
+// D15: links to the GitHub documents the session observed.
 const REPO = { owner: 'o', repo: 'r' }
 const GH = 'https://github.com/o/r'
 const SPEC = 6018031462
 const VERDICT = 777
-const labels = (s, o) => rows(s, { now: 0, ...o, repo: REPO })[0].links.map((l) => l.label)
+const labels = (s, o) => Object.values(rows(s, { now: 0, ...o, repo: REPO })[0].links).filter(Boolean).map((l) => l.label)
 
-// Four Issues: ▶ #12 verifying with two links, ◆ #7 at merge with two, ◆ #108 grilling, ◆ #93 new reply.
+// Four Issues: ▶ #12 verifying (spec and PR seen), ◆ #7 at merge (all three), ◆ #108 grilling, ◆ #93 new reply.
 const four = () => run([
   skill('next', 0), trustFull({ pr: 110, issue: 7, spec: 5, round: 3, verdict: 9, verdictResult: 'PASS' }, 0), stage(7, 'merge', 0), turnEnd(0),
   skill('next', 10 * MIN), stage(108, 'grilling', 10 * MIN), turnEnd(10 * MIN),
@@ -238,17 +239,16 @@ test('AC14: as the band narrows, whole columns drop in order and the rest line u
   const o = { isWorking: true, now: 34 * MIN, repo: REPO }
   const full = render(s, { ...o, columns: Infinity })
   assert.deepEqual(lines(full), [
-    '▶ #12  ●●●●◐○ verify                r2 14m    PR #109 · spec',
-    '◆ #7   ●●●●●◐ merge    merge the PR r3 34m    PR #110 · verdict',
-    '◆ #108 ●◐○○○○ grilling answer Qs       24m',
-    '◆ #93  ◐○○○○○ triage   read reply      24m',
+    '▶  #12   ●●●●◐○  verify                  r2  14m     [Spec]  [PR#109]',
+    '◆  #7    ●●●●●◐  merge     merge the PR  r3  34m     [Spec]  [PR#110]  [Verdict]',
+    '◆  #108  ●◐○○○○  grilling  answer Qs         24m',
+    '◆  #93   ◐○○○○○  triage    read reply        24m',
   ])
   const seen = []
-  for (let c = 80; c >= 0; c--) {
+  for (let c = 90; c >= 0; c--) {
     const laid = render(s, { ...o, columns: c })
     const cols = laid.columns.map((x) => x.name)
-    const nLinks = Math.max(...laid.rows.map((r) => r.cells.find((x) => x.col === 'links')?.links.length ?? 0))
-    const key = `${cols.join(',')}:${nLinks}`
+    const key = cols.join(',')
     if (seen.at(-1) !== key) seen.push(key)
     // Symbol, number and stage are never dropped, and every row lines up with the columns.
     for (const keep of ['symbol', 'number', 'stage']) assert.ok(cols.includes(keep), `${c}: ${keep}`)
@@ -259,21 +259,22 @@ test('AC14: as the band narrows, whole columns drop in order and the rest line u
         const cell = r.cells.find((x) => x.col === col.name)
         if (cell.text) assert.equal(out[i].slice(offset, offset + cell.text.length), cell.text, `${c}: ${col.name} row ${i}`)
       }
-      offset += col.width + 1
+      offset += col.width + GAP
     }
     if (c >= 20) for (const l of out) assert.ok([...l].length <= c, `${c}: ${l}`)
   }
   assert.deepEqual(seen, [
-    'symbol,number,track,stage,action,round,time,links:2',
-    'symbol,number,track,stage,action,time,links:2',
-    'symbol,number,track,stage,action,links:2',
-    'symbol,number,track,stage,links:2',
-    'symbol,number,track,stage,links:1',
-    'symbol,number,track,stage:0',
-    'symbol,number,stage:0',
+    'symbol,number,track,stage,action,round,time,spec,pr,verdict',
+    'symbol,number,track,stage,action,time,spec,pr,verdict',
+    'symbol,number,track,stage,action,spec,pr,verdict',
+    'symbol,number,track,stage,spec,pr,verdict',
+    'symbol,number,track,stage,spec,pr',
+    'symbol,number,track,stage,pr',
+    'symbol,number,track,stage',
+    'symbol,number,stage',
   ])
   // A cell that grows keeps its own column: the links do not move when the time does.
-  const at = (now) => lines(render(s, { ...o, now, columns: Infinity }))[0].indexOf('PR #109')
+  const at = (now) => lines(render(s, { ...o, now, columns: Infinity }))[0].indexOf('[PR#109]')
   assert.equal(at(21 * MIN), at(20 * MIN + 75 * MIN))
   assert.doesNotThrow(() => layout(null, 10))
   assert.equal(layout([], 10), null)
@@ -322,83 +323,71 @@ test('clean strips control and invisible characters from every cell', () => {
   assert.equal(clean('a\u0000b\u001b[31mc\u007f\u0085\u200b\u200f\u2028\u202e\u2060\u2066\u2069\ufeffd'), 'ab[31mcd')
   assert.equal(clean(12), '12')
   assert.equal(clean({ toString() { throw new Error('x') } }), '')
-  const laid = layout([{ tone: 'you', issue: 1, stage: 'x\u202ey', action: 'a\u0000b', links: [{ label: 'p\u2066q', href: 'h' }] }], 50)
-  assert.deepEqual(lines(laid), ['◆ #1 xy ab pq'])
+  const laid = layout([{ tone: 'you', issue: 1, stage: 'x\u202ey', action: 'a\u0000b', links: { pr: { label: 'p\u2066q', href: 'h' } } }], 50)
+  assert.deepEqual(lines(laid), ['◆  #1  xy  ab  pq'])
 })
 
-test('AC19: each stage D15 lists carries its links in order, built from the remote', async (t) => {
-  await t.test('triage and grilling rows carry none: the number is the Issue link', () => {
-    for (const st of ['triage', 'grilling']) {
+test('AC19: every row carries each document the session observed, in its own column, whatever the stage', async (t) => {
+  await t.test('nothing observed: no documents, and the number is the Issue link', () => {
+    for (const st of ['triage', 'grilling', 'merge']) {
       const r = rows(run([skill('next', 0), stage(7, st, 1), turnEnd(2)]), { now: 0, repo: REPO })[0]
-      assert.deepEqual(r.links, [], st)
+      assert.deepEqual(r.links, { spec: null, pr: null, verdict: null }, st)
       assert.equal(r.href, `${GH}/issues/7`, st)
     }
   })
-  await t.test('spec and implement link the spec comment', () => {
-    const sp = run([skill('spec', 0), trustFull({ issue: 12, spec: SPEC }, 1)])
-    assert.deepEqual(rows(sp, { isWorking: true, now: 0, repo: REPO })[0].links, [{ label: 'spec', href: `${GH}/issues/12#issuecomment-${SPEC}` }])
-    const im = run([skill('next', 0), stage(12, 'implement', 1), skill('implement', 2), trustFull({ issue: 12, spec: SPEC }, 3)])
-    assert.deepEqual(labels(im, { isWorking: true }), ['spec'])
-    assert.deepEqual(labels(reduce(im, turnEnd(4))), ['spec'])
-  })
-  await t.test('open-pr and verify link the PR, then the spec', () => {
-    const base = [skill('next', 0), stage(12, 'implement', 1), skill('implement', 2), trustFull({ issue: 12, spec: SPEC }, 3)]
-    const op = run([...base, skill('open-pr', 4), { type: 'pr', pr: 109, at: 5 }])
-    assert.deepEqual(rows(op, { isWorking: true, now: 0, repo: REPO })[0].links, [
-      { label: 'PR #109', href: `${GH}/pull/109` },
-      { label: 'spec', href: `${GH}/issues/12#issuecomment-${SPEC}` },
-    ])
-    const v = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2 * MIN), trustFull({ pr: 109, round: 2, issue: 12, spec: SPEC }, 3 * MIN)])
-    assert.deepEqual(labels(v, { isWorking: true }), ['PR #109', 'spec'])
-  })
-  await t.test('NEEDS-FIX links the verdict, then the PR', () => {
-    const nf = trustFull({ pr: 109, round: 2, issue: 12, spec: SPEC, verdict: VERDICT, verdictResult: 'NEEDS-FIX' }, 3)
-    const im = run([skill('next', 0), stage(12, 'implement', 1), skill('implement', 2), nf])
-    assert.deepEqual(rows(im, { isWorking: true, now: 0, repo: REPO })[0].links, [
-      { label: 'verdict', href: `${GH}/pull/109#issuecomment-${VERDICT}` },
-      { label: 'PR #109', href: `${GH}/pull/109` },
-    ])
-    const st = run([skill('next', 0), nf, stage(12, 'stop', 4, '3 verdicts and the newest is NEEDS-FIX'), turnEnd(5)])
-    assert.deepEqual(labels(st), ['verdict', 'PR #109'])
-  })
-  await t.test('PASS links the PR, then the verdict', () => {
+  await t.test('each observed document, bracketed, with its address', () => {
     const s = run([skill('verify', 0), trustFull({ pr: 109, round: 1, issue: 12, spec: SPEC, verdict: VERDICT, verdictResult: 'PASS' }, 1),
       stage(12, 'merge', 2, 'the verdict for the current head is PASS'), turnEnd(3)])
-    assert.deepEqual(rows(s, { now: 0, repo: REPO })[0].links, [
-      { label: 'PR #109', href: `${GH}/pull/109` },
-      { label: 'verdict', href: `${GH}/pull/109#issuecomment-${VERDICT}` },
+    assert.deepEqual(rows(s, { now: 0, repo: REPO })[0].links, {
+      spec: { label: '[Spec]', href: `${GH}/issues/12#issuecomment-${SPEC}` },
+      pr: { label: '[PR#109]', href: `${GH}/pull/109` },
+      verdict: { label: '[Verdict]', href: `${GH}/pull/109#issuecomment-${VERDICT}` },
+    })
+    const laid = render(s, { now: 0, repo: REPO, columns: WIDE })
+    assert.deepEqual(laid.rows[0].cells.filter((c) => ['spec', 'pr', 'verdict'].includes(c.col)).map((c) => [c.col, c.text, c.href]), [
+      ['spec', '[Spec]', `${GH}/issues/12#issuecomment-${SPEC}`],
+      ['pr', '[PR#109]', `${GH}/pull/109`],
+      ['verdict', '[Verdict]', `${GH}/pull/109#issuecomment-${VERDICT}`],
     ])
   })
-  await t.test('rows D15 does not list carry none', () => {
-    for (const [st, why] of [['resumable', ''], ['wait', ''], ['stop', 'no rule fits']]) {
-      const s = run([skill('next', 0), trustFull({ issue: 12, spec: SPEC, pr: 109 }, 1), stage(12, st, 2, why), turnEnd(3)])
-      assert.deepEqual(labels(s), [], st)
+  await t.test('the stage does not choose: every stage shows all three once seen', () => {
+    const seen = trustFull({ pr: 109, round: 2, issue: 12, spec: SPEC, verdict: VERDICT, verdictResult: 'NEEDS-FIX' }, 1)
+    for (const [st, why] of [['implement', ''], ['open-pr', ''], ['verify', ''], ['merge', ''], ['stop', '3 verdicts'], ['resumable', ''], ['wait', ''], ['grilling', '']]) {
+      const s = run([skill('next', 0), seen, stage(12, st, 2, why), turnEnd(3)])
+      assert.deepEqual(labels(s), ['[Spec]', '[PR#109]', '[Verdict]'], st)
+      assert.deepEqual(labels(s, { isWorking: true }), ['[Spec]', '[PR#109]', '[Verdict]'], st)
     }
-    assert.deepEqual(labels(run([skill('next', 0), failed(12, 1)])), [])
-    assert.deepEqual(labels(run([skill('next', 0), stage(12, 'done', 1)])), [])
+    assert.deepEqual(labels(run([skill('next', 0), seen, failed(12, 2)])), ['[Spec]', '[PR#109]', '[Verdict]'])
+    assert.deepEqual(labels(run([skill('next', 0), seen, stage(12, 'done', 2)])), ['[Spec]', '[PR#109]', '[Verdict]'])
+  })
+  await t.test('the documents line up in their columns across rows', () => {
+    const out = lines(render(four(), { isWorking: true, now: 34 * MIN, repo: REPO, columns: WIDE }))
+    assert.equal(out[0].indexOf('[Spec]'), out[1].indexOf('[Spec]'))
+    assert.equal(out[0].indexOf('[PR#109]'), out[1].indexOf('[PR#110]'))
   })
 })
 
-test('AC20: an id not observed leaves its link out and the others stay', () => {
+test('AC20: an id not observed leaves its document out and the others stay', () => {
   const v = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2), trustFull({ pr: 109, round: 1 }, 3)])
-  assert.deepEqual(labels(v, { isWorking: true }), ['PR #109'])
+  assert.deepEqual(labels(v, { isWorking: true }), ['[PR#109]'])
   const p = run([skill('next', 0), trustFull({ pr: 109, issue: 12, spec: null, verdict: null, verdictResult: 'PASS' }, 1), stage(12, 'merge', 2), turnEnd(3)])
-  assert.deepEqual(labels(p), ['PR #109'])
+  assert.deepEqual(labels(p), ['[PR#109]'])
   assert.deepEqual(labels(run([skill('next', 0), stage(12, 'merge', 1), turnEnd(2)])), [])
-  assert.deepEqual(labels(run([skill('next', 0), stage(12, 'implement', 1), skill('implement', 2)]), { isWorking: true }), [])
   assert.deepEqual(labels(run([skill('spec', 0)]), { isWorking: true }), [])
+  // A spec needs the Issue number.
+  assert.deepEqual(labels(run([skill('spec', 0), trustFull({ issue: 12, spec: SPEC }, 1)]), { isWorking: true }), ['[Spec]'])
   // trust.mjs --pr with no Issue keeps the spec seen before; a spec of null clears it.
   const kept = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2), trustFull({ issue: 12, spec: SPEC }, 3), trustFull({ pr: 109 }, 4)])
-  assert.deepEqual(labels(kept, { isWorking: true }), ['PR #109', 'spec'])
-  assert.deepEqual(labels(reduce(kept, trustFull({ issue: 12, spec: null }, 5)), { isWorking: true }), ['PR #109'])
+  assert.deepEqual(labels(kept, { isWorking: true }), ['[Spec]', '[PR#109]'])
+  assert.deepEqual(labels(reduce(kept, trustFull({ issue: 12, spec: null }, 5)), { isWorking: true }), ['[PR#109]'])
   // A new PR drops the old PR's verdict.
   const moved = run([skill('next', 0), stage(12, 'implement', 1), skill('implement', 2),
     trustFull({ pr: 109, issue: 12, verdict: VERDICT, verdictResult: 'NEEDS-FIX' }, 3), { type: 'pr', pr: 110, at: 4 }])
   assert.equal(moved.cur.pr, 110)
-  assert.deepEqual(labels(moved, { isWorking: true }), [])
+  assert.deepEqual(labels(moved, { isWorking: true }), ['[PR#110]'])
   // Garbage ids are not observed.
   const g = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2), trustFull({ pr: 109, issue: 12, spec: -1, verdict: 1.5, verdictResult: 'MAYBE' }, 3)])
-  assert.deepEqual(labels(g, { isWorking: true }), ['PR #109'])
+  assert.deepEqual(labels(g, { isWorking: true }), ['[PR#109]'])
   assert.equal(g.cur.verdictResult, null)
   for (const ev of [trustFull({ pr: NaN, issue: 12 }), trustFull({ pr: 109, issue: '12' }), trustFull({})]) assert.equal(reduce(g, ev), g, JSON.stringify(ev))
 })
@@ -417,7 +406,7 @@ test('AC21: owner and repo come from https, git@ and ssh:// remotes; any other g
   const o = { isWorking: true, now: 16 * MIN, columns: WIDE }
   for (const repo of [null, repoOf('https://gitlab.com/o/r.git'), undefined, 'o/r', { owner: 'o' }]) {
     const laid = render(s, { ...o, repo })
-    assert.deepEqual(lines(laid), ['▶ #12 ●●●●◐○ verify r2 14m'], String(repo))
+    assert.deepEqual(lines(laid), ['▶  #12  ●●●●◐○  verify  r2  14m'], String(repo))
     assert.equal(laid.rows[0].cells.find((c) => c.col === 'number').href, undefined, String(repo))
     assert.equal(signature(s, 16 * MIN, repo), signature(s, 16 * MIN))
   }
@@ -461,7 +450,7 @@ test('AC25: past four Issues the band shows four rows and a +N more row', () => 
   const out = lines(render(five, { now: 31 * MIN, columns: WIDE }))
   assert.equal(out.length, 5)
   assert.equal(out[4], '+1 more · /macro-loop:status')
-  assert.match(out[0], /^◇ #101/)
+  assert.match(out[0], /^◇ {2}#101/)
   const six = run([skill('next', 31 * MIN), stage(55, 'merge', 31 * MIN), turnEnd(31 * MIN)], five)
   assert.equal(lines(render(six, { now: 32 * MIN, columns: WIDE }))[4], '+2 more · /macro-loop:status')
   assert.equal(render(four(), { now: 0, columns: WIDE }).more, null)

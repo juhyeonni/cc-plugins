@@ -2,7 +2,7 @@
 // module memory, and draws AbovePrompt from render() as a table, one row per Issue (D3, D17).
 // It only observes: every hook returns what its next(e) settled to, and a parse failure never
 // changes that.
-import { initial, reduce, render, repoOf, signature } from './band.mjs'
+import { GAP, initial, reduce, render, repoOf, signature } from './band.mjs'
 
 // Color only repeats the symbol; the stage, round and time are dim (D4).
 const TONE = { run: 'suggestion', you: 'warning', other: 'inactive', unknown: 'error', done: 'success' }
@@ -178,19 +178,17 @@ export const register = (on) => {
     if (!out) return next(e)
     const { Box, Link, Text } = $.ui.resolve(e)
     // Each column a fixed width, so a cell that grows never moves the next (D17). The stage
-    // is dim beside the track; the symbol, track and action carry the row's tone (D4).
+    // is dim beside the track; the symbol, track and action carry the row's tone (D4). The
+    // Issue number and each document are links (D15).
     const cell = (r, i, c, last) => {
       const key = `r${i}-${c.col}`
       const box = (child) => h(Box, last ? { key } : { key, width: c.width, flexShrink: 0 }, child)
-      if (c.col === 'number' && c.href) return box(h(Link, { href: c.href, label: c.text }))
-      if (c.col === 'links') {
-        return box(h(Text, { wrap: 'truncate-end' }, ...c.links.flatMap((l, j) => [j ? ' · ' : '', h(Link, { href: l.href, label: l.label })])))
-      }
+      if (c.href) return box(h(Link, { href: c.href, label: c.text }))
       const style = DIM.includes(c.col) ? { dimColor: true } : TONED.includes(c.col) ? { color: TONE[r.tone] } : {}
       return box(h(Text, { ...style, wrap: 'truncate-end' }, c.text))
     }
     const rowsDrawn = out.rows.map((r, i) =>
-      h(Box, { key: `r${i}`, flexDirection: 'row', columnGap: 1 }, ...r.cells.map((c, j) => cell(r, i, c, j === r.cells.length - 1))))
+      h(Box, { key: `r${i}`, flexDirection: 'row', columnGap: GAP }, ...r.cells.map((c, j) => cell(r, i, c, j === r.cells.length - 1))))
     if (out.more) rowsDrawn.push(h(Box, { key: 'more' }, h(Text, { dimColor: true, wrap: 'truncate-end' }, out.more)))
     return h(Box, { flexDirection: 'column' }, ...rowsDrawn)
   })
