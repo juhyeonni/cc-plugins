@@ -81,7 +81,7 @@ export const runContext = () => ({ ...trustContext(), prs: list('repos/{owner}/{
 
 // The PR is the one whose body closes the Issue; an open one wins over a merged one.
 // A PR closed without merging is ignored.
-function findPr(n, prs) {
+export function findPr(n, prs) {
   const mine = prs.filter((p) => Number(CLOSES.exec(p.body ?? '')?.[1]) === n && (p.state === 'open' || p.merged_at))
   return mine.find((p) => p.state === 'open') ?? mine[0] ?? null
 }

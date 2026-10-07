@@ -25,12 +25,15 @@ Any stage can be the entry point. When a stage's input is missing, the skill war
 | `/macro-loop:implement` | Builds what the spec asks for, commits, and hands over to `open-pr` and `verify` | Commits |
 | `/macro-loop:open-pr` | Pushes the branch and opens a draft PR with `Closes #n`, asking first unless you asked for the push | A draft PR |
 | `/macro-loop:verify` | Judges the PR against the spec in fresh-context subagents and posts PASS or NEEDS-FIX | A PR comment |
+| `/macro-loop:execute` | Takes one or more Issues that are ready for implement, open-pr or verify, asks every question first, then implements, opens draft PRs and verifies them in parallel, and reports one row per Issue | Commits, draft PRs and PR comments |
 
 A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:grilling #12`, then `/macro-loop:spec #12`, then `/macro-loop:implement #12`, which ends with a draft PR opened and verified. `open-pr` asks before it pushes, unless you asked for the push yourself. A draft cannot be merged until you mark it "Ready for review", after reading the verdict.
 
 `/macro-loop:next #12` runs those stages for you in order and stops where a person has to act: an interview, an answer from the requester, the merge.
 
-`init` and `next` start only from their slash command. The other skills also start from plain words, or when another skill hands over to them.
+`/macro-loop:execute 12 15 18` does the machine stages for several Issues at once. Before anything starts, it asks which spec commands may run and whether to push; then it runs implement and verify in parallel workflows and stops before the merge. NEEDS-FIX is reported, never fixed automatically.
+
+`init`, `next` and `execute` start only from their slash command. The other skills also start from plain words, or when another skill hands over to them.
 
 ## Contents
 
@@ -41,6 +44,8 @@ A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:gri
 | `skills/init/templates/` | Issue templates and the default config file. |
 | `agents/verifier.md` | The fresh-context verifier `verify` runs, one per axis. |
 | `scripts/trust.mjs` | Decides trust in code: the config on the default branch, the trusted logins, an Issue's spec, and a PR's author, last verdict and round. |
+| `scripts/execute.mjs` | Picks the Issues `execute` runs and the stage each starts at, from `stage.mjs`, and renders its report. Leaves out an Issue whose PR author is not trusted. |
+| `workflows/execute-implement.js`, `workflows/execute-verify.js` | The two saved workflows `execute` runs by name: one implement agent per Issue in its own worktree, and two verifiers per Issue started with the identifier lines only. Neither pushes or posts. |
 | `hooks/hooks.json` | Runs `scripts/verifier-flags.mjs` before every Agent call and `scripts/verifier-worktree.mjs` before every Bash call. The first changes only a spec verifier that `verify` starts for a PR whose author is not trusted; the second refuses only a verifier's command outside its own worktree. When a verifier stops, it runs `scripts/verifier-cleanup.mjs`, which removes the verifier's worktree and branch, but keeps a branch that holds a commit on no remote branch. Every other call passes through unchanged. |
 | `reference/github.md` | GitHub REST calls, markers, and which comments are trusted. |
 | `reference/workflow.md` | Labels, config, the warn-and-record rule, and what to do without an Issue. |
