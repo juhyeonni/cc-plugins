@@ -5,3 +5,8 @@ node_modules/
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+
+# The engine writes type declarations into a loaded mod plugin folder.
+plugins/*/.claude-plugin/types/
+# Its local tsconfig extends that engine-written folder, so it is not committed either.
+plugins/macro-loop-band/tsconfig.json
