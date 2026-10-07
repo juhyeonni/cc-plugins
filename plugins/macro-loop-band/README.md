@@ -1,6 +1,6 @@
 # macro-loop-band
 
-A band above the Claude Code prompt while `next`, `implement`, `verify` and the other macro-loop skills work on Issues: one row per Issue this session touched, saying how far along it is, whose turn it is, and what you do next, so you can look away during a long run. Each row links the GitHub pages its next step needs (see [Links](#links)).
+A band above the Claude Code prompt while `next`, `implement`, `verify` and the other macro-loop skills work on Issues: one row per Issue this session touched, saying how far along it is, whose turn it is, and what you do next, so you can look away during a long run. Each row links its Issue and the GitHub documents the session saw: spec, PR and verdict (see [Links](#links)).
 
 It only observes: no GitHub calls (one local `git remote get-url origin` per session, for the links), no changes to macro-loop. It is an experiment, not in the marketplace and without a version.
 

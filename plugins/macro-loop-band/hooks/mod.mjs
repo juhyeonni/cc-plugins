@@ -103,7 +103,7 @@ function bashEvents(command, r, at) {
         type: 'trust', pr: num(pr?.number), round: pr?.round ?? null, issue: num(issue?.number) ?? num(pr?.closes),
         // undefined: the output named no Issue, so the spec seen before stays.
         spec: issue ? issue.spec ?? null : undefined,
-        verdict: pr?.lastVerdict ?? null, verdictResult: pr?.lastVerdictResult ?? null, at,
+        verdict: pr?.lastVerdict ?? null, at,
       })
     }
   }
@@ -181,7 +181,8 @@ export const register = (on) => {
     // is dim beside the track; the symbol, track and action carry the row's tone (D4). The
     // Issue number and each document are links (D15).
     const cell = (r, i, c) => {
-      const box = (child) => h(Box, { key: `r${i}-${c.col}`, width: c.width, flexShrink: 0 }, child)
+      // One line, clipped: a terminal that draws a link as its label and full URL keeps the table.
+      const box = (child) => h(Box, { key: `r${i}-${c.col}`, width: c.width, height: 1, overflow: 'hidden', flexShrink: 0 }, child)
       if (c.href) return box(h(Link, { href: c.href, label: c.text }))
       const style = DIM.includes(c.col) ? { dimColor: true } : TONED.includes(c.col) ? { color: TONE[r.tone] } : {}
       return box(h(Text, { ...style, wrap: 'truncate-end' }, c.text))

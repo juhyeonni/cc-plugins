@@ -6,7 +6,7 @@
 // session touched and has not finished (oldest first, one per Issue, never cur's) (D3).
 //
 // A Run also keeps the GitHub ids it observed (D15): its PR, the Issue's spec comment, and the
-// PR's last verdict with its result. Given the repo, rows() turns them into links.
+// PR's last verdict. Given the repo, rows() turns them into links.
 
 export const SKILLS = ['next', 'triage', 'grilling', 'spec', 'implement', 'open-pr', 'verify']
 export const STAGES = ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'resumable', 'wait', 'merge', 'stop', 'done']
@@ -30,7 +30,6 @@ const SYMBOL = { run: '▶', you: '◆', other: '◇', unknown: '?', done: '✓'
 const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/g
 // Stages that leave a run on the person's turn: a skill started after one starts a new run.
 const STOPPED = ['merge', 'stop', 'resumable']
-const RESULTS = ['PASS', 'NEEDS-FIX']
 // Owner and repo as GitHub names them, after an https, scp-like or ssh:// GitHub host.
 const REMOTE = /^(?:https:\/\/(?:[^@/\s]+@)?github\.com\/|git@github\.com:|ssh:\/\/git@github\.com(?::\d+)?\/)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/i
 
@@ -44,11 +43,11 @@ const width = (s) => [...s].length
 const newRun = (at) => ({
   issue: null, skill: null, stage: null, why: null, failed: false,
   pr: null, round: null, running: false, since: at, idleSince: null, done: false,
-  spec: null, verdict: null, verdictResult: null, pos: null,
+  spec: null, verdict: null, pos: null,
 })
 
 // What a Run adopts from its Issue's waiting entry.
-const KEPT = ['pr', 'round', 'stage', 'spec', 'verdict', 'verdictResult', 'pos']
+const KEPT = ['pr', 'round', 'stage', 'spec', 'verdict', 'pos']
 
 const same = (a, b) => {
   if (a === b) return true
@@ -142,12 +141,10 @@ const step = (s, ev) => {
       if (!optNum(ev.pr) || !optNum(ev.issue) || !s.cur || (ev.pr == null && ev.issue == null)) return
       if (ev.issue != null) focus(s, ev.issue, at)
       if (ev.pr != null) {
-        const verdict = posInt(ev.verdict) ? ev.verdict : null
         Object.assign(s.cur, {
           pr: ev.pr,
           round: Number.isInteger(ev.round) && ev.round >= 0 ? ev.round : null,
-          verdict,
-          verdictResult: verdict !== null && RESULTS.includes(ev.verdictResult) ? ev.verdictResult : null,
+          verdict: posInt(ev.verdict) ? ev.verdict : null,
         })
       }
       if (ev.issue != null && ev.spec !== undefined) s.cur.spec = posInt(ev.spec) ? ev.spec : null
@@ -156,7 +153,7 @@ const step = (s, ev) => {
     case 'pr':
       if (!posInt(ev.pr) || !s.cur) return
       // A verdict belongs to the PR it judged.
-      if (s.cur.pr !== ev.pr) Object.assign(s.cur, { verdict: null, verdictResult: null })
+      if (s.cur.pr !== ev.pr) s.cur.verdict = null
       s.cur.pr = ev.pr
       return
     case 'turnStart':

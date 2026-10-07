@@ -388,7 +388,7 @@ test('AC20: an id not observed leaves its document out and the others stay', () 
   // Garbage ids are not observed.
   const g = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2), trustFull({ pr: 109, issue: 12, spec: -1, verdict: 1.5, verdictResult: 'MAYBE' }, 3)])
   assert.deepEqual(labels(g, { isWorking: true }), ['[PR#109]'])
-  assert.equal(g.cur.verdictResult, null)
+  assert.equal(g.cur.verdict, null)
   for (const ev of [trustFull({ pr: NaN, issue: 12 }), trustFull({ pr: 109, issue: '12' }), trustFull({})]) assert.equal(reduce(g, ev), g, JSON.stringify(ev))
 })
 
@@ -432,10 +432,13 @@ test('AC24: the track shows the D16 cells, moves back after NEEDS-FIX, and keeps
     ['◐○○○○○', '◐○○○○○', '◐○○○○○', '●◐○○○○', '●●◐○○○', '●●●◐○○', '●●●●◐○', '●●●●●◐'])
   // Skills move it while they run.
   assert.equal(working(run([skill('spec', 0)]), 0).track, '●◐○○○○')
-  // A NEEDS-FIX verdict sends the Issue back to implement.
+  // A NEEDS-FIX verdict sends the Issue back to implement: the run that fixes it, the
+  // implement skill or stage.mjs saying implement, moves the track back.
   const nf = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2),
     trustFull({ pr: 109, issue: 12, verdict: VERDICT, verdictResult: 'NEEDS-FIX' }, 3), turnEnd(4), turnStart(5), skill('implement', 6)])
   assert.equal(working(nf, 7).track, '●●◐○○○')
+  const again = run([turnEnd(8), turnStart(9), skill('next', 10), stage(12, 'implement', 11)], nf)
+  assert.equal(working(again, 12).track, '●●◐○○○')
   // stop and a failed check keep the last position.
   const v = run([skill('next', 0), stage(12, 'open-pr', 1)])
   assert.equal(idle(run([stage(12, 'stop', 2, 'x'), turnEnd(3)], v), MIN).track, '●●●◐○○')
