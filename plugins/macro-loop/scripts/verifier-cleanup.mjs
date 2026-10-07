@@ -8,11 +8,23 @@
 // branch holds a commit that is on no remote branch: that branch is kept, and the hook says
 // so. Any other agent's stop passes through with no output. A git error stops it, with the
 // reason on stderr.
+//
+// A verifier that a workflow starts (`execute`, #111) runs in the worktree the workflow made,
+// `.claude/worktrees/wf_<run>-<n>` on `worktree-wf_<run>-<n>`, which is not named after the
+// agent. When the hook's cwd is in such a worktree, that worktree and branch are the ones removed.
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 
 const input = JSON.parse(readFileSync(0, 'utf8'))
+const WORKFLOW = /^wf_[\w-]+-\d+$/
+
+// The workflow worktree the hook's cwd is in, or null.
+function workflowWorktree(cwd) {
+  const parts = String(cwd ?? '').split(/[\\/]/)
+  const at = parts.findIndex((p, i) => p === '.claude' && parts[i + 1] === 'worktrees' && WORKFLOW.test(parts[i + 2] ?? ''))
+  return at === -1 ? null : parts[at + 2]
+}
 
 function git(cwd, args) {
   const r = spawnSync('git', args, { cwd, encoding: 'utf8' })
@@ -24,14 +36,16 @@ function git(cwd, args) {
 if (input.agent_type === 'macro-loop:verifier') {
   try {
     const id = input.agent_id
+    const wf = workflowWorktree(input.cwd)
     // The id becomes a path and a branch name, so only letters and digits are taken.
-    if (!/^[A-Za-z0-9]+$/.test(id ?? '')) throw new Error(`the verifier's agent_id, ${JSON.stringify(id)}, is not a plain id of letters and digits`)
+    if (!wf && !/^[A-Za-z0-9]+$/.test(id ?? '')) throw new Error(`the verifier's agent_id, ${JSON.stringify(id)}, is not a plain id of letters and digits`)
+    const name = wf ?? `agent-${id}`
     // The hook's cwd is the verifier's worktree, which goes, so git runs from the main checkout:
     // the parent of the repo's common git dir, also when the session runs in a linked worktree.
     // The path is compared as git prints paths, with `/` on every platform.
     const main = dirname(git(input.cwd, ['rev-parse', '--path-format=absolute', '--git-common-dir']))
-    const worktree = `${main}/.claude/worktrees/agent-${id}`
-    const branch = `worktree-agent-${id}`
+    const worktree = `${main}/.claude/worktrees/${name}`
+    const branch = `worktree-${name}`
     // A second --force removes a locked worktree.
     if (git(main, ['worktree', 'list', '--porcelain']).split('\n').includes(`worktree ${worktree}`)) git(main, ['worktree', 'remove', '--force', '--force', worktree])
     if (git(main, ['branch', '--list', branch]) !== '') {

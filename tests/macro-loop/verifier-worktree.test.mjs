@@ -50,6 +50,20 @@ test('a verifier anywhere else: refused, with the reason', () => {
   }
 })
 
+test("AC13 (#111): a verifier in a workflow's worktree, or a folder in it: no output", () => {
+  for (const cwd of [`${REPO}/.claude/worktrees/wf_5e3d60a4-4af-1`, `${REPO}/.claude/worktrees/wf_5e3d60a4-4af-12/src`, 'C:\\work\\repo\\.claude\\worktrees\\wf_f315867a-1bb-2']) {
+    const r = verifier(cwd)
+    assert.equal(r.status, 0, r.stderr)
+    assert.equal(r.stdout, '', cwd)
+  }
+})
+
+test("AC13 (#111): names that only look like a workflow's worktree are refused", () => {
+  for (const cwd of [`${REPO}/.claude/worktrees/wf_`, `${REPO}/.claude/worktrees/wf_5e3d60a4-4af`, `${REPO}/wf_5e3d60a4-4af-1`, `${REPO}/.claude/wf_5e3d60a4-4af-1`]) {
+    assert.equal(verifier(cwd).out?.permissionDecision, 'deny', cwd)
+  }
+})
+
 test('a verifier with no agent_id or no cwd: refused', () => {
   for (const fields of [{ agent_type: 'macro-loop:verifier', cwd: OWN }, { agent_type: 'macro-loop:verifier', agent_id: ID }]) {
     const r = hook(fields)
