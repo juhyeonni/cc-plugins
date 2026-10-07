@@ -31,7 +31,7 @@ A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:gri
 
 `/macro-loop:next #12` runs those stages for you in order and stops where a person has to act: an interview, an answer from the requester, the merge.
 
-`/macro-loop:execute 12 15 18` does the machine stages for several Issues at once. Before anything starts, it asks which spec commands may run and whether to push; then it runs implement and verify in parallel workflows and stops before the merge. NEEDS-FIX is reported, never fixed automatically.
+`/macro-loop:execute 12 15 18` does the machine stages for several Issues at once. Before anything starts, it asks which spec commands may run and whether to push; then it carries each Issue through implement, open-pr and verify in a workflow run of its own, all in parallel, and stops before the merge. NEEDS-FIX is reported, never fixed automatically.
 
 `init`, `next` and `execute` start only from their slash command. The other skills also start from plain words, or when another skill hands over to them.
 
@@ -45,8 +45,8 @@ A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:gri
 | `agents/verifier.md` | The fresh-context verifier `verify` runs, one per axis. |
 | `scripts/trust.mjs` | Decides trust in code: the config on the default branch, the trusted logins, an Issue's spec, and a PR's author, last verdict and round. |
 | `scripts/execute.mjs` | Picks the Issues `execute` runs and the stage each starts at, from `stage.mjs`, and renders its report. Leaves out an Issue whose PR author is not trusted. |
-| `workflows/execute-implement.js`, `workflows/execute-verify.js` | The two saved workflows `execute` runs by name: one implement agent per Issue in its own worktree, and two verifiers per Issue started with the identifier lines only. Neither pushes or posts. |
-| `hooks/hooks.json` | Runs `scripts/verifier-flags.mjs` before every Agent call and `scripts/verifier-worktree.mjs` before every Bash call. The first changes only a spec verifier that `verify` starts for a PR whose author is not trusted; the second refuses only a verifier's command outside its own worktree. When a verifier stops, it runs `scripts/verifier-cleanup.mjs`, which removes the verifier's worktree and branch, but keeps a branch that holds a commit on no remote branch. Every other call passes through unchanged. |
+| `workflows/execute-issue.js` | The saved workflow `execute` runs by name, once per Issue. Its phases are `implement` (in a worktree of its own), `open-pr` (with the push approval `execute` passed in) and `verify` (two verifiers started with the identifier lines only). It posts no verdict. |
+| `hooks/hooks.json` | Runs `scripts/verifier-flags.mjs` before every Agent call and `scripts/verifier-worktree.mjs` before every Bash call. The first changes only a spec verifier that `verify` starts for a PR whose author is not trusted; the second refuses only a verifier's command outside its own worktree (`agent-<id>`, or the `wf_*` worktree a workflow made for it). When a verifier stops, it runs `scripts/verifier-cleanup.mjs`, which removes the verifier's worktree and branch, but keeps a branch that holds a commit on no remote branch. Every other call passes through unchanged. |
 | `reference/github.md` | GitHub REST calls, markers, and which comments are trusted. |
 | `reference/workflow.md` | Labels, config, the warn-and-record rule, and what to do without an Issue. |
 | `NOTICE.md` | Upstream license and the list of derived files. |

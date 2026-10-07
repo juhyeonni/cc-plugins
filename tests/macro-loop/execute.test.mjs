@@ -73,96 +73,101 @@ test('AC7: one row per Issue with the stages as columns and what a person does',
   assert.match(lines[5], /^\| #73 \| · \| · \| · \| Left out: the PR author is not trusted: verify it with \/macro-loop:verify \|$/)
 })
 
-// The workflows are scripts the Workflow tool runs with these globals; the tests give stand-ins.
+// The workflow is a script the Workflow tool runs with these globals; the tests give stand-ins.
+const WORKFLOW = join(ROOT, 'plugins/macro-loop/workflows/execute-issue.js')
 const AsyncFunction = (async () => {}).constructor
-function runWorkflow(name, args, answer) {
-  const src = readFileSync(join(ROOT, 'plugins/macro-loop/workflows', name), 'utf8').replace(/^export const meta =/m, 'const meta =')
+async function runWorkflow(issue, answer) {
+  const src = readFileSync(WORKFLOW, 'utf8').replace(/^export const meta =/m, 'const meta =')
   const calls = []
   const agent = async (prompt, opts = {}) => {
     calls.push({ prompt, opts })
     return answer(prompt, opts)
   }
   const parallel = async (thunks) => Promise.all(thunks.map((t) => t().catch(() => null)))
-  const pipeline = async (items, ...stages) =>
-    Promise.all(items.map(async (item, i) => {
-      let v = item
-      try {
-        for (const s of stages) v = await s(v, item, i)
-        return v
-      } catch {
-        return null
-      }
-    }))
   const fn = new AsyncFunction('agent', 'parallel', 'pipeline', 'phase', 'log', 'args', 'budget', 'workflow', src)
-  const result = fn(agent, parallel, pipeline, () => {}, () => {}, args, { total: null }, null)
-  return result.then((value) => ({ value, calls, meta: src }))
+  const value = await fn(agent, parallel, null, () => {}, () => {}, { pluginRoot: '/p', base: 'main', issue }, { total: null }, null)
+  return { value, calls }
 }
 
-const issue = (number, over = {}) => ({ number, slug: `s${number}`, spec: 1000 + number, runSpecCommands: true, ...over })
+const issue = (over = {}) => ({ number: 61, slug: 'add-a', spec: 9061, start: 'implement', runSpecCommands: true, push: true, branch: null, pr: null, ...over })
+const happy = (p, o) => {
+  if (o.phase === 'implement') return { status: 'committed', branch: '61-add-a', head: 'aaa', reason: '' }
+  if (o.phase === 'open-pr') return { status: 'opened', pr: 120, head: 'bbb', reason: '' }
+  return `report ${o.label}`
+}
 
-test('AC3: the implement workflow starts one worktree agent per Issue, labelled implement, phase #n, never pushing', async () => {
-  const { calls } = await runWorkflow('execute-implement.js', { pluginRoot: '/p', base: 'main', issues: [issue(61), issue(64)] }, (p, o) => ({ status: 'committed', branch: `${o.phase.slice(1)}-x`, head: 'abc', reason: '' }))
-  assert.equal(calls.length, 2)
-  for (const [i, n] of [61, 64].entries()) {
-    assert.equal(calls[i].opts.isolation, 'worktree')
-    assert.equal(calls[i].opts.label, 'implement')
-    assert.equal(calls[i].opts.phase, `#${n}`)
-    assert.match(calls[i].prompt, /never push/i)
-    assert.match(calls[i].prompt, new RegExp(`#${n}\\b`))
-  }
+test('AC3: a run from implement goes implement → open-pr → verify, one worktree implement agent first', async () => {
+  const { value, calls } = await runWorkflow(issue(), happy)
+  assert.deepEqual(calls.map((c) => c.opts.phase), ['implement', 'open-pr', 'verify', 'verify'])
+  const impl = calls[0]
+  assert.equal(impl.opts.isolation, 'worktree')
+  assert.match(impl.prompt, /never edit the spec/i)
+  assert.match(impl.prompt, /never push/i)
+  assert.match(impl.prompt, /git branch -D/)
+  assert.match(impl.prompt, /worktree-\* branch/)
+  assert.match(calls[1].prompt, /approved the push up front/)
+  assert.deepEqual(value.implement, { ok: true, branch: '61-add-a', head: 'aaa' })
+  assert.deepEqual(value.openPr, { ok: true, pr: 120, head: 'bbb' })
+  assert.equal(value.verify.pr, 120)
 })
 
-const VERIFY_ARGS = {
-  base: 'origin/main',
-  issues: [
-    { number: 61, spec: 9061, head: 'aaa', runSpecCommands: true },
-    { number: 70, spec: 9070, head: 'bbb', runSpecCommands: false },
-  ],
-}
-
-test('AC4: the verify workflow starts two verifiers per Issue with identifier lines only', async () => {
-  const { calls } = await runWorkflow('execute-verify.js', VERIFY_ARGS, () => 'report')
-  assert.equal(calls.length, 4)
-  for (const c of calls) {
+test('AC4: verify starts exactly two worktree verifiers with the identifier lines and the head from open-pr', async () => {
+  const { calls, value } = await runWorkflow(issue(), happy)
+  const v = calls.filter((c) => c.opts.phase === 'verify')
+  assert.equal(v.length, 2)
+  for (const c of v) {
     assert.equal(c.opts.agentType, 'macro-loop:verifier')
     assert.equal(c.opts.isolation, 'worktree')
   }
-  const spec61 = calls.find((c) => c.opts.phase === '#61' && c.prompt.startsWith('Axis: spec'))
-  assert.equal(spec61.prompt, 'Axis: spec\nIssue: #61\nSpec comment: 9061\nBase: origin/main\nHead: aaa\nRun spec commands: yes\nRun tests and lint: yes')
-  const spec70 = calls.find((c) => c.opts.phase === '#70' && c.prompt.startsWith('Axis: spec'))
-  assert.match(spec70.prompt, /Run spec commands: no\nRun tests and lint: yes$/)
-  const std70 = calls.find((c) => c.opts.phase === '#70' && c.prompt.startsWith('Axis: standards'))
-  assert.equal(std70.prompt, 'Axis: standards\nIssue: #70\nSpec comment: 9070\nBase: origin/main\nHead: bbb')
+  assert.equal(v[0].prompt, 'Axis: spec\nIssue: #61\nSpec comment: 9061\nBase: origin/main\nHead: bbb\nRun spec commands: yes\nRun tests and lint: yes')
+  assert.equal(v[1].prompt, 'Axis: standards\nIssue: #61\nSpec comment: 9061\nBase: origin/main\nHead: bbb')
+  assert.equal(value.verify.spec, 'report #61 verify · spec')
+  const { calls: noRun } = await runWorkflow(issue({ start: 'verify', runSpecCommands: false, pr: { number: 10, head: 'ccc' } }), happy)
+  assert.match(noRun[0].prompt, /Head: ccc\nRun spec commands: no\nRun tests and lint: yes$/)
 })
 
-test('AC5: one Issue failing leaves the others running and returns its reason', async () => {
-  const answer = (p, o) => {
-    if (o.phase === '#64') throw new Error('boom')
-    if (o.phase === '#65') return { status: 'stopped', branch: '', head: '', reason: 'the spec does not match the code' }
-    return { status: 'committed', branch: '61-x', head: 'abc', reason: '' }
+test('AC5: a run from open-pr starts no implement agent, one from verify only the two verifiers', async () => {
+  const fromPr = await runWorkflow(issue({ start: 'open-pr', branch: '70-x' }), happy)
+  assert.deepEqual(fromPr.calls.map((c) => c.opts.phase), ['open-pr', 'verify', 'verify'])
+  assert.match(fromPr.calls[0].prompt, /branch 70-x/)
+  assert.equal(fromPr.value.implement, undefined)
+  const fromVerify = await runWorkflow(issue({ start: 'verify', pr: { number: 10, head: 'ccc' } }), happy)
+  assert.deepEqual(fromVerify.calls.map((c) => c.opts.phase), ['verify', 'verify'])
+  assert.equal(fromVerify.value.verify.pr, 10)
+})
+
+test('AC6: a run stops at the stage that cannot go on, with its reason, and starts no later phase', async () => {
+  const cases = [
+    [issue(), (p, o) => (o.phase === 'implement' ? { status: 'stopped', branch: '', head: '', reason: 'the spec does not match the code' } : happy(p, o)), 'implement', /spec does not match/],
+    [issue(), (p, o) => (o.phase === 'implement' ? null : happy(p, o)), 'implement', /no result/],
+    [issue({ push: false }), happy, 'openPr', /push was declined: run \/macro-loop:open-pr 61-add-a/],
+    [issue(), (p, o) => (o.phase === 'open-pr' ? { status: 'stopped', pr: 0, head: '', reason: 'push rejected' } : happy(p, o)), 'openPr', /push rejected/],
+  ]
+  for (const [args, answer, stage, reason] of cases) {
+    const { value, calls } = await runWorkflow(args, answer)
+    assert.equal(value[stage].ok, false)
+    assert.match(value[stage].reason, reason)
+    assert.equal(value.verify, undefined)
+    assert.ok(!calls.some((c) => c.opts.phase === 'verify'))
   }
-  const { value, calls } = await runWorkflow('execute-implement.js', { pluginRoot: '/p', base: 'main', issues: [issue(61), issue(64), issue(65)] }, answer)
-  assert.equal(calls.length, 3)
-  const by = Object.fromEntries(value.map((r) => [r.number, r]))
-  assert.equal(by[61].status, 'committed')
-  assert.equal(by[64].status, 'stopped')
-  assert.match(by[64].reason, /no result/)
-  assert.equal(by[65].reason, 'the spec does not match the code')
+  const declined = await runWorkflow(issue({ push: false }), happy)
+  assert.ok(!declined.calls.some((c) => c.opts.phase === 'open-pr'))
 })
 
-test('AC6: neither workflow implements again after a verdict, pushes, or posts to GitHub', async () => {
-  const { calls, meta } = await runWorkflow('execute-verify.js', VERIFY_ARGS, () => 'NEEDS-FIX')
+test('AC6: no implement after a verdict, and verify posts nothing', async () => {
+  const { calls } = await runWorkflow(issue({ start: 'verify', pr: { number: 10, head: 'ccc' } }), () => 'NEEDS-FIX')
   assert.ok(calls.every((c) => c.opts.agentType === 'macro-loop:verifier'))
-  const impl = readFileSync(join(ROOT, 'plugins/macro-loop/workflows/execute-implement.js'), 'utf8')
-  for (const src of [meta, impl]) {
-    assert.doesNotMatch(src, /`git push|-X (POST|PATCH|PUT|DELETE)\b/)
-  }
+  const src = readFileSync(WORKFLOW, 'utf8')
+  assert.doesNotMatch(src, /-X (POST|PATCH|PUT|DELETE)\b/)
 })
 
-test('workflows: fixed names and phases', async () => {
-  for (const [file, name, ph] of [['execute-implement.js', 'execute-implement', 'implement'], ['execute-verify.js', 'execute-verify', 'verify']]) {
-    const src = readFileSync(join(ROOT, 'plugins/macro-loop/workflows', file), 'utf8')
-    assert.match(src, new RegExp(`name: '${name}'`))
-    assert.match(src, new RegExp(`title: '${ph}'`))
-  }
+test('the workflow: its name and its three phases, in order', () => {
+  const src = readFileSync(WORKFLOW, 'utf8')
+  assert.match(src, /name: 'execute-issue'/)
+  const titles = [...src.matchAll(/title: '([\w-]+)'/g)].map((m) => m[1])
+  assert.deepEqual(titles, ['implement', 'open-pr', 'verify'])
+})
+
+test('AC14: the workflow script holds no carriage return as checked out', () => {
+  assert.ok(!readFileSync(WORKFLOW, 'utf8').includes('\r'), 'execute-issue.js has CRLF line endings; see .gitattributes')
 })
