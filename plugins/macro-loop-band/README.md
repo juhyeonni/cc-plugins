@@ -1,6 +1,6 @@
 # macro-loop-band
 
-A one-line band above the Claude Code prompt while `next`, `implement`, `verify` and the other macro-loop skills work on an Issue. It says which Issue, its stage, and whose turn it is, so you can look away during a long run. After the text it links the GitHub pages the next step needs (see [Links](#links)).
+A band above the Claude Code prompt while `next`, `implement`, `verify` and the other macro-loop skills work on Issues: one row per Issue this session touched, saying how far along it is, whose turn it is, and what you do next, so you can look away during a long run. Each row links the GitHub pages its next step needs (see [Links](#links)).
 
 It only observes: no GitHub calls (one local `git remote get-url origin` per session, for the links), no changes to macro-loop. It is an experiment, not in the marketplace and without a version.
 
@@ -20,7 +20,16 @@ Add this folder's absolute path to `CLAUDE_CODE_PLUGIN_DIRS` in the `env` block 
 
 Several folders are separated by the platform's path-list separator (`;` on Windows, `:` elsewhere); `~` is allowed. The plugin loads in terminal and desktop sessions started after the change and reloads when a file in it is saved. `claude --plugin-dir <folder>` works for one session.
 
-## Symbols
+## The band
+
+```text
+▶ #12  ●●●●◐○ verify                r2 14m    PR #109 · spec
+◆ #7   ●●●●●◐ merge    merge the PR r3 34m    PR #110 · verdict
+◆ #108 ●◐○○○○ grilling answer Qs       24m
+◇ #101 ◐○○○○○ triage   (requester)     2h
+```
+
+Each row is one Issue, in fixed columns: symbol, Issue number, progress track and stage, what you do, verify round, elapsed time, links. A column keeps its place on every row, so a time or an action that changes length moves nothing after it. The Issue being worked on comes first, then the others in the order they stopped, oldest first. Past four Issues the band shows four rows and `+N more · /macro-loop:status`. A done Issue leaves at the next turn.
 
 | Symbol | Meaning |
 |---|---|
@@ -28,58 +37,55 @@ Several folders are separated by the platform's path-list separator (`;` on Wind
 | ◆ | your turn |
 | ◇ | someone else's turn |
 | ? | the stage could not be read |
-| ✓ | done (cleared at the next turn) |
+| ✓ | done |
 
-Color only repeats the symbol.
+The symbol, the track and the action are drawn in the row's color; the stage, round and time are dim. Color only repeats the symbol.
 
-## Band text
+**Track.** Six cells: triage, grilling (with spec), implement, open-pr, verify, merge. `●` passed, `◐` where the Issue is, `○` still ahead. `wait` and `resumable` sit on triage; a NEEDS-FIX verdict sends the Issue back to implement; `stop` and a failed stage check keep the last position seen.
 
-| State | Band |
-|---|---|
-| Claude working | `▶ #12 verify · PR #109 · round 2 · 14m` |
-| Interview waiting on you | `◆ #108 grilling · answer the questions above` |
-| PASS, merge is yours | `◆ #12 PASS · read verdict, merge PR #109` |
-| `stop` | `◆ #12 stopped · NEEDS-FIX 3× · decide` |
-| A skill asked a question, the turn ended | `◆ #12 implement asks · see above · 3m` |
-| `resumable` | `◆ #93 new reply · run /macro-loop:next 93` |
-| `wait` | `◇ #101 waiting on requester · 2h` |
-| `stage.mjs` failed | `? #12 stage check failed · /macro-loop:status` |
-| `done` | `✓ #12 done` |
-| A tool call needs approval | `◆ #12 verify · approve the tool call` |
+| State | Stage | What you do |
+|---|---|---|
+| Claude working | the skill's stage | (nothing) |
+| Interview waiting on you | `grilling` | `answer Qs` |
+| PASS, merge is yours | `merge` | `merge the PR` |
+| `stop` | last stage seen | `decide: NEEDS-FIX 3×` (or another short reason) |
+| A skill asked a question, the turn ended | the skill's stage | `answer above` |
+| `resumable` | `triage` | `read reply` |
+| `wait` (◇) | `triage` | `(requester)` |
+| `stage.mjs` failed (?) | last stage seen | `run /macro-loop:status` |
+| `done` (✓) | `merge` | (nothing) |
 
-- `+N waiting (#<n> <stage>)` is appended when other Issues of this session wait on you; it names the newest.
-- Elapsed time is whole minutes, then hours (`14m`, `1h5m`, `2h`), redrawn every minute.
-- PR and round appear only when the session saw them. With a GitHub remote the PR number is not in the text: it is the `PR #<p>` link instead (the table shows the band without a GitHub remote).
+- Elapsed time is whole minutes, then hours (`14m`, `1h5m`, `2h`), redrawn every minute: how long Claude has worked, or how long the row has waited on someone.
+- The round (`r2`) and the PR appear only when the session saw them.
 
 ## Links
 
-After its text the band shows one to three links to the GitHub objects the next step needs, first link first:
+Each row's Issue number opens the Issue. After the time, a row shows up to two links to the GitHub objects its next step needs, first link first:
 
 | Row | Links |
 |---|---|
-| `triage`, `grilling` | `#<n>` |
 | `spec`, `implement` | `spec` |
 | `open-pr`, `verify` | `PR #<p>` · `spec` |
-| after a NEEDS-FIX verdict (`implement`, `stopped`) | `verdict` · `PR #<p>` |
+| after a NEEDS-FIX verdict (`implement`, `stop`) | `verdict` · `PR #<p>` |
 | PASS | `PR #<p>` · `verdict` |
 
-For example `◆ #12 PASS · read verdict, merge the PR · PR #109 · verdict`.
-
-- `#<n>` opens the Issue, `spec` its spec comment, `PR #<p>` the pull request, `verdict` the PR's last verify verdict.
+- `spec` opens the spec comment, `PR #<p>` the pull request, `verdict` the PR's last verify verdict.
 - A link shows only for an id the session saw: the spec, the PR's last verdict and its result come from macro-loop's `trust.mjs` output, the PR also from `open-pr` creating it. One not seen is left out; the others stay.
-- Owner and repo come from `git remote get-url origin`, read once per session (`https://github.com/o/r.git`, `git@github.com:o/r.git` and `ssh://git@github.com/o/r`). With no GitHub remote the band shows no links and the text keeps the PR number.
+- Owner and repo come from `git remote get-url origin`, read once per session (`https://github.com/o/r.git`, `git@github.com:o/r.git` and `ssh://git@github.com/o/r`). With no GitHub remote the band shows no links and the Issue number is plain text.
 - The labels read as plain text where a terminal cannot click. The terminal draws each as an OSC 8 hyperlink, the desktop app as an anchor.
-- In herdr on macOS, Ctrl+click opens a link; Shift+Cmd+click leaves it to the terminal's own link handling. Elsewhere, click the way your terminal opens OSC 8 links (often Ctrl+click or Cmd+click).
 
 ## Narrow terminals
 
-The band drops the counter, then elapsed time, then round, then the links from the right (PR among them), then the action. The symbol and the Issue number always stay, and so does the `#<n>` link of a `triage` or `grilling` row.
+Whole columns drop, never parts of one row, so the rows stay lined up: the round first, then the time, then the action, then the links from the right, then the track. The symbol, the Issue number and the stage always stay.
 
 ## Limits
 
 - State lives in memory: it is cleared on `/clear`, `--resume` and a plugin reload. A resumed `next` refills it at its next stage check.
 - Subagent activity is ignored.
-- After you approve a tool call, the band returns to `▶` once a long Bash call draws its run-in-background row, else when the call finishes: the engine has no event between the decision and the tool running.
+- One session's band knows only that session's Issues. To see every open Issue, run `/macro-loop:status`.
+- While a permission dialog is up, the terminal does not draw the band; the dialog is the signal.
+- Opening a link depends on the terminal. In the Windows fullscreen CLI, Alt+click opens it once (Ctrl+click opens it twice: the fullscreen UI and the terminal both handle it). In herdr on macOS, Ctrl+click opens it; Shift+Cmd+click leaves it to the terminal's own link handling. Elsewhere, click the way your terminal opens OSC 8 links (often Ctrl+click or Cmd+click).
+- Where Claude Code does not detect OSC 8 support (the Windows fullscreen CLI among them), links are drawn as the label followed by the full URL. Set `"FORCE_HYPERLINK": "1"` in the `env` block of `~/.claude/settings.json` to get the short labels.
 
 ## Archive or remove
 

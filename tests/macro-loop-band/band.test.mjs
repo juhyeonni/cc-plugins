@@ -5,9 +5,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const MOD = join(ROOT, 'plugins/macro-loop-band/hooks/band.mjs')
-const { SKILLS, STAGES, initial, reduce, band, fit, render, elapsed, clean, signature, repoOf } = await import(
-  pathToFileURL(MOD).href
-)
+const { SKILLS, STAGES, TRACK, COLUMNS, MAX_ROWS, initial, reduce, rows, layout, render, lines, track, elapsed, clean, signature, repoOf } =
+  await import(pathToFileURL(MOD).href)
 
 const MIN = 60_000
 const WIDE = 200
@@ -22,130 +21,131 @@ const turnEnd = (at = 0) => ({ type: 'turnEnd', at })
 // trust.mjs output as the glue normalizes it: spec undefined when the output had no Issue.
 const trustFull = (o, at = 0) => ({ type: 'trust', round: null, issue: null, at, ...o })
 const run = (events, s = initial()) => events.reduce(reduce, s)
-const text = (s, now, isWorking) => render(s, { isWorking, now, columns: WIDE })?.text ?? null
-const working = (s, now) => text(s, now, true)
-const idle = (s, now) => text(s, now, false)
+// The first row, before layout, and the band as text lines.
+const row = (s, now, isWorking, o = {}) => rows(s, { now, isWorking, ...o })?.[0] ?? null
+const working = (s, now, o) => row(s, now, true, o)
+const idle = (s, now, o) => row(s, now, false, o)
+const text = (s, now, isWorking, o = {}) => lines(render(s, { now, isWorking, columns: WIDE, ...o }))
+const pick = (r) => r && { tone: r.tone, stage: r.stage, action: r.action, track: r.track, round: r.round, time: r.time }
 
-test('constants: the skills and stages the band knows', () => {
+test('constants: the skills, stages, track cells and columns the band knows', () => {
   assert.deepEqual(SKILLS, ['next', 'triage', 'grilling', 'spec', 'implement', 'open-pr', 'verify'])
   assert.deepEqual(STAGES, ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'resumable', 'wait', 'merge', 'stop', 'done'])
-  assert.deepEqual(initial(), { cur: null, waiting: [], asking: null })
+  assert.deepEqual(TRACK, ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'merge'])
+  assert.deepEqual(COLUMNS, ['symbol', 'number', 'track', 'stage', 'action', 'round', 'time', 'links'])
+  assert.equal(MAX_ROWS, 4)
+  assert.deepEqual(initial(), { cur: null, waiting: [] })
 })
 
-test('AC7: each Band text row comes from its events', async (t) => {
-  await t.test('claude working', () => {
+test('AC7: each Band row comes from its events', async (t) => {
+  await t.test('claude working: no action', () => {
     const s = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2 * MIN), trust(109, 2, 12, 3 * MIN)])
-    assert.equal(working(s, 16 * MIN), '▶ #12 verify · PR #109 · round 2 · 14m')
+    assert.deepEqual(pick(working(s, 16 * MIN)), { tone: 'run', stage: 'verify', action: undefined, track: '●●●●◐○', round: 'r2', time: '14m' })
+    assert.deepEqual(text(s, 16 * MIN, true), ['▶ #12 ●●●●◐○ verify r2 14m'])
   })
   await t.test('interview waiting on the person', () => {
-    const s = run([skill('next', 0), stage(108, 'grilling', 1, 'a decision is needed'), turnEnd(2)])
-    assert.equal(idle(s, 5 * MIN), '◆ #108 grilling · answer the questions above')
+    const s = run([skill('next', 0), stage(108, 'grilling', 1, 'a decision is needed'), turnEnd(2 * MIN)])
+    assert.deepEqual(pick(idle(s, 5 * MIN)), { tone: 'you', stage: 'grilling', action: 'answer Qs', track: '●◐○○○○', round: '', time: '3m' })
   })
   await t.test('grilling skill with no stage', () => {
     const s = run([skill('next', 0), stage(108, 'implement', 1), skill('grilling', 2), turnEnd(3)])
-    assert.equal(idle(s, 5 * MIN), '◆ #108 grilling · answer the questions above')
+    assert.equal(idle(s, MIN).action, 'answer Qs')
+    assert.equal(idle(s, MIN).stage, 'grilling')
+    assert.equal(idle(s, MIN).track, '●◐○○○○')
   })
-  await t.test('PASS with an observed PR', () => {
+  await t.test('PASS: merge the PR', () => {
     const s = run([skill('verify', 0), trust(109, 1, 12, 1), stage(12, 'merge', 2, 'the verdict for the current head is PASS'), turnEnd(3)])
-    assert.equal(idle(s, MIN), '◆ #12 PASS · read verdict, merge PR #109')
+    assert.deepEqual(pick(idle(s, MIN)), { tone: 'you', stage: 'merge', action: 'merge the PR', track: '●●●●●◐', round: 'r1', time: '0m' })
+    assert.deepEqual(text(s, MIN, false), ['◆ #12 ●●●●●◐ merge merge the PR r1 0m'])
   })
-  await t.test('PASS with no observed PR', () => {
-    const s = run([skill('next', 0), stage(12, 'merge', 1), turnEnd(2)])
-    assert.equal(idle(s, MIN), '◆ #12 PASS · read verdict, merge the PR')
-  })
-  await t.test('stop, with each short reason', () => {
-    const at = (why) => idle(run([skill('next', 0), stage(12, 'stop', 1, why), turnEnd(2)]), MIN)
-    assert.equal(at('3 verdicts and the newest is NEEDS-FIX'), '◆ #12 stopped · NEEDS-FIX 3× · decide')
-    assert.equal(at('more than one state label: ready, needsInfo'), '◆ #12 stopped · state labels conflict · decide')
-    assert.equal(at('no rule fits: states=[] priority=true'), '◆ #12 stopped · no rule fits · decide')
-    assert.equal(at('something new \u001b[31m'), '◆ #12 stopped · see /macro-loop:status · decide')
+  await t.test('stop, with each short reason, at the last stage seen', () => {
+    const at = (why) => idle(run([skill('next', 0), stage(12, 'verify', 1), stage(12, 'stop', 2, why), turnEnd(3)]), MIN)
+    assert.equal(at('3 verdicts and the newest is NEEDS-FIX').action, 'decide: NEEDS-FIX 3×')
+    assert.equal(at('more than one state label: ready, needsInfo').action, 'decide: state labels conflict')
+    assert.equal(at('no rule fits: states=[] priority=true').action, 'decide: no rule fits')
+    assert.equal(at('something new \u001b[31m').action, 'decide: see /macro-loop:status')
+    assert.equal(at('x').stage, 'verify')
+    assert.equal(at('x').track, '●●●●◐○')
+    // No stage seen before the stop: no track, and the stage reads stop.
+    const bare = idle(run([skill('next', 0), stage(12, 'stop', 1, 'x'), turnEnd(2)]), MIN)
+    assert.equal(bare.stage, 'stop')
+    assert.equal(bare.track, '')
   })
   await t.test('a skill asked a question, the turn ended', () => {
     const s = run([skill('next', 0), stage(12, 'implement', 1), skill('implement', 2), turnEnd(10 * MIN)])
-    assert.equal(idle(s, 13 * MIN), '◆ #12 implement asks · see above · 3m')
+    assert.deepEqual(pick(idle(s, 13 * MIN)), { tone: 'you', stage: 'implement', action: 'answer above', track: '●●◐○○○', round: '', time: '3m' })
   })
   await t.test('resumable', () => {
     const s = run([skill('next', 0), stage(93, 'resumable', 1), turnEnd(2)])
-    assert.equal(idle(s, MIN), '◆ #93 new reply · run /macro-loop:next 93')
+    assert.deepEqual(pick(idle(s, 2)), { tone: 'you', stage: 'triage', action: 'read reply', track: '◐○○○○○', round: '', time: '0m' })
   })
   await t.test('wait', () => {
     const s = run([skill('next', 0), stage(101, 'wait', 1), turnEnd(5 * MIN)])
-    assert.equal(idle(s, 125 * MIN), '◇ #101 waiting on requester · 2h')
-    assert.equal(band(s, { isWorking: false, now: 0 }).tone, 'other')
+    assert.deepEqual(pick(idle(s, 125 * MIN)), { tone: 'other', stage: 'triage', action: '(requester)', track: '◐○○○○○', round: '', time: '2h' })
+    assert.deepEqual(text(s, 125 * MIN, false), ['◇ #101 ◐○○○○○ triage (requester) 2h'])
   })
   await t.test('stage.mjs failed', () => {
-    const s = run([skill('next', 0), failed(12, 1)])
-    assert.equal(idle(s, MIN), '? #12 stage check failed · /macro-loop:status')
-    assert.equal(working(s, MIN), '? #12 stage check failed · /macro-loop:status')
+    const s = run([skill('next', 0), stage(12, 'verify', 1), failed(12, 2)])
+    for (const w of [true, false]) {
+      const r = row(s, MIN, w)
+      assert.deepEqual([r.tone, r.stage, r.action, r.track], ['unknown', 'verify', 'run /macro-loop:status', '●●●●◐○'])
+    }
+    assert.deepEqual(text(s, MIN, false), ['? #12 ●●●●◐○ verify run /macro-loop:status'])
   })
-  await t.test('done, then cleared at the next turn', () => {
+  await t.test('done, then gone at the next turn', () => {
     const s = run([skill('next', 0), stage(12, 'done', 1), turnEnd(2)])
-    assert.equal(idle(s, MIN), '✓ #12 done')
-    assert.equal(working(s, MIN), '✓ #12 done')
-    assert.equal(band(s, { isWorking: false, now: MIN }).tone, 'done')
+    assert.deepEqual(text(s, MIN, false), ['✓ #12 ●●●●●● merge'])
+    assert.deepEqual(text(s, MIN, true), ['✓ #12 ●●●●●● merge'])
     assert.equal(render(reduce(s, turnStart(3)), { isWorking: true, now: MIN, columns: WIDE }), null)
   })
   await t.test('a skill with no Issue', () => {
     const s = run([skill('verify', 0)])
-    assert.equal(working(s, 3 * MIN), '▶ verify · 3m')
-  })
-  await t.test('the waiting counter', () => {
-    const s = run([skill('next', 0), stage(12, 'merge', 1), turnEnd(2), turnStart(3), skill('next', 4), stage(108, 'grilling', 5), turnEnd(6)])
-    assert.equal(idle(s, MIN), '◆ #108 grilling · answer the questions above · +1 waiting (#12 merge)')
+    assert.deepEqual(text(s, 3 * MIN, true), ['▶ ●●●●◐○ verify 3m'])
+    assert.deepEqual(text(run([skill('next', 0)]), 3 * MIN, true), ['▶ next 3m'])
   })
   await t.test('tones follow the symbol', () => {
     const s = run([skill('next', 0), stage(12, 'merge', 1)])
-    assert.equal(band(s, { isWorking: true, now: 0 }).tone, 'run')
-    assert.equal(band(s, { isWorking: false, now: 0 }).tone, 'you')
-    assert.equal(band(run([skill('next', 0), failed(12, 1)]), { isWorking: false, now: 0 }).tone, 'unknown')
+    assert.equal(working(s, 0).tone, 'run')
+    assert.equal(idle(s, 0).tone, 'you')
+    assert.equal(idle(run([skill('next', 0), failed(12, 1)]), 0).tone, 'unknown')
   })
 })
 
-test('AC8: open-pr or verify after implement moves the ▶ band with no stage.mjs call', () => {
+test('AC8: open-pr or verify after implement moves the ▶ row with no stage.mjs call', () => {
   let s = run([skill('next', 0), stage(12, 'implement', 1), skill('implement', 2)])
-  assert.equal(working(s, 2 + 5 * MIN), '▶ #12 implement · 5m')
+  assert.deepEqual(pick(working(s, 2 + 5 * MIN)), { tone: 'run', stage: 'implement', action: undefined, track: '●●◐○○○', round: '', time: '5m' })
   s = reduce(s, skill('open-pr', 10 * MIN))
-  assert.equal(working(s, 11 * MIN), '▶ #12 open-pr · 1m')
+  assert.deepEqual([working(s, 11 * MIN).stage, working(s, 11 * MIN).track, working(s, 11 * MIN).time], ['open-pr', '●●●◐○○', '1m'])
   s = reduce(s, { type: 'pr', pr: 109, at: 11 * MIN })
   s = reduce(s, skill('verify', 12 * MIN))
-  assert.equal(working(s, 12 * MIN), '▶ #12 verify · PR #109 · 0m')
+  assert.deepEqual([working(s, 12 * MIN).stage, working(s, 12 * MIN).track], ['verify', '●●●●◐○'])
+  assert.equal(s.cur.pr, 109)
 })
 
 test('D8: a turn after a skill asked returns to ▶ while Claude works', () => {
   let s = run([skill('next', 0), stage(12, 'implement', 1), skill('implement', 2), turnEnd(MIN), turnStart(20 * MIN)])
-  assert.equal(working(s, 21 * MIN), '▶ #12 implement · 20m')
+  assert.deepEqual([working(s, 21 * MIN).tone, working(s, 21 * MIN).time], ['run', '20m'])
   s = reduce(s, turnEnd(22 * MIN))
-  assert.equal(idle(s, 25 * MIN), '◆ #12 implement asks · see above · 3m')
-  const g = run([skill('next', 0), stage(108, 'implement', 1), skill('grilling', 2), turnEnd(MIN), turnStart(2 * MIN)])
-  assert.equal(working(g, 3 * MIN), '▶ #108 grilling · 2m')
-  // A stage-derived ◆ row stays.
+  assert.deepEqual([idle(s, 25 * MIN).action, idle(s, 25 * MIN).time], ['answer above', '3m'])
+  // A stage-derived ◆ row stays while Claude works on something else.
   const m = run([skill('next', 0), stage(12, 'merge', 1), turnEnd(MIN), turnStart(2 * MIN)])
-  assert.equal(working(m, 3 * MIN), '◆ #12 PASS · read verdict, merge the PR')
+  assert.equal(working(m, 3 * MIN).action, 'merge the PR')
 })
 
-test('D10: a skill after a ◆ merge band starts a new run and keeps the Issue in the counter', () => {
+test('D10: a skill after a ◆ merge row starts a new run and keeps the Issue as a row', () => {
   const base = run([skill('next', 0), stage(12, 'merge', 1), turnEnd(2), turnStart(3)])
   for (const name of ['grilling', 'triage', 'spec']) {
     const s = reduce(base, skill(name, 4))
     assert.equal(s.cur.issue, null, name)
     assert.deepEqual(s.waiting.map((w) => w.issue), [12], name)
-    assert.equal(working(s, 4 + MIN), `▶ ${name} · 1m · +1 waiting (#12 merge)`)
+    const rs = rows(s, { isWorking: true, now: 4 + MIN })
+    assert.deepEqual(rs.map((r) => [r.tone, r.issue, r.stage]), [['run', null, name], ['you', 12, 'merge']], name)
   }
-  assert.equal(idle(run([skill('grilling', 4), turnEnd(5)], base), MIN), '◆ grilling · answer the questions above · +1 waiting (#12 merge)')
 })
 
 test('AC9: events with an agentId leave the state unchanged', () => {
   const s = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2)])
-  const events = [
-    skill('implement', 3),
-    stage(13, 'merge', 3),
-    failed(12, 3),
-    trust(110, 3, 14, 3),
-    { type: 'pr', pr: 111, at: 3 },
-    { type: 'ask', id: 'toolu_1', at: 3 },
-    { type: 'ran', id: 'toolu_1', at: 3 },
-    turnEnd(3),
-  ]
+  const events = [skill('implement', 3), stage(13, 'merge', 3), failed(12, 3), trust(110, 3, 14, 3), { type: 'pr', pr: 111, at: 3 }, turnEnd(3)]
   for (const ev of events) assert.equal(reduce(s, { ...ev, agentId: 'a1' }), s, ev.type)
   // Garbage is ignored too.
   for (const ev of [null, 42, 'x', {}, { type: 'nope', at: 1 }, stage(-1, 'merge'), stage(1.5, 'merge'), stage('12', 'merge'),
@@ -158,53 +158,42 @@ test('AC9: events with an agentId leave the state unchanged', () => {
 
 test('AC10: a failed stage check gives ? and keeps the Issue number', () => {
   const s = run([skill('next', 0), stage(12, 'verify', 1)])
-  assert.equal(idle(reduce(s, failed(null, 2)), MIN), '? #12 stage check failed · /macro-loop:status')
-  assert.equal(idle(reduce(s, failed(12, 2)), MIN), '? #12 stage check failed · /macro-loop:status')
-  assert.equal(idle(reduce(s, stage(12, 'bogus', 2)), MIN), '? #12 stage check failed · /macro-loop:status')
+  for (const ev of [failed(null, 2), failed(12, 2), stage(12, 'bogus', 2)]) {
+    const r = idle(reduce(s, ev), MIN)
+    assert.deepEqual([r.tone, r.issue], ['unknown', 12], JSON.stringify(ev))
+  }
   // A good check afterwards recovers.
-  assert.equal(idle(run([failed(12, 2), stage(12, 'merge', 3)], s), MIN), '◆ #12 PASS · read verdict, merge the PR')
+  assert.equal(idle(run([failed(12, 2), stage(12, 'merge', 3)], s), MIN).action, 'merge the PR')
 })
 
-test('AC11: a tool.check ask says approve the tool call until that call runs', () => {
-  let s = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2)])
-  s = reduce(s, { type: 'ask', id: 'toolu_1', at: 3 })
-  assert.equal(working(s, MIN), '◆ #12 verify · approve the tool call')
-  assert.equal(band(s, { isWorking: true, now: MIN }).tone, 'you')
-  assert.equal(reduce(s, { type: 'ran', id: 'toolu_2', at: 4 }), s)
-  s = reduce(s, { type: 'ran', id: 'toolu_1', at: 4 })
-  assert.equal(working(s, 2 + MIN), '▶ #12 verify · 1m')
-  // An ask with no band is ignored.
-  assert.equal(reduce(initial(), { type: 'ask', id: 'toolu_1', at: 1 }).asking, null)
+test('AC11: a tool.check ask leaves the band unchanged (D9 removed)', () => {
+  const s = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2)])
+  for (const ev of [{ type: 'ask', id: 'toolu_1', at: 3 }, { type: 'ran', id: 'toolu_1', at: 4 }]) assert.equal(reduce(s, ev), s, ev.type)
+  assert.deepEqual(reduce(initial(), { type: 'ask', id: 'toolu_1', at: 1 }), initial())
 })
 
-test('AC12: a ◆ band survives unrelated turns and goes to the counter for another Issue', () => {
+test('AC12: a ◆ row survives unrelated turns, and another Issue adds a row first', () => {
   let s = run([skill('next', 0), stage(12, 'merge', 1), turnEnd(2 * MIN)])
-  assert.equal(idle(s, 5 * MIN), '◆ #12 PASS · read verdict, merge the PR')
   for (const ev of [turnStart(3 * MIN), turnEnd(4 * MIN), turnStart(5 * MIN), turnEnd(6 * MIN)]) {
     assert.equal(reduce(s, ev), s, ev.type)
     s = reduce(s, ev)
   }
-  assert.equal(idle(s, 9 * MIN), '◆ #12 PASS · read verdict, merge the PR')
-  // An implement asks row keeps its elapsed time across unrelated turns.
-  let a = run([skill('next', 0), stage(7, 'implement', 1), turnEnd(MIN), turnStart(2 * MIN), turnEnd(3 * MIN)])
-  assert.equal(idle(a, 5 * MIN), '◆ #7 implement asks · see above · 4m')
-  // stage.mjs for another Issue in the same next run takes over.
-  s = run([skill('next', 10 * MIN), stage(12, 'merge', 10 * MIN), stage(93, 'resumable', 11 * MIN)])
-  assert.equal(idle(s, 12 * MIN), '◆ #93 new reply · run /macro-loop:next 93 · +1 waiting (#12 merge)')
-  assert.equal(working(s, 12 * MIN), '▶ #93 next · 2m · +1 waiting (#12 merge)')
-  // A third Issue: the counter names the newest.
-  s = run([stage(108, 'grilling', 12 * MIN), turnEnd(13 * MIN)], s)
-  assert.equal(idle(s, 14 * MIN), '◆ #108 grilling · answer the questions above · +2 waiting (#93 resumable)')
-  // Back to a waiting Issue: it leaves the counter and the current one joins it.
+  assert.equal(idle(s, 9 * MIN).action, 'merge the PR')
+  // stage.mjs for another Issue in the same next run: both rows, the new one first.
+  s = run([skill('next', 10 * MIN), stage(12, 'merge', 10 * MIN), stage(93, 'resumable', 11 * MIN), turnEnd(11 * MIN)])
+  assert.deepEqual(rows(s, { now: 12 * MIN }).map((r) => [r.issue, r.action]), [[93, 'read reply'], [12, 'merge the PR']])
+  // A third Issue: the others follow, oldest first.
+  s = run([turnStart(12 * MIN), skill('next', 12 * MIN), stage(108, 'grilling', 12 * MIN), turnEnd(13 * MIN)], s)
+  assert.deepEqual(rows(s, { now: 14 * MIN }).map((r) => r.issue), [108, 12, 93])
+  // Back to a waiting Issue: it leaves its place and comes first; done, it goes at the next turn.
   s = run([turnStart(15 * MIN), skill('next', 15 * MIN), stage(12, 'done', 16 * MIN)], s)
-  assert.equal(idle(s, 16 * MIN), '✓ #12 done')
-  assert.deepEqual(s.waiting.map((w) => w.issue), [93, 108])
+  assert.deepEqual(rows(s, { now: 16 * MIN }).map((r) => [r.issue, r.tone]), [[12, 'done'], [93, 'you'], [108, 'you']])
   s = reduce(s, turnStart(17 * MIN))
-  assert.equal(idle(s, 17 * MIN), '◆ #108 grilling · answer the questions above · +1 waiting (#93 resumable)')
-  // A wait row is not counted.
+  assert.deepEqual(rows(s, { now: 17 * MIN }).map((r) => r.issue), [108, 93])
+  // A wait row counts too.
   const w = run([skill('next', 0), stage(101, 'wait', 1), stage(12, 'merge', 2), turnEnd(3)])
-  assert.equal(idle(w, MIN), '◆ #12 PASS · read verdict, merge the PR')
-  // One entry per Issue.
+  assert.deepEqual(rows(w, { now: MIN }).map((r) => [r.issue, r.tone]), [[12, 'you'], [101, 'other']])
+  // One row per Issue.
   const d = run([skill('next', 0), stage(12, 'merge', 1), stage(13, 'merge', 2), stage(12, 'stop', 3, '3 verdicts'), stage(13, 'merge', 4)])
   assert.deepEqual(d.waiting.map((x) => x.issue), [12])
   assert.equal(d.waiting[0].stage, 'stop')
@@ -216,11 +205,11 @@ test('AC12: a skill with no Issue adopts one, merging its waiting entry', () => 
   assert.deepEqual(s.waiting.map((w) => w.issue), [12])
   s = run([skill('verify', 4), stage(12, 'verify', 5)], s)
   assert.equal(s.waiting.length, 0)
-  assert.equal(working(s, 5 + MIN), '▶ #12 verify · PR #109 · round 2 · 1m')
+  assert.deepEqual(pick(working(s, 5 + MIN)), { tone: 'run', stage: 'verify', action: undefined, track: '●●●●◐○', round: 'r2', time: '1m' })
 })
 
-test('AC13: session end for clear or resume clears the band and counter', () => {
-  const s = run([skill('next', 0), stage(12, 'merge', 1), stage(93, 'resumable', 2), { type: 'ask', id: 't', at: 3 }])
+test('AC13: session end for clear or resume clears every row', () => {
+  const s = run([skill('next', 0), stage(12, 'merge', 1), stage(93, 'resumable', 2)])
   for (const reason of ['clear', 'resume']) {
     const e = reduce(s, { type: 'sessionEnd', reason, at: 4 })
     assert.deepEqual(e, initial())
@@ -229,31 +218,65 @@ test('AC13: session end for clear or resume clears the band and counter', () => 
   for (const reason of ['logout', 'prompt_input_exit', 'other', undefined]) assert.equal(reduce(s, { type: 'sessionEnd', reason, at: 4 }), s)
 })
 
-test('AC14: a narrow band drops parts in order and keeps the symbol and number', () => {
-  const s = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2 * MIN), trust(109, 2, 12, 3 * MIN)])
-  const b = band(s, { isWorking: true, now: 16 * MIN })
+// D15: links to the GitHub objects the next action needs.
+const REPO = { owner: 'o', repo: 'r' }
+const GH = 'https://github.com/o/r'
+const SPEC = 6018031462
+const VERDICT = 777
+const labels = (s, o) => rows(s, { now: 0, ...o, repo: REPO })[0].links.map((l) => l.label)
+
+// Four Issues: ▶ #12 verifying with two links, ◆ #7 at merge with two, ◆ #108 grilling, ◆ #93 new reply.
+const four = () => run([
+  skill('next', 0), trustFull({ pr: 110, issue: 7, spec: 5, round: 3, verdict: 9, verdictResult: 'PASS' }, 0), stage(7, 'merge', 0), turnEnd(0),
+  skill('next', 10 * MIN), stage(108, 'grilling', 10 * MIN), turnEnd(10 * MIN),
+  skill('next', 10 * MIN), stage(93, 'resumable', 10 * MIN), turnEnd(10 * MIN),
+  skill('next', 20 * MIN), stage(12, 'verify', 20 * MIN), skill('verify', 20 * MIN), trustFull({ pr: 109, issue: 12, spec: SPEC, round: 2 }, 20 * MIN),
+])
+
+test('AC14: as the band narrows, whole columns drop in order and the rest line up', () => {
+  const s = four()
+  const o = { isWorking: true, now: 34 * MIN, repo: REPO }
+  const full = render(s, { ...o, columns: Infinity })
+  assert.deepEqual(lines(full), [
+    '▶ #12  ●●●●◐○ verify                r2 14m    PR #109 · spec',
+    '◆ #7   ●●●●●◐ merge    merge the PR r3 34m    PR #110 · verdict',
+    '◆ #108 ●◐○○○○ grilling answer Qs       24m',
+    '◆ #93  ◐○○○○○ triage   read reply      24m',
+  ])
   const seen = []
-  for (let c = 60; c >= 0; c--) {
-    const t = fit(b, c)
-    if (seen.at(-1) !== t) seen.push(t)
-    assert.ok([...t].length <= c || t === '▶ #12', `${c}: ${t}`)
-    assert.ok(t.startsWith('▶ #12'))
+  for (let c = 80; c >= 0; c--) {
+    const laid = render(s, { ...o, columns: c })
+    const cols = laid.columns.map((x) => x.name)
+    const nLinks = Math.max(...laid.rows.map((r) => r.cells.find((x) => x.col === 'links')?.links.length ?? 0))
+    const key = `${cols.join(',')}:${nLinks}`
+    if (seen.at(-1) !== key) seen.push(key)
+    // Symbol, number and stage are never dropped, and every row lines up with the columns.
+    for (const keep of ['symbol', 'number', 'stage']) assert.ok(cols.includes(keep), `${c}: ${keep}`)
+    const out = lines(laid)
+    let offset = 0
+    for (const col of laid.columns) {
+      for (const [i, r] of laid.rows.entries()) {
+        const cell = r.cells.find((x) => x.col === col.name)
+        if (cell.text) assert.equal(out[i].slice(offset, offset + cell.text.length), cell.text, `${c}: ${col.name} row ${i}`)
+      }
+      offset += col.width + 1
+    }
+    if (c >= 20) for (const l of out) assert.ok([...l].length <= c, `${c}: ${l}`)
   }
-  assert.deepEqual(seen, ['▶ #12 verify · PR #109 · round 2 · 14m', '▶ #12 verify · PR #109 · round 2', '▶ #12 verify · PR #109', '▶ #12 verify', '▶ #12'])
-  // The exact width keeps a part; one less drops it.
-  assert.equal(fit(b, 38), '▶ #12 verify · PR #109 · round 2 · 14m')
-  assert.equal(fit(b, 37), '▶ #12 verify · PR #109 · round 2')
-  // A ◆ row drops the counter first, then elapsed, then the action, then the head.
-  const p = run([skill('next', 0), stage(12, 'merge', 1), stage(7, 'implement', 2), turnEnd(3)])
-  const pb = band(p, { isWorking: false, now: 3 + 3 * MIN })
-  const order = []
-  for (let c = 80; c >= 0; c--) if (order.at(-1) !== fit(pb, c)) order.push(fit(pb, c))
-  assert.deepEqual(order, ['◆ #7 implement asks · see above · 3m · +1 waiting (#12 merge)', '◆ #7 implement asks · see above · 3m',
-    '◆ #7 implement asks · see above', '◆ #7 implement asks', '◆ #7'])
-  // No Issue: the head is never dropped.
-  assert.equal(render(run([skill('verify', 0)]), { isWorking: true, now: MIN, columns: 1 }).text, '▶ verify')
-  assert.doesNotThrow(() => fit(null, 10))
-  assert.equal(fit(b, NaN), '▶ #12 verify · PR #109 · round 2 · 14m')
+  assert.deepEqual(seen, [
+    'symbol,number,track,stage,action,round,time,links:2',
+    'symbol,number,track,stage,action,time,links:2',
+    'symbol,number,track,stage,action,links:2',
+    'symbol,number,track,stage,links:2',
+    'symbol,number,track,stage,links:1',
+    'symbol,number,track,stage:0',
+    'symbol,number,stage:0',
+  ])
+  // A cell that grows keeps its own column: the links do not move when the time does.
+  const at = (now) => lines(render(s, { ...o, now, columns: Infinity }))[0].indexOf('PR #109')
+  assert.equal(at(21 * MIN), at(20 * MIN + 75 * MIN))
+  assert.doesNotThrow(() => layout(null, 10))
+  assert.equal(layout([], 10), null)
 })
 
 test('AC15: elapsed reads in whole minutes and hours, and moves on the timer alone', () => {
@@ -270,65 +293,50 @@ test('AC15: elapsed reads in whole minutes and hours, and moves on the timer alo
   const s = run([skill('verify', 0)])
   assert.equal(signature(s, 10_000), signature(s, 50_000))
   assert.notEqual(signature(s, 50_000), signature(s, MIN))
-  assert.equal(working(s, MIN), '▶ verify · 1m')
-  const sig = JSON.parse(signature(run([skill('next', 0), stage(12, 'merge', 1)]), 0))
-  assert.deepEqual(sig, ['▶ #12 next · 0m', '◆ #12 PASS · read verdict, merge the PR'])
+  assert.equal(working(s, MIN).time, '1m')
 })
 
 test('AC16: with no macro-loop activity nothing is drawn', () => {
   const quiet = run([turnStart(1), { type: 'ask', id: 't', at: 2 }, { type: 'ran', id: 't', at: 3 }, { type: 'pr', pr: 5, at: 4 },
     trust(5, 1, 3, 5), turnEnd(6), { type: 'skill', skill: 'other:verify', at: 7 }, { type: 'sessionEnd', reason: 'clear', at: 8 }])
   assert.deepEqual(quiet, initial())
-  assert.equal(band(quiet, { isWorking: true, now: 9 }), null)
+  assert.equal(rows(quiet, { isWorking: true, now: 9 }), null)
   assert.equal(render(quiet, { isWorking: false, now: 9, columns: WIDE }), null)
   assert.equal(signature(quiet, 9), '')
   assert.equal(render(null, { isWorking: false, now: 9, columns: WIDE }), null)
+  assert.deepEqual(lines(null), [])
 })
 
 test('reduce never mutates its arguments and returns the same state when nothing changes', () => {
   const s = run([skill('next', 0), stage(12, 'merge', 1), stage(13, 'resumable', 2)])
   const copy = JSON.parse(JSON.stringify(s))
-  const evs = [skill('verify', 3), stage(12, 'stop', 4), failed(null, 5), trust(1, 1, 14, 6), { type: 'ask', id: 'x', at: 7 }, turnEnd(8), turnStart(9),
+  const evs = [skill('verify', 3), stage(12, 'stop', 4), failed(null, 5), trust(1, 1, 14, 6), turnEnd(8), turnStart(9),
     { type: 'sessionEnd', reason: 'clear', at: 10 }]
-  for (const ev of evs) {
-    const e = Object.freeze({ ...ev })
-    reduce(s, e)
-  }
+  for (const ev of evs) reduce(s, Object.freeze({ ...ev }))
   assert.deepEqual(s, copy)
   assert.equal(reduce(s, stage(13, 'resumable', 99)), s)
   assert.equal(reduce(initial(), { type: 'sessionEnd', reason: 'clear', at: 1 }).cur, null)
 })
 
-test('clean strips control and invisible characters from every part', () => {
+test('clean strips control and invisible characters from every cell', () => {
   assert.equal(clean('a\u0000b\u001b[31mc\u007f\u0085\u200b\u200f\u2028\u202e\u2060\u2066\u2069\ufeffd'), 'ab[31mcd')
   assert.equal(clean(12), '12')
   assert.equal(clean({ toString() { throw new Error('x') } }), '')
-  const b = { tone: 'you', parts: [{ text: '◆', rank: 0 }, { text: '#1', rank: 0 }, { text: 'x\u202ey', rank: 6 }] }
-  assert.equal(fit(b, 50), '◆ #1 xy')
+  const laid = layout([{ tone: 'you', issue: 1, stage: 'x\u202ey', action: 'a\u0000b', links: [{ label: 'p\u2066q', href: 'h' }] }], 50)
+  assert.deepEqual(lines(laid), ['◆ #1 xy ab pq'])
 })
 
-// D15: links to the GitHub objects the next action needs.
-const REPO = { owner: 'o', repo: 'r' }
-const GH = 'https://github.com/o/r'
-const at = (s, o) => render(s, { columns: WIDE, now: 0, ...o, repo: REPO })
-const labels = (s, o) => at(s, o).links.map((l) => l.label)
-const line = (s, o) => fit(band(s, { now: 0, ...o, repo: REPO }), WIDE)
-const SPEC = 6018031462
-const VERDICT = 777
-
 test('AC19: each stage D15 lists carries its links in order, built from the remote', async (t) => {
-  await t.test('triage and grilling link the Issue', () => {
-    const tr = run([skill('next', 0), stage(7, 'triage', 1), turnEnd(2)])
-    assert.deepEqual(at(tr).links, [{ label: '#7', href: `${GH}/issues/7` }])
-    const g = run([skill('next', 0), stage(108, 'grilling', 1), turnEnd(2)])
-    assert.deepEqual(at(g).links, [{ label: '#108', href: `${GH}/issues/108` }])
-    assert.equal(line(g), '◆ #108 grilling · answer the questions above · #108')
-    // No Issue number, no Issue link.
-    assert.deepEqual(at(run([skill('grilling', 0)]), { isWorking: true }).links, [])
+  await t.test('triage and grilling rows carry none: the number is the Issue link', () => {
+    for (const st of ['triage', 'grilling']) {
+      const r = rows(run([skill('next', 0), stage(7, st, 1), turnEnd(2)]), { now: 0, repo: REPO })[0]
+      assert.deepEqual(r.links, [], st)
+      assert.equal(r.href, `${GH}/issues/7`, st)
+    }
   })
   await t.test('spec and implement link the spec comment', () => {
     const sp = run([skill('spec', 0), trustFull({ issue: 12, spec: SPEC }, 1)])
-    assert.deepEqual(at(sp, { isWorking: true }).links, [{ label: 'spec', href: `${GH}/issues/12#issuecomment-${SPEC}` }])
+    assert.deepEqual(rows(sp, { isWorking: true, now: 0, repo: REPO })[0].links, [{ label: 'spec', href: `${GH}/issues/12#issuecomment-${SPEC}` }])
     const im = run([skill('next', 0), stage(12, 'implement', 1), skill('implement', 2), trustFull({ issue: 12, spec: SPEC }, 3)])
     assert.deepEqual(labels(im, { isWorking: true }), ['spec'])
     assert.deepEqual(labels(reduce(im, turnEnd(4))), ['spec'])
@@ -336,58 +344,47 @@ test('AC19: each stage D15 lists carries its links in order, built from the remo
   await t.test('open-pr and verify link the PR, then the spec', () => {
     const base = [skill('next', 0), stage(12, 'implement', 1), skill('implement', 2), trustFull({ issue: 12, spec: SPEC }, 3)]
     const op = run([...base, skill('open-pr', 4), { type: 'pr', pr: 109, at: 5 }])
-    assert.deepEqual(at(op, { isWorking: true }).links, [
+    assert.deepEqual(rows(op, { isWorking: true, now: 0, repo: REPO })[0].links, [
       { label: 'PR #109', href: `${GH}/pull/109` },
       { label: 'spec', href: `${GH}/issues/12#issuecomment-${SPEC}` },
     ])
-    const v = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2 * MIN),
-      trustFull({ pr: 109, round: 2, issue: 12, spec: SPEC, verdict: VERDICT, verdictResult: 'NEEDS-FIX' }, 3 * MIN)])
+    const v = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2 * MIN), trustFull({ pr: 109, round: 2, issue: 12, spec: SPEC }, 3 * MIN)])
     assert.deepEqual(labels(v, { isWorking: true }), ['PR #109', 'spec'])
-    // The PR number moves out of the text into its link (D6 changed).
-    assert.equal(at(v, { isWorking: true, now: 16 * MIN }).text, '▶ #12 verify · round 2 · 14m')
-    assert.equal(line(v, { isWorking: true, now: 16 * MIN }), '▶ #12 verify · round 2 · 14m · PR #109 · spec')
   })
   await t.test('NEEDS-FIX links the verdict, then the PR', () => {
     const nf = trustFull({ pr: 109, round: 2, issue: 12, spec: SPEC, verdict: VERDICT, verdictResult: 'NEEDS-FIX' }, 3)
     const im = run([skill('next', 0), stage(12, 'implement', 1), skill('implement', 2), nf])
-    assert.deepEqual(at(im, { isWorking: true }).links, [
+    assert.deepEqual(rows(im, { isWorking: true, now: 0, repo: REPO })[0].links, [
       { label: 'verdict', href: `${GH}/pull/109#issuecomment-${VERDICT}` },
       { label: 'PR #109', href: `${GH}/pull/109` },
     ])
     const st = run([skill('next', 0), nf, stage(12, 'stop', 4, '3 verdicts and the newest is NEEDS-FIX'), turnEnd(5)])
     assert.deepEqual(labels(st), ['verdict', 'PR #109'])
-    assert.equal(line(st), '◆ #12 stopped · NEEDS-FIX 3× · decide · verdict · PR #109')
   })
   await t.test('PASS links the PR, then the verdict', () => {
     const s = run([skill('verify', 0), trustFull({ pr: 109, round: 1, issue: 12, spec: SPEC, verdict: VERDICT, verdictResult: 'PASS' }, 1),
       stage(12, 'merge', 2, 'the verdict for the current head is PASS'), turnEnd(3)])
-    assert.deepEqual(at(s).links, [
+    assert.deepEqual(rows(s, { now: 0, repo: REPO })[0].links, [
       { label: 'PR #109', href: `${GH}/pull/109` },
       { label: 'verdict', href: `${GH}/pull/109#issuecomment-${VERDICT}` },
     ])
-    assert.equal(line(s), '◆ #12 PASS · read verdict, merge the PR · PR #109 · verdict')
   })
   await t.test('rows D15 does not list carry none', () => {
     for (const [st, why] of [['resumable', ''], ['wait', ''], ['stop', 'no rule fits']]) {
       const s = run([skill('next', 0), trustFull({ issue: 12, spec: SPEC, pr: 109 }, 1), stage(12, st, 2, why), turnEnd(3)])
-      assert.deepEqual(at(s).links, [], st)
+      assert.deepEqual(labels(s), [], st)
     }
-    assert.deepEqual(at(run([skill('next', 0), failed(12, 1)])).links, [])
-    assert.deepEqual(at(run([skill('next', 0), stage(12, 'done', 1)])).links, [])
+    assert.deepEqual(labels(run([skill('next', 0), failed(12, 1)])), [])
+    assert.deepEqual(labels(run([skill('next', 0), stage(12, 'done', 1)])), [])
   })
 })
 
 test('AC20: an id not observed leaves its link out and the others stay', () => {
-  // verify with no spec seen: the PR alone.
   const v = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2), trustFull({ pr: 109, round: 1 }, 3)])
   assert.deepEqual(labels(v, { isWorking: true }), ['PR #109'])
-  // PASS with no verdict id: the PR alone; with no PR either, no links and the plain wording.
   const p = run([skill('next', 0), trustFull({ pr: 109, issue: 12, spec: null, verdict: null, verdictResult: 'PASS' }, 1), stage(12, 'merge', 2), turnEnd(3)])
   assert.deepEqual(labels(p), ['PR #109'])
-  const bare = run([skill('next', 0), stage(12, 'merge', 1), turnEnd(2)])
-  assert.deepEqual(at(bare).links, [])
-  assert.equal(at(bare).text, '◆ #12 PASS · read verdict, merge the PR')
-  // implement with no spec seen has none; a spec link needs the Issue number.
+  assert.deepEqual(labels(run([skill('next', 0), stage(12, 'merge', 1), turnEnd(2)])), [])
   assert.deepEqual(labels(run([skill('next', 0), stage(12, 'implement', 1), skill('implement', 2)]), { isWorking: true }), [])
   assert.deepEqual(labels(run([skill('spec', 0)]), { isWorking: true }), [])
   // trust.mjs --pr with no Issue keeps the spec seen before; a spec of null clears it.
@@ -395,8 +392,6 @@ test('AC20: an id not observed leaves its link out and the others stay', () => {
   assert.deepEqual(labels(kept, { isWorking: true }), ['PR #109', 'spec'])
   assert.deepEqual(labels(reduce(kept, trustFull({ issue: 12, spec: null }, 5)), { isWorking: true }), ['PR #109'])
   // A new PR drops the old PR's verdict.
-  const nf = run([skill('next', 0), trustFull({ pr: 109, issue: 12, verdict: VERDICT, verdictResult: 'NEEDS-FIX' }, 1), stage(12, 'stop', 2, '3 verdicts'), turnEnd(3)])
-  assert.deepEqual(labels(nf), ['verdict', 'PR #109'])
   const moved = run([skill('next', 0), stage(12, 'implement', 1), skill('implement', 2),
     trustFull({ pr: 109, issue: 12, verdict: VERDICT, verdictResult: 'NEEDS-FIX' }, 3), { type: 'pr', pr: 110, at: 4 }])
   assert.equal(moved.cur.pr, 110)
@@ -405,11 +400,10 @@ test('AC20: an id not observed leaves its link out and the others stay', () => {
   const g = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2), trustFull({ pr: 109, issue: 12, spec: -1, verdict: 1.5, verdictResult: 'MAYBE' }, 3)])
   assert.deepEqual(labels(g, { isWorking: true }), ['PR #109'])
   assert.equal(g.cur.verdictResult, null)
-  for (const ev of [trustFull({ pr: NaN, issue: 12 }), trustFull({ pr: 109, issue: '12' }), trustFull({})])
-    assert.equal(reduce(g, ev), g, JSON.stringify(ev))
+  for (const ev of [trustFull({ pr: NaN, issue: 12 }), trustFull({ pr: 109, issue: '12' }), trustFull({})]) assert.equal(reduce(g, ev), g, JSON.stringify(ev))
 })
 
-test('AC21: owner and repo come from https, git@ and ssh:// remotes; any other gives no links', () => {
+test('AC21: owner and repo come from https, git@ and ssh:// remotes; any other gives no links and a plain number', () => {
   for (const url of ['https://github.com/o/r.git', 'https://github.com/o/r', 'https://github.com/o/r/', 'git@github.com:o/r.git',
     'git@github.com:o/r', 'ssh://git@github.com/o/r', 'ssh://git@github.com/o/r.git', 'ssh://git@github.com:22/o/r',
     'https://token@github.com/o/r.git', ' https://github.com/o/r.git\r\n'])
@@ -419,47 +413,56 @@ test('AC21: owner and repo come from https, git@ and ssh:// remotes; any other g
     'https://github.com/o/r/x', 'https://github.com.evil.io/o/r', 'file:///c/repo', 'C:\\repo', '../r', '', 'https://github.com/o/..',
     'https://github.com/o/r\u001b]8;;x', 'https://github.com/o/r?x=1', null, undefined, 42, {}])
     assert.equal(repoOf(url), null, String(url))
-  // No GitHub remote: no links, and exactly the text the band shows without links.
-  const s = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2 * MIN), trust(109, 2, 12, 3 * MIN),
-    trustFull({ issue: 12, spec: SPEC }, 3 * MIN)])
+  const s = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2 * MIN), trustFull({ pr: 109, round: 2, issue: 12, spec: SPEC }, 3 * MIN)])
   const o = { isWorking: true, now: 16 * MIN, columns: WIDE }
   for (const repo of [null, repoOf('https://gitlab.com/o/r.git'), undefined, 'o/r', { owner: 'o' }]) {
-    assert.deepEqual(render(s, { ...o, repo }), { text: '▶ #12 verify · PR #109 · round 2 · 14m', links: [], tone: 'run' }, String(repo))
+    const laid = render(s, { ...o, repo })
+    assert.deepEqual(lines(laid), ['▶ #12 ●●●●◐○ verify r2 14m'], String(repo))
+    assert.equal(laid.rows[0].cells.find((c) => c.col === 'number').href, undefined, String(repo))
     assert.equal(signature(s, 16 * MIN, repo), signature(s, 16 * MIN))
   }
   // With a remote the signature changes, so the glue redraws once the remote is read.
   assert.notEqual(signature(s, 16 * MIN, REPO), signature(s, 16 * MIN))
 })
 
-test('AC22: as the width shrinks, links drop from the right before the action, and #<n> stays', () => {
-  const steps = (s, o, from) => {
-    const b = band(s, { now: 0, ...o, repo: REPO })
-    const seen = []
-    for (let c = from; c >= 0; c--) {
-      const t = fit(b, c)
-      if (seen.at(-1) !== t) seen.push(t)
-    }
-    return seen
-  }
-  const v = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2 * MIN),
-    trustFull({ pr: 109, round: 2, issue: 12, spec: SPEC }, 3 * MIN)])
-  assert.deepEqual(steps(v, { isWorking: true, now: 16 * MIN }, 80), ['▶ #12 verify · round 2 · 14m · PR #109 · spec',
-    '▶ #12 verify · round 2 · PR #109 · spec', '▶ #12 verify · PR #109 · spec', '▶ #12 verify · PR #109', '▶ #12 verify', '▶ #12'])
-  const p = run([skill('verify', 0), trustFull({ pr: 109, issue: 12, verdict: VERDICT, verdictResult: 'PASS' }, 1), stage(12, 'merge', 2), turnEnd(3)])
-  assert.deepEqual(steps(p, {}, 80), ['◆ #12 PASS · read verdict, merge the PR · PR #109 · verdict',
-    '◆ #12 PASS · read verdict, merge the PR · PR #109', '◆ #12 PASS · read verdict, merge the PR', '◆ #12 PASS', '◆ #12'])
-  // The kept links are the ones drawn.
-  assert.deepEqual(render(p, { now: 0, columns: 49, repo: REPO }).links.map((l) => l.label), ['PR #109'])
-  assert.equal(render(p, { now: 0, columns: 49, repo: REPO }).text, '◆ #12 PASS · read verdict, merge the PR')
-  // The Issue link of triage and grilling is never dropped.
-  const g = run([skill('next', 0), stage(108, 'grilling', 1), stage(12, 'merge', 2), stage(108, 'grilling', 3), turnEnd(4)])
-  assert.deepEqual(steps(g, {}, 90), ['◆ #108 grilling · answer the questions above · +1 waiting (#12 merge) · #108',
-    '◆ #108 grilling · answer the questions above · #108', '◆ #108 grilling · #108', '◆ #108 · #108'])
-  for (let c = 0; c <= 90; c++) assert.deepEqual(render(g, { now: 0, columns: c, repo: REPO }).links.map((l) => l.label), ['#108'], String(c))
+test('AC22: every row\'s Issue number links to its Issue', () => {
+  const laid = render(four(), { isWorking: true, now: 34 * MIN, repo: REPO, columns: WIDE })
+  assert.deepEqual(laid.rows.map((r) => r.cells.find((c) => c.col === 'number').href),
+    [12, 7, 108, 93].map((n) => `${GH}/issues/${n}`))
+  // The number keeps its link at every width.
+  for (let c = 0; c <= 80; c++) assert.equal(render(four(), { isWorking: true, now: 0, repo: REPO, columns: c }).rows[0].cells[1].href, `${GH}/issues/12`)
 })
 
-test('D15: the PR link rewrites only the PASS row, not an ask or a running next at merge', () => {
-  const m = run([skill('next', 0), trustFull({ pr: 109, issue: 12, spec: 5, verdict: 7, verdictResult: 'PASS' }, 1), stage(12, 'merge', 2)])
-  assert.equal(at(reduce(m, { type: 'ask', id: 't1', at: 3 })).text, '◆ #12 next · approve the tool call')
-  assert.equal(at(m, { isWorking: true }).text, '▶ #12 next · 0m')
+test('AC24: the track shows the D16 cells, moves back after NEEDS-FIX, and keeps its place on stop and a failed check', () => {
+  assert.equal(track(null), '')
+  assert.equal(track(-1), '')
+  assert.equal(track(0), '◐○○○○○')
+  assert.equal(track(6), '●●●●●●')
+  const at = (st) => idle(run([skill('next', 0), stage(12, st, 1), turnEnd(2)]), MIN).track
+  assert.deepEqual(['triage', 'wait', 'resumable', 'grilling', 'implement', 'open-pr', 'verify', 'merge'].map(at),
+    ['◐○○○○○', '◐○○○○○', '◐○○○○○', '●◐○○○○', '●●◐○○○', '●●●◐○○', '●●●●◐○', '●●●●●◐'])
+  // Skills move it while they run.
+  assert.equal(working(run([skill('spec', 0)]), 0).track, '●◐○○○○')
+  // A NEEDS-FIX verdict sends the Issue back to implement.
+  const nf = run([skill('next', 0), stage(12, 'verify', 1), skill('verify', 2),
+    trustFull({ pr: 109, issue: 12, verdict: VERDICT, verdictResult: 'NEEDS-FIX' }, 3), turnEnd(4), turnStart(5), skill('implement', 6)])
+  assert.equal(working(nf, 7).track, '●●◐○○○')
+  // stop and a failed check keep the last position.
+  const v = run([skill('next', 0), stage(12, 'open-pr', 1)])
+  assert.equal(idle(run([stage(12, 'stop', 2, 'x'), turnEnd(3)], v), MIN).track, '●●●◐○○')
+  assert.equal(idle(reduce(v, failed(12, 2)), MIN).track, '●●●◐○○')
+  // done fills it.
+  assert.equal(idle(reduce(v, stage(12, 'done', 2)), MIN).track, '●●●●●●')
+})
+
+test('AC25: past four Issues the band shows four rows and a +N more row', () => {
+  const five = run([skill('next', 30 * MIN), stage(101, 'wait', 30 * MIN), turnEnd(30 * MIN)], four())
+  assert.equal(rows(five, { now: 0 }).length, 5)
+  const out = lines(render(five, { now: 31 * MIN, columns: WIDE }))
+  assert.equal(out.length, 5)
+  assert.equal(out[4], '+1 more · /macro-loop:status')
+  assert.match(out[0], /^◇ #101/)
+  const six = run([skill('next', 31 * MIN), stage(55, 'merge', 31 * MIN), turnEnd(31 * MIN)], five)
+  assert.equal(lines(render(six, { now: 32 * MIN, columns: WIDE }))[4], '+2 more · /macro-loop:status')
+  assert.equal(render(four(), { now: 0, columns: WIDE }).more, null)
 })

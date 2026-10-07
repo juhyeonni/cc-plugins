@@ -1,48 +1,58 @@
-// The band's logic (#108): events in, state out, band text out. Pure and import-free, so it
-// runs both under node --test and in the mod environment, which has no Node. Every export
-// tolerates garbage, never throws and never mutates its arguments.
+// The band's logic (#108): events in, state out, rows out, columns laid out. Pure and
+// import-free, so it runs both under node --test and in the mod environment, which has no
+// Node. Every export tolerates garbage, never throws and never mutates its arguments.
 //
-// State = { cur, waiting, asking }: cur is the Run the band shows, waiting the other Issues this
-// session left on the person's turn (oldest first, one per Issue, never cur's), asking the
-// tool_use_id of a main-loop call tool.check answered 'ask' for.
+// State = { cur, waiting }: cur is the Run the band shows first, waiting the other Issues this
+// session touched and has not finished (oldest first, one per Issue, never cur's) (D3).
 //
 // A Run also keeps the GitHub ids it observed (D15): its PR, the Issue's spec comment, and the
-// PR's last verdict with its result. Given the repo, band() turns them into links.
+// PR's last verdict with its result. Given the repo, rows() turns them into links.
 
 export const SKILLS = ['next', 'triage', 'grilling', 'spec', 'implement', 'open-pr', 'verify']
 export const STAGES = ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'resumable', 'wait', 'merge', 'stop', 'done']
+// D16: the track's six cells, and the cell each stage or skill sits on.
+export const TRACK = ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'merge']
+const POS = { triage: 0, wait: 0, resumable: 0, grilling: 1, spec: 1, implement: 2, 'open-pr': 3, verify: 4, merge: 5 }
+// D17: the columns in order, and the order whole columns drop in when the band is narrow.
+export const COLUMNS = ['symbol', 'number', 'track', 'stage', 'action', 'round', 'time', 'links']
+const DROP = ['round', 'time', 'action', 'links', 'track']
+// D3: rows shown before the rest fold into one '+N more' row.
+export const MAX_ROWS = 4
+// Wide enough for every elapsed time up to 23h59m, so the links after it stay put (D17).
+const TIME_WIDTH = 6
 
 const SKILL = /^macro-loop:([a-z-]+)$/
 const SYMBOL = { run: '▶', you: '◆', other: '◇', unknown: '?', done: '✓' }
 const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/g
-const SEP = ' · '
+const LINK_SEP = ' · '
 // Stages that leave a run on the person's turn: a skill started after one starts a new run.
 const STOPPED = ['merge', 'stop', 'resumable']
 const RESULTS = ['PASS', 'NEEDS-FIX']
-// D15: the links a row shows, first link first, by the stage or skill it is about.
+// D15: the links a row shows, first link first, by the stage or skill it is about. The Issue
+// itself is the row's number.
 const LINKS = {
-  triage: ['issue'], grilling: ['issue'], spec: ['spec'], implement: ['spec'],
-  'open-pr': ['pr', 'spec'], verify: ['pr', 'spec'], merge: ['pr', 'verdict'],
+  spec: ['spec'], implement: ['spec'], 'open-pr': ['pr', 'spec'], verify: ['pr', 'spec'], merge: ['pr', 'verdict'],
 }
 // After a NEEDS-FIX verdict, the rows that fix it or stop on it.
 const NEEDS_FIX = ['implement', 'stop']
 // Owner and repo as GitHub names them, after an https, scp-like or ssh:// GitHub host.
 const REMOTE = /^(?:https:\/\/(?:[^@/\s]+@)?github\.com\/|git@github\.com:|ssh:\/\/git@github\.com(?::\d+)?\/)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/i
 
-export const initial = () => ({ cur: null, waiting: [], asking: null })
+export const initial = () => ({ cur: null, waiting: [] })
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 const posInt = (v) => Number.isInteger(v) && v > 0
 const optNum = (v) => v === undefined || v === null || posInt(v)
+const width = (s) => [...s].length
 
 const newRun = (at) => ({
   issue: null, skill: null, stage: null, why: null, failed: false,
   pr: null, round: null, running: false, since: at, idleSince: null, done: false,
-  spec: null, verdict: null, verdictResult: null,
+  spec: null, verdict: null, verdictResult: null, pos: null,
 })
 
 // What a Run adopts from its Issue's waiting entry.
-const KEPT = ['pr', 'round', 'stage', 'spec', 'verdict', 'verdictResult']
+const KEPT = ['pr', 'round', 'stage', 'spec', 'verdict', 'verdictResult', 'pos']
 
 const same = (a, b) => {
   if (a === b) return true
@@ -58,7 +68,6 @@ const copy = (s) => {
   return {
     cur: isObj(o.cur) ? { ...o.cur } : null,
     waiting: Array.isArray(o.waiting) ? o.waiting.filter(isObj).map((w) => ({ ...w })) : [],
-    asking: typeof o.asking === 'string' ? o.asking : null,
   }
 }
 
@@ -71,21 +80,8 @@ const shortReason = (why) => {
   return 'see /macro-loop:status'
 }
 
-const since = (run, now, idle) => elapsed(now - (idle ? (run.idleSince ?? run.since) : run.since))
-
-// Rule 5: the row a stopped Run shows, from its stage, else its skill.
-const personRow = (run, now) => {
-  const key = run.stage ?? run.skill
-  const { pr, issue } = run
-  if (key === 'merge') return { tone: 'you', head: 'PASS', action: pr ? `read verdict, merge PR #${pr}` : 'read verdict, merge the PR' }
-  if (key === 'stop') return { tone: 'you', head: 'stopped', action: `${shortReason(run.why)} · decide` }
-  if (key === 'resumable') return { tone: 'you', head: 'new reply', action: issue == null ? 'run /macro-loop:next' : `run /macro-loop:next ${issue}` }
-  if (key === 'wait') return { tone: 'other', head: 'waiting on requester', time: since(run, now, true) }
-  if (key === 'grilling') return { tone: 'you', head: 'grilling', action: 'answer the questions above' }
-  return { tone: 'you', head: `${run.stage ?? run.skill ?? 'next'} asks`, action: 'see above', time: since(run, now, true) }
-}
-
-const personTurn = (run) => posInt(run.issue) && !run.done && !run.failed && personRow(run, 0).tone === 'you'
+// An Issue keeps its row until it is done (D3, D10); a failed check is the current row's alone.
+const keep = (run) => posInt(run.issue) && !run.done && !run.failed
 
 const takeWaiting = (s, issue) => {
   const i = s.waiting.findIndex((w) => w.issue === issue)
@@ -107,8 +103,9 @@ const focus = (s, m, at) => {
     return
   }
   const w = takeWaiting(s, m)
-  if (personTurn(c)) park(s, c)
-  s.cur = { ...(w ?? newRun(at)), skill: c.skill, running: c.running, since: c.since, issue: m, done: false, failed: false }
+  if (keep(c)) park(s, c)
+  const base = w ?? newRun(at)
+  s.cur = { ...base, skill: c.skill, running: c.running, since: c.since, issue: m, done: false, failed: false, pos: POS[c.skill] ?? base.pos }
 }
 
 const step = (s, ev) => {
@@ -119,12 +116,12 @@ const step = (s, ev) => {
       if (!SKILLS.includes(name)) return
       const stopped = s.cur && !s.cur.running && STOPPED.includes(s.cur.stage)
       if (name === 'next' || stopped || s.cur?.done || s.cur?.failed) {
-        if (s.cur && personTurn(s.cur)) park(s, s.cur)
+        if (s.cur && keep(s.cur)) park(s, s.cur)
         s.cur = newRun(at)
       }
       s.cur ??= newRun(at)
       Object.assign(s.cur, { skill: name, stage: null, why: null, failed: false, done: false, running: true, since: at })
-      s.asking = null
+      if (POS[name] !== undefined) s.cur.pos = POS[name]
       return
     }
     case 'stage': {
@@ -134,12 +131,13 @@ const step = (s, ev) => {
       if (m !== null) focus(s, m, at)
       if (ev.ok === true && STAGES.includes(ev.stage)) {
         Object.assign(s.cur, { stage: ev.stage, why: String(ev.why ?? ''), failed: false })
+        // D16: a stop keeps the last position seen; done fills the track.
+        if (POS[ev.stage] !== undefined) s.cur.pos = POS[ev.stage]
         if (ev.stage === 'done') {
-          s.cur.done = true
+          Object.assign(s.cur, { done: true, pos: TRACK.length })
           if (m !== null) takeWaiting(s, m)
         }
       } else s.cur.failed = true
-      s.asking = null
       return
     }
     case 'trust': {
@@ -165,20 +163,12 @@ const step = (s, ev) => {
       if (s.cur.pr !== ev.pr) Object.assign(s.cur, { verdict: null, verdictResult: null })
       s.cur.pr = ev.pr
       return
-    case 'ask':
-      if (typeof ev.id === 'string' && ev.id && s.cur) s.asking = ev.id
-      return
-    case 'ran':
-      if (s.asking !== null && s.asking === ev.id) s.asking = null
-      return
     case 'turnStart':
-      s.asking = null
       if (s.cur?.done) s.cur = s.waiting.pop() ?? null
       // A skill's own row (no stage since it started) goes on: the person answered it.
       else if (s.cur?.skill && s.cur.stage === null && !s.cur.failed) s.cur.running = true
       return
     case 'turnEnd':
-      s.asking = null
       if (s.cur?.running) Object.assign(s.cur, { running: false, idleSince: at })
       return
     case 'sessionEnd':
@@ -217,116 +207,158 @@ const repoBase = (repo) => {
 
 // D15: the links of the row a Run shows, by the stage or skill it is about; an id not
 // observed leaves its link out.
-const linksOf = (cur, key, base) => {
+const linksOf = (run, key, base) => {
   if (!base) return []
-  const names = cur.verdictResult === 'NEEDS-FIX' && NEEDS_FIX.includes(key) ? ['verdict', 'pr'] : LINKS[key] ?? []
-  const issue = posInt(cur.issue) ? cur.issue : null
-  const pr = posInt(cur.pr) ? cur.pr : null
+  const names = run.verdictResult === 'NEEDS-FIX' && NEEDS_FIX.includes(key) ? ['verdict', 'pr'] : LINKS[key] ?? []
+  const issue = posInt(run.issue) ? run.issue : null
+  const pr = posInt(run.pr) ? run.pr : null
   const make = {
-    issue: () => issue && { label: `#${issue}`, href: `${base}/issues/${issue}` },
-    spec: () => issue && posInt(cur.spec) && { label: 'spec', href: `${base}/issues/${issue}#issuecomment-${cur.spec}` },
+    spec: () => issue && posInt(run.spec) && { label: 'spec', href: `${base}/issues/${issue}#issuecomment-${run.spec}` },
     pr: () => pr && { label: `PR #${pr}`, href: `${base}/pull/${pr}` },
-    verdict: () => pr && posInt(cur.verdict) && { label: 'verdict', href: `${base}/pull/${pr}#issuecomment-${cur.verdict}` },
+    verdict: () => pr && posInt(run.verdict) && { label: 'verdict', href: `${base}/pull/${pr}#issuecomment-${run.verdict}` },
   }
   return names.map((n) => make[n]()).filter(Boolean)
 }
 
-export function band(state, opts) {
-  try {
-    const cur = isObj(state) && isObj(state.cur) ? state.cur : null
-    if (!cur) return null
-    const { isWorking = false, now = 0, repo = null } = isObj(opts) ? opts : {}
-    const waiting = Array.isArray(state.waiting) ? state.waiting.filter(isObj) : []
-    const hasIssue = posInt(cur.issue)
+// D16: the six cells, '' when no position was seen.
+export function track(pos) {
+  if (!Number.isInteger(pos) || pos < 0) return ''
+  return TRACK.map((_, i) => (i < pos ? '●' : i === pos ? '◐' : '○')).join('')
+}
+
+const since = (run, now, idle) => elapsed(now - (idle ? (run.idleSince ?? run.since) : run.since))
+const stageAt = (run, fallback) => TRACK[run.pos] ?? fallback
+
+// D4: what a stopped Run's row says, from its stage, else its skill.
+const personRow = (run) => {
+  const key = run.stage ?? run.skill
+  if (key === 'merge') return { tone: 'you', stage: 'merge', action: 'merge the PR' }
+  if (key === 'stop') return { tone: 'you', stage: stageAt(run, 'stop'), action: `decide: ${shortReason(run.why)}` }
+  if (key === 'resumable') return { tone: 'you', stage: 'triage', action: 'read reply' }
+  if (key === 'wait') return { tone: 'other', stage: 'triage', action: '(requester)' }
+  if (key === 'grilling') return { tone: 'you', stage: 'grilling', action: 'answer Qs' }
+  return { tone: 'you', stage: key ?? 'next', action: 'answer above' }
+}
+
+// One Run's row: { tone, issue, href, track, stage, action, round, time, links }.
+function rowOf(run, { isWorking, now, base }, isCur) {
+  const issue = posInt(run.issue) ? run.issue : null
+  let row, key = null
+  if (run.failed) row = { tone: 'unknown', stage: stageAt(run, ''), action: 'run /macro-loop:status' }
+  else if (run.done) row = { tone: 'done', stage: 'merge' }
+  else if (isCur && run.running && isWorking) {
     // The stage or skill the row is about: a working next is about its Issue's stage.
-    const doing = cur.skill === 'next' || !cur.skill ? cur.stage : cur.skill
-    let row, key = null, fromPerson = false
-    if (typeof state.asking === 'string') {
-      row = { tone: 'you', head: cur.skill ?? 'next', action: 'approve the tool call' }
-      key = doing
-    } else if (cur.failed) row = { tone: 'unknown', head: 'stage check failed', action: '/macro-loop:status' }
-    else if (cur.done) row = { tone: 'done', head: 'done', final: true }
-    else if (cur.running && isWorking) {
-      row = { tone: 'run', head: cur.skill ?? 'next', time: since(cur, now, false) }
-      if (posInt(cur.pr)) row.pr = `PR #${cur.pr}`
-      if (Number.isInteger(cur.round)) row.round = `round ${cur.round}`
-      key = doing
-    } else {
-      row = personRow(cur, now)
-      key = cur.stage ?? cur.skill
-      fromPerson = true
-    }
-    const links = linksOf(cur, key, repoBase(repo))
-    // The PR number moves out of the text into its link (D6 changed).
-    if (links.some((l) => l.label.startsWith('PR #'))) {
-      delete row.pr
-      if (fromPerson && key === 'merge') row.action = 'read verdict, merge the PR'
-    }
-    const parts = [{ text: SYMBOL[row.tone], rank: 0 }]
-    if (hasIssue) parts.push({ text: `#${cur.issue}`, rank: 0 })
-    parts.push({ text: row.head, rank: hasIssue ? 6 : 0 })
-    if (row.action) parts.push({ text: row.action, rank: 5 })
-    if (row.pr) parts.push({ text: row.pr, rank: 4 })
-    if (row.round) parts.push({ text: row.round, rank: 3 })
-    if (row.time) parts.push({ text: row.time, rank: 2 })
-    const w = waiting.at(-1)
-    if (w && !row.final) parts.push({ text: `+${waiting.length} waiting (#${w.issue} ${w.stage ?? w.skill ?? 'next'})`, rank: 1 })
-    return { tone: row.tone, parts, links }
+    key = run.skill === 'next' || !run.skill ? run.stage : run.skill
+    row = { tone: 'run', stage: key ?? 'next', time: since(run, now, false) }
+  } else {
+    key = run.stage ?? run.skill
+    row = { ...personRow(run), time: since(run, now, true) }
+  }
+  return {
+    ...row,
+    issue,
+    href: base && issue ? `${base}/issues/${issue}` : null,
+    track: track(run.pos),
+    round: !run.done && Number.isInteger(run.round) ? `r${run.round}` : '',
+    links: run.done || run.failed ? [] : linksOf(run, key, base),
+  }
+}
+
+// The rows to show, the current Issue first and the others oldest first, before layout; null
+// when there is nothing to show.
+export function rows(state, opts) {
+  try {
+    const o = isObj(opts) ? opts : {}
+    const cur = isObj(state) && isObj(state.cur) ? state.cur : null
+    const waiting = isObj(state) && Array.isArray(state.waiting) ? state.waiting.filter(isObj) : []
+    const runs = cur ? [cur, ...waiting] : waiting
+    if (!runs.length) return null
+    const ctx = { isWorking: o.isWorking === true, now: Number.isFinite(o.now) ? o.now : 0, base: repoBase(o.repo) }
+    return runs.map((r) => rowOf(r, ctx, r === cur))
   } catch {
     return null
   }
 }
 
-const join = (parts, kept) => {
-  // The symbol, the number and the head are joined by spaces, the rest by ' · '.
-  const lead = /^#\d+$/.test(parts[1]?.text ?? '') ? 3 : 2
-  const head = parts.slice(0, lead).filter((_, i) => kept[i]).map((p) => p.text)
-  const tail = parts.slice(lead).filter((_, i) => kept[i + lead]).map((p) => p.text)
-  return [head.join(' '), ...tail].join(SEP)
+// A cell's text in a column, with `nLinks` links kept.
+const cellText = (r, col, nLinks) => {
+  if (col === 'symbol') return SYMBOL[r.tone] ?? ''
+  if (col === 'number') return r.issue ? `#${r.issue}` : ''
+  if (col === 'links') return r.links.slice(0, nLinks).map((l) => l.label).join(LINK_SEP)
+  return clean(r[col] ?? '')
 }
 
-// What fits in `columns`: the band text and the links drawn after it, ' · ' between them.
-function layout(b, columns) {
-  if (!isObj(b) || !Array.isArray(b.parts)) return { text: '', links: [] }
-  const parts = b.parts.filter(isObj).map((p) => ({ text: clean(p.text), rank: Number.isFinite(p.rank) ? p.rank : 0 }))
-  const links = (Array.isArray(b.links) ? b.links : [])
-    .filter((l) => isObj(l) && typeof l.href === 'string' && l.href)
-    .map((l) => ({ label: clean(l.label), href: l.href }))
-  const n = parts.length
-  // Links go after the round and before the action, the rightmost first; '#<n>' stays.
-  const all = [...parts, ...links.map((l, i) => ({ text: l.label, rank: /^#\d+$/.test(l.label) ? 0 : 4 + (links.length - 1 - i) / 100 }))]
-  const kept = all.map(() => true)
-  const max = typeof columns === 'number' && !Number.isNaN(columns) ? columns : Infinity
-  const shown = () => [join(parts, kept), ...all.slice(n).filter((_, i) => kept[n + i]).map((p) => p.text)].join(SEP)
-  while ([...shown()].length > max) {
-    let drop = -1
-    // Rank 1 (the counter) goes first and rank 6 (the head) last; rank 0 stays.
-    all.forEach((p, i) => { if (kept[i] && p.rank > 0 && (drop < 0 || p.rank < all[drop].rank)) drop = i })
-    if (drop < 0) break
-    kept[drop] = false
-  }
-  return { text: join(parts, kept), links: links.filter((_, i) => kept[n + i]) }
-}
-
-// The band as one line of text, links by their labels.
-export function fit(b, columns) {
+// D17: fixed columns, each as wide as its widest cell (time fixed); whole columns drop in
+// DROP's order, links one at a time from the right, until the rows fit `columns`. A column no
+// row fills takes no room.
+export function layout(rs, columns) {
   try {
-    const { text, links } = layout(b, columns)
-    return [text, ...links.map((l) => l.label)].join(SEP)
+    if (!Array.isArray(rs) || !rs.length) return null
+    const list = rs.filter(isObj).map((r) => ({
+      ...r,
+      links: (Array.isArray(r.links) ? r.links : [])
+        .filter((l) => isObj(l) && typeof l.href === 'string' && l.href)
+        .map((l) => ({ label: clean(l.label), href: l.href })),
+    }))
+    const shown = list.slice(0, list.length > MAX_ROWS ? MAX_ROWS : list.length)
+    const more = list.length - shown.length
+    const max = typeof columns === 'number' && !Number.isNaN(columns) ? columns : Infinity
+    let nLinks = Math.max(0, ...shown.map((r) => r.links.length))
+    const dropped = new Set()
+    const widths = () => Object.fromEntries(COLUMNS.map((c) => {
+      if (dropped.has(c)) return [c, 0]
+      const w = Math.max(0, ...shown.map((r) => width(cellText(r, c, nLinks))))
+      return [c, c === 'time' && w ? TIME_WIDTH : w]
+    }))
+    const total = (w) => {
+      const used = COLUMNS.filter((c) => w[c] > 0)
+      return used.reduce((n, c) => n + w[c], 0) + Math.max(0, used.length - 1)
+    }
+    for (const c of DROP) {
+      if (total(widths()) <= max) break
+      if (c === 'links') {
+        while (nLinks > 0 && total(widths()) > max) nLinks--
+        if (nLinks === 0) dropped.add('links')
+      } else dropped.add(c)
+    }
+    const w = widths()
+    const cols = COLUMNS.filter((c) => w[c] > 0)
+    return {
+      columns: cols.map((c) => ({ name: c, width: w[c] })),
+      rows: shown.map((r) => ({
+        tone: r.tone,
+        cells: cols.map((c) => {
+          const cell = { col: c, text: cellText(r, c, nLinks), width: w[c] }
+          if (c === 'number' && r.href) cell.href = r.href
+          if (c === 'links') cell.links = r.links.slice(0, nLinks)
+          return cell
+        }),
+      })),
+      more: more > 0 ? `+${more} more · /macro-loop:status` : null,
+    }
   } catch {
-    return ''
+    return null
   }
 }
 
 export function render(state, opts) {
   try {
     const o = isObj(opts) ? opts : {}
-    const b = band(state, o)
-    if (!b) return null
-    const { text, links } = layout(b, o.columns)
-    return { text, links, tone: b.tone }
+    return layout(rows(state, o), o.columns)
   } catch {
     return null
+  }
+}
+
+// The laid-out band as lines of text: cells padded to their column, one space between.
+export function lines(laid) {
+  try {
+    if (!isObj(laid) || !Array.isArray(laid.rows)) return []
+    const pad = (c, last) => (last ? c.text : c.text + ' '.repeat(Math.max(0, c.width - width(c.text))))
+    const out = laid.rows.map((r) => r.cells.map((c, i) => pad(c, i === r.cells.length - 1)).join(' ').trimEnd())
+    return laid.more ? [...out, laid.more] : out
+  } catch {
+    return []
   }
 }
 
@@ -348,11 +380,8 @@ export function clean(s) {
 
 export function signature(state, now, repo) {
   try {
-    if (!isObj(state) || !isObj(state.cur)) return ''
-    const at = (isWorking) => {
-      const r = render(state, { isWorking, now, columns: Infinity, repo })
-      return r?.links.length ? [r.text, ...r.links.map((l) => l.href)] : r?.text ?? ''
-    }
+    if (!rows(state, {})) return ''
+    const at = (isWorking) => render(state, { isWorking, now, columns: Infinity, repo })
     return JSON.stringify([at(true), at(false)])
   } catch {
     return ''

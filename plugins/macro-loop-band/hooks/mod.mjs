@@ -1,10 +1,13 @@
 // The band's glue (#108): turns the engine's events into band.mjs events, keeps the state in
-// module memory, and draws AbovePrompt from render(). It only observes: every hook returns
-// what its next(e) settled to, and a parse failure never changes that.
+// module memory, and draws AbovePrompt from render() as a table, one row per Issue (D3, D17).
+// It only observes: every hook returns what its next(e) settled to, and a parse failure never
+// changes that.
 import { initial, reduce, render, repoOf, signature } from './band.mjs'
 
-// Color only repeats the symbol.
+// Color only repeats the symbol; the stage, round and time are dim (D4).
 const TONE = { run: 'suggestion', you: 'warning', other: 'inactive', unknown: 'error', done: 'success' }
+const TONED = ['symbol', 'track', 'action']
+const DIM = ['stage', 'round', 'time']
 
 // Matched by script name, so any quoting of the path and any compound prefix still match.
 const STAGE = /(?:^|[\s"'\/\\])stage\.mjs["']?\s+(?:[^|;&\n]*?\s)?--issue(?:=|\s+)["']?(\d+)/
@@ -128,7 +131,6 @@ export const register = (on) => {
     const r = await next(e)
     try {
       const at = await $.clock.now()
-      if (e.tool_use_id) await feed($, { type: 'ran', id: e.tool_use_id, at })
       const r2 = /** @type {any} */ (r)
       // A backgrounded or interrupted command has no answer to read yet.
       if (e.tool === 'Bash' && r2.deny === undefined && !r2.result?.backgroundTaskId && r2.result?.interrupted !== true) {
@@ -136,16 +138,6 @@ export const register = (on) => {
       }
     } catch {}
     return r
-  }).catch(($, e, next) => next(e))
-
-  on('tool.check', async ($, e, next) => {
-    const v = await next(e)
-    try {
-      if (!e.agentId && e.tool_use_id && v?.decision === 'ask') {
-        await feed($, { type: 'ask', id: e.tool_use_id, at: await $.clock.now() })
-      }
-    } catch {}
-    return v
   }).catch(($, e, next) => next(e))
 
   on('turn.start', async ($, e, next) => {
@@ -176,16 +168,6 @@ export const register = (on) => {
     return next(e)
   })
 
-  // A progress row under the asked call means it was approved and runs. Only long Bash
-  // calls draw one; any other asked call clears at tool.call's end.
-  on('ui.render', { component: 'ToolProgress' }, async ($, e, next) => {
-    const id = e.props?.tool_use_id
-    if (id && id === state.asking) {
-      $.clock.now().then((at) => feed($, { type: 'ran', id, at })).catch(() => {})
-    }
-    return next(e)
-  })
-
   // The engine keeps the last answer until invalidated, so the old band stays up meanwhile.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
@@ -194,9 +176,22 @@ export const register = (on) => {
       out = render(state, { isWorking: e.props.isWorking, now: await $.clock.now(), columns: e.props.bodyColumns, repo })
     } catch {}
     if (!out) return next(e)
-    const { Link, Text } = $.ui.resolve(e)
-    // Each link inline after the band text, ' · ' between them (D15).
-    const links = out.links.flatMap((l) => [' · ', h(Link, { href: l.href, label: l.label })])
-    return h(Text, { color: TONE[out.tone], wrap: 'truncate-end' }, out.text, ...links)
+    const { Box, Link, Text } = $.ui.resolve(e)
+    // Each column a fixed width, so a cell that grows never moves the next (D17). The stage
+    // is dim beside the track; the symbol, track and action carry the row's tone (D4).
+    const cell = (r, i, c, last) => {
+      const key = `r${i}-${c.col}`
+      const box = (child) => h(Box, last ? { key } : { key, width: c.width, flexShrink: 0 }, child)
+      if (c.col === 'number' && c.href) return box(h(Link, { href: c.href, label: c.text }))
+      if (c.col === 'links') {
+        return box(h(Text, { wrap: 'truncate-end' }, ...c.links.flatMap((l, j) => [j ? ' · ' : '', h(Link, { href: l.href, label: l.label })])))
+      }
+      const style = DIM.includes(c.col) ? { dimColor: true } : TONED.includes(c.col) ? { color: TONE[r.tone] } : {}
+      return box(h(Text, { ...style, wrap: 'truncate-end' }, c.text))
+    }
+    const rowsDrawn = out.rows.map((r, i) =>
+      h(Box, { key: `r${i}`, flexDirection: 'row', columnGap: 1 }, ...r.cells.map((c, j) => cell(r, i, c, j === r.cells.length - 1))))
+    if (out.more) rowsDrawn.push(h(Box, { key: 'more' }, h(Text, { dimColor: true, wrap: 'truncate-end' }, out.more)))
+    return h(Box, { flexDirection: 'column' }, ...rowsDrawn)
   })
 }
