@@ -1,0 +1,3 @@
+# Claude Code refuses a saved workflow whose script holds a carriage return (#111), so
+# workflow scripts keep LF line endings on every platform, Windows checkouts included.
+plugins/*/workflows/*.js text eol=lf

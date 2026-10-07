@@ -26,7 +26,8 @@ Look up the branch's open PR (see `github.md`). Then decide whether to ask befor
 - **The branch has an open PR:** push without asking. Nothing new is published, and the PR stays a draft until a person marks it ready.
 - **The user asked for it in this conversation:** they ran `/macro-loop:open-pr`, or said "push" or "open a PR". Push without asking. Being called by `implement` or `next` is not the user asking.
 - **Otherwise:** ask once, naming the branch, the remote (`origin`) and the base: "Push `<branch>` to `origin` and open a draft PR against `<base>`?" On no, push nothing and open no PR; when `implement` called this skill, it continues with `verify` on the local branch.
-- **Nobody can answer** (you run as a subagent or in a Workflow run): do not push. Say that the branch was not pushed and no PR was opened.
+- **The person approved the push up front:** `execute` asked before its workflow run started and passed the approval into the run, as the run's prompt says. Push without asking.
+- **Nobody can answer** (you run as a subagent or in a Workflow run) and no approval was passed in: do not push. Say that the branch was not pushed and no PR was opened.
 
 Push in a shell call of its own, with nothing that could hide its exit code (no pipe, no `;`, no `||`): `git push -u origin <branch>`. If the push fails, stop: report the error and send no PR request.
 

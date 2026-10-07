@@ -20,7 +20,7 @@ function git(cwd, ...args) {
 // A checkout of a bare `origin` with `main` pushed; the user's linked worktree on `notes`; and
 // an agent's worktree as Claude Code holds it when the agent stops: made from origin/main on
 // worktree-agent-<id>, detached, as a verifier's checkout of the PR's head leaves it, and locked.
-function repo() {
+function repo(name = `agent-${ID}`) {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'cleanup-')))
   const main = join(tmp, 'main')
   git(tmp, 'init', '-q', '--bare', '-b', 'main', 'origin.git')
@@ -35,8 +35,8 @@ function repo() {
   git(main, 'push', '-q', '-u', 'origin', 'main')
   const linked = join(tmp, 'linked')
   git(main, 'worktree', 'add', '-q', '-b', 'notes', linked)
-  const worktree = join(main, '.claude', 'worktrees', `agent-${ID}`)
-  git(main, 'worktree', 'add', '-q', '-b', BRANCH, worktree, 'origin/main')
+  const worktree = join(main, '.claude', 'worktrees', name)
+  git(main, 'worktree', 'add', '-q', '-b', `worktree-${name}`, worktree, 'origin/main')
   git(worktree, 'switch', '-q', '--detach')
   git(main, 'worktree', 'lock', '--reason', `claude agent agent-${ID} (pid ${process.pid})`, worktree)
   return { tmp, main, linked, worktree }
@@ -47,7 +47,8 @@ const state = (main) => ({
   worktrees: git(main, 'worktree', 'list', '--porcelain')
     .split('\n\n')
     .map((block) => block.split('\n'))
-    .map(([first, ...rest]) => first.slice('worktree '.length) + (rest.some((l) => l.startsWith('locked')) ? ' (locked)' : '')),
+    // resolve() gives git's `/` paths the platform's separator, so they compare with join()'s.
+    .map(([first, ...rest]) => resolve(first.slice('worktree '.length)) + (rest.some((l) => l.startsWith('locked')) ? ' (locked)' : '')),
   branches: git(main, 'for-each-ref', '--format=%(refname:short)', 'refs/heads').split('\n'),
 })
 
@@ -86,6 +87,27 @@ test('a verifier that stops with its worktree still there and locked: the worktr
     assert.equal(existsSync(dirs.worktree), false, folder)
     assert.deepEqual(state(dirs.main), { worktrees: [dirs.main, dirs.linked], branches: ['main', 'notes'] }, folder)
   }
+})
+
+test("AC16 (#111): a verifier that stops in a workflow's worktree: that worktree is removed and its branch deleted", () => {
+  const dirs = repo('wf_5e3d60a4-4af-3')
+  const r = hook(dirs.tmp, join(dirs.worktree, ''))
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(r.stdout, '')
+  assert.equal(existsSync(dirs.worktree), false)
+  assert.deepEqual(state(dirs.main), { worktrees: [dirs.main, dirs.linked], branches: ['main', 'notes'] })
+})
+
+test("AC16 (#111): a workflow worktree's branch with a commit on no remote branch is kept", () => {
+  const dirs = repo('wf_5e3d60a4-4af-4')
+  git(dirs.worktree, 'switch', '-q', 'worktree-wf_5e3d60a4-4af-4')
+  writeFileSync(join(dirs.worktree, 'x.txt'), 'x\n')
+  git(dirs.worktree, 'add', 'x.txt')
+  git(dirs.worktree, '-c', 'user.email=t@e.com', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'local')
+  const r = hook(dirs.tmp, dirs.worktree)
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(r.out.systemMessage, /kept the verifier's branch worktree-wf_5e3d60a4-4af-4/)
+  assert.ok(state(dirs.main).branches.includes('worktree-wf_5e3d60a4-4af-4'))
 })
 
 test('a verifier whose worktree Claude Code already removed: its branch is deleted', () => {
