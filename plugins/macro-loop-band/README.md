@@ -2,7 +2,7 @@
 
 A band above the Claude Code prompt while `next`, `implement`, `verify` and the other macro-loop skills work on Issues: one row per Issue this session touched, saying how far along it is, whose turn it is, and what you do next, so you can look away during a long run. Each row links its Issue and the GitHub documents the session saw: spec, PR and verdict (see [Links](#links)).
 
-It only observes: no GitHub calls (one local `git remote get-url origin` per session, for the links), no changes to macro-loop. It is an experiment, not in the marketplace and without a version.
+It only observes: no GitHub calls (one local `git remote get-url origin` per session, for the links), no changes to macro-loop.
 
 ## Requirements
 
@@ -10,9 +10,17 @@ It only observes: no GitHub calls (one local `git remote get-url origin` per ses
 - The `macro-loop` plugin installed.
 - The band is drawn in the terminal and the desktop app only. In VS Code, mobile, `-p` and the SDK nothing is drawn; use `/macro-loop:status` there.
 
-## Load it
+## Install
 
-Add this folder's absolute path to `CLAUDE_CODE_PLUGIN_DIRS` in the `env` block of `~/.claude/settings.json` (your user settings, never a project's):
+```
+/plugin install macro-loop-band@juhyeonni
+```
+
+Restart Claude Code to activate. The band shows in terminal and desktop sessions started after that.
+
+### Try a local checkout
+
+To run the plugin from a clone (to change it, or to try a branch), add this folder's absolute path to `CLAUDE_CODE_PLUGIN_DIRS` in the `env` block of `~/.claude/settings.json` (your user settings, never a project's):
 
 ```json
 "env": { "CLAUDE_CODE_PLUGIN_DIRS": "C:\\Users\\you\\cc-plugins\\plugins\\macro-loop-band" }
@@ -83,8 +91,12 @@ Whole columns drop, never parts of one row, so the rows stay lined up: the round
 - One session's band knows only that session's Issues. To see every open Issue, run `/macro-loop:status`.
 - While a permission dialog is up, the terminal does not draw the band; the dialog is the signal.
 - Opening a link depends on the terminal. In the Windows fullscreen CLI, Alt+click opens it once (Ctrl+click opens it twice: the fullscreen UI and the terminal both handle it). In herdr on macOS, Ctrl+click opens it; Shift+Cmd+click leaves it to the terminal's own link handling. Elsewhere, click the way your terminal opens OSC 8 links (often Ctrl+click or Cmd+click).
-- Where Claude Code does not detect OSC 8 support (the Windows fullscreen CLI among them), links are drawn as the label followed by the full URL. Set `"FORCE_HYPERLINK": "1"` in the `env` block of `~/.claude/settings.json` to get the short labels.
+- Where Claude Code does not detect OSC 8 support (the Windows fullscreen CLI and Ghostty with herdr among them), it draws a link as its label and the full URL; the band clips each cell to one line, so only the label shows and it cannot be clicked. Set `"FORCE_HYPERLINK": "1"` in the `env` block of `~/.claude/settings.json` to make the labels clickable.
 
-## Archive or remove
+## Remove
 
-Delete the path from `CLAUDE_CODE_PLUGIN_DIRS`, then delete the `plugins/macro-loop-band` folder.
+```
+/plugin uninstall macro-loop-band@juhyeonni
+```
+
+If you loaded a local checkout, delete its path from `CLAUDE_CODE_PLUGIN_DIRS` as well.
