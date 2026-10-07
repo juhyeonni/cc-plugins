@@ -135,6 +135,8 @@ test('a drawn band links the Issue and each document seen, on the remote read on
     'https://github.com/o/r/pull/109#issuecomment-777',
   ])
   expect(links.map((l: any) => l.props.label)).toEqual(['#12', '[Spec]', '[PR#109]', '[Verdict]'])
+  // The documents sit at the right edge, past a filler.
+  expect(await ui.find({ key: 'r0-fill' })).toBeDefined()
   await ui.unmount()
   expect(runs).toEqual([{ argv: ['git', 'remote', 'get-url', 'origin'], cwd: '/work' }])
 })

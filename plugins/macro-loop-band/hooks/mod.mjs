@@ -2,7 +2,7 @@
 // module memory, and draws AbovePrompt from render() as a table, one row per Issue (D3, D17).
 // It only observes: every hook returns what its next(e) settled to, and a parse failure never
 // changes that.
-import { GAP, initial, reduce, render, repoOf, signature } from './band.mjs'
+import { GAP, LINK_COLUMNS, initial, reduce, render, repoOf, signature } from './band.mjs'
 
 // Color only repeats the symbol; the stage, round and time are dim (D4).
 const TONE = { run: 'suggestion', you: 'warning', other: 'inactive', unknown: 'error', done: 'success' }
@@ -180,15 +180,22 @@ export const register = (on) => {
     // Each column a fixed width, so a cell that grows never moves the next (D17). The stage
     // is dim beside the track; the symbol, track and action carry the row's tone (D4). The
     // Issue number and each document are links (D15).
-    const cell = (r, i, c, last) => {
-      const key = `r${i}-${c.col}`
-      const box = (child) => h(Box, last ? { key } : { key, width: c.width, flexShrink: 0 }, child)
+    const cell = (r, i, c) => {
+      const box = (child) => h(Box, { key: `r${i}-${c.col}`, width: c.width, flexShrink: 0 }, child)
       if (c.href) return box(h(Link, { href: c.href, label: c.text }))
       const style = DIM.includes(c.col) ? { dimColor: true } : TONED.includes(c.col) ? { color: TONE[r.tone] } : {}
       return box(h(Text, { ...style, wrap: 'truncate-end' }, c.text))
     }
-    const rowsDrawn = out.rows.map((r, i) =>
-      h(Box, { key: `r${i}`, flexDirection: 'row', columnGap: GAP }, ...r.cells.map((c, j) => cell(r, i, c, j === r.cells.length - 1))))
+    const group = (r, i, cells) => h(Box, { flexDirection: 'row', columnGap: GAP, flexShrink: 0 }, ...cells.map((c) => cell(r, i, c)))
+    // The documents sit at the band's right edge; a filler of at least GAP cells keeps them
+    // apart from the rest, so the width layout() worked out still fits.
+    const rowsDrawn = out.rows.map((r, i) => {
+      const docs = r.cells.filter((c) => LINK_COLUMNS.includes(c.col))
+      const rest = r.cells.filter((c) => !LINK_COLUMNS.includes(c.col))
+      if (!docs.length) return h(Box, { key: `r${i}` }, group(r, i, rest))
+      return h(Box, { key: `r${i}`, flexDirection: 'row', width: e.props.bodyColumns },
+        group(r, i, rest), h(Box, { key: `r${i}-fill`, flexGrow: 1, minWidth: GAP }), group(r, i, docs))
+    })
     if (out.more) rowsDrawn.push(h(Box, { key: 'more' }, h(Text, { dimColor: true, wrap: 'truncate-end' }, out.more)))
     return h(Box, { flexDirection: 'column' }, ...rowsDrawn)
   })

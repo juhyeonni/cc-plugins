@@ -60,7 +60,7 @@ The symbol, the track and the action are drawn in the row's color; the stage, ro
 
 ## Links
 
-Each row's Issue number opens the Issue. After the time come the Issue's documents, each in its own column whatever the stage, so they line up from row to row:
+Each row's Issue number opens the Issue. At the band's right edge come the Issue's documents, each in its own column whatever the stage, so they line up from row to row:
 
 | Column | Opens |
 |---|---|
