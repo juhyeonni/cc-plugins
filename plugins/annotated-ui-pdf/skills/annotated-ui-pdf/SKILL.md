@@ -56,7 +56,7 @@ PDF's own text follows this choice.
   **ask the user whether they want auto-suggested candidates from a git range** before doing it.
   Only if they say yes, run the suggester (use the deployed build's commit as the base):
   ```
-  node ~/.claude/skills/annotated-ui-pdf/scripts/suggest-changes.mjs <deployedCommit>..HEAD [--path <subdir>]
+  node ${CLAUDE_PLUGIN_ROOT}/skills/annotated-ui-pdf/scripts/suggest-changes.mjs <deployedCommit>..HEAD [--path <subdir>]
   ```
   It prints commits flagged **● USER-FACING** vs **○ internal**, with screen + text hints.
   Curate the ● rows (drop noise; one box per user-visible change). If they decline, gather
@@ -75,8 +75,14 @@ PDF's own text follows this choice.
   - modal/overlay → `fullPage:false` (viewport) → use **viewport** coords + a `crop`.
 - Get each element's box with `browser_evaluate`, using `scripts/extract-rects.js` (edit its
   `FINDERS` list — match by `text`/`selector`, `climbToWidthBelow` to box a whole card from its
-  label, `viewport:true` for modals, `pad` for margin). It returns `{imageW,imageH, rects:[…]}`.
+  label, `viewport:true` for modals, `pad` for margin). It returns
+  `{imageW,imageH, pageW,pageH, rects:[…]}`: `imageW/imageH` is the viewport's size,
+  `pageW/pageH` the whole document's.
 - Confirm `found:true` for every finder before trusting a rect.
+- The page's `imageW/imageH` in spec.json is the screenshot's size, which depends on the shot:
+  - `fullPage:true` → the extractor's **`pageW/pageH`**. Its `imageW/imageH` is only the
+    viewport, and boxes scaled by it land in the wrong place.
+  - `fullPage:false` → the extractor's `imageW/imageH`.
 
 ### 4. (Modals) choose a crop window
 - Set `page.crop = {x,y,w,h}` to frame just the dialog. `build.mjs` offsets boxes & image
@@ -144,7 +150,7 @@ Rules that keep documents useful (from red-team review of real guides):
 
 ### 7. Build the PDF
 ```
-node ~/.claude/skills/annotated-ui-pdf/scripts/build.mjs <spec.json> [out.pdf]
+node ${CLAUDE_PLUGIN_ROOT}/skills/annotated-ui-pdf/scripts/build.mjs <spec.json> [out.pdf]
 ```
 
 ### 8. Review and iterate
