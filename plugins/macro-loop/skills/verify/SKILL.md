@@ -43,7 +43,7 @@ Never switch or check out a branch in the user's checkout: the verifiers fetch t
 
 The verifiers run code on this machine only with the user's go-ahead, and only in their own disposable worktrees, never in this checkout:
 
-- **Spec commands.** When the spec comes from a trusted spec comment, list every `check: cmd` command in it. When the judgment is against an Issue body, no command from it ever runs.
+- **Spec commands.** When the spec comes from a trusted spec comment, list every `check: cmd` command in it. Read the spec comment's `updated_at` (`gh api repos/{owner}/{repo}/issues/comments/<id> --jq .updated_at`) and note it with the list. When the judgment is against an Issue body, no command from it ever runs.
 - **Tests and lint.** The repo's tests and lint run at the PR head.
 
 What to ask depends on the PR's author:
@@ -51,7 +51,9 @@ What to ask depends on the PR's author:
 - **`pr.authorTrusted` is false:** ask one question for the spec's commands and the tests and lint together. Say that the PR's author is not trusted, and that both run code from this PR: the change under test, and any script a command calls, such as `npm test`. The one answer sets both `Run spec commands` and `Run tests and lint`. An answer that allows only some of them is a no for all of them: say why, and that the verifiers will judge from the diff. This plugin's hook, `scripts/verifier-flags.mjs`, holds to this: a spec verifier started with the two lines set differently for such a PR gets both set to `no`. On no, the verifier judges every criterion from the diff and skips the tests and lint.
 - **A trusted author, or no PR:** ask once whether the verifier may run the spec's commands. On no, it judges those criteria from the diff. The tests and lint run either way.
 
-If the user already approved these same commands earlier in this session, for example when `implement` asked, say so and use that answer instead of asking again.
+If the user already approved these same commands earlier in this session, for example when `implement` asked, and the spec comment's `updated_at` is still the one that approval was given for, say so and use that answer instead of asking again. If `updated_at` changed, the approval is void: show the current list and ask again.
+
+Just before step 5 starts the verifiers, read `updated_at` again. If it differs from the one noted, show the new command list and ask again: the approval must name what will run. If it is unchanged, start the verifiers without asking twice.
 
 ## 5. Identifiers only: start both verifiers
 
