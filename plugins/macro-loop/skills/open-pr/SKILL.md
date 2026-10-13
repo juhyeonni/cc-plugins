@@ -42,6 +42,21 @@ Start the body with one `Closes #<n>` line per Issue, each on its own line, then
 ```markdown
 Closes #<n>
 
+## What and why
+
+<two to four plain sentences: the problem and the result>
+
+## Decisions
+
+- <decision> · <reason> (<link to the spec comment>)
+- <decision made while implementing> · <reason> (not in spec)
+
+## Review focus
+
+- **Look at:** <files or behavior that matter most>
+- **Risky:** <what could break>
+- **Skim:** <what can be skimmed>
+
 ## Summary
 
 <diagram, diff-sketch, or tree>
@@ -63,6 +78,14 @@ Closes #<n>
 ```
 
 Skip all preambles and keep prose brief. Use the domain language of the repo's glossary, if it has one.
+
+### What and why, Decisions, Review focus
+
+The human layer: a reviewer who has not read the Issue should understand the PR from these three sections alone. Take the content from the Issue, the spec's decisions and the diff; ask the person for nothing. Keep the three together to a minute's reading.
+
+- **What and why:** the problem and the result, in plain words. The first sentence names the change and, when there is one, its biggest risk or behavior change (for example, an input that now returns something else, or a case no test covers): the reviewer must not have to reach Review focus to learn it.
+- **Decisions:** at most five, each with its reason and a link to the spec comment. Say what a spec ID such as `AC3` means; never leave it bare. A decision made while implementing that the spec does not hold goes here too, marked "not in spec".
+- **Review focus:** where to look first, what is risky, what can be skimmed.
 
 ### Summary
 
@@ -185,7 +208,7 @@ Concrete evidence that the change works. Show a before and after.
 
 Screenshots are S-tier, when the environment is set up for it and the change is visual.
 
-Execution-based evidence is A-tier: test results, console output. Show the exact test that now fails and passes, using pseudocode.
+Execution-based evidence is A-tier: test results, console output. Show the exact test that now fails and passes, using pseudocode. Say which command produced the output, so the reviewer knows it came from a real run.
 
 ### Merge Danger
 
