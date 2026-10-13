@@ -71,6 +71,10 @@ Do not warn about a stage whose `skipped:*` label is already on the Issue.
 
 A skipped `verify` gets no label: no skill runs at merge time. Merged PRs without a verify marker show it instead.
 
+## Short route
+
+A change is small when it touches one behavior, needs at most three acceptance criteria and has no one-way door (nothing destructive or hard to reverse). A small change takes the short route: no grilling, a short spec, then `implement`, `open-pr` and `verify` as usual. Anything else takes the full route. The agent proposes the route and the person can overrule it in one word.
+
 ## No Issue yet
 
 A skill that needs an Issue and cannot find one offers to create it, with a title and a short body describing the request, taken from the conversation. The offer names the `skipped:*` labels the new Issue will get, which are the stages before the entry skill that did not happen:
