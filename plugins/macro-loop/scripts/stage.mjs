@@ -79,11 +79,16 @@ export const list = (path) => api(['--paginate', '--slurp', path]).flat()
 // What every Issue in a run shares: trust, the default branch and every PR, newest first.
 export const runContext = () => ({ ...trustContext(), prs: list('repos/{owner}/{repo}/pulls?state=all&per_page=100') })
 
-// The PR is one whose body closes the Issue (it may close several); an open one wins over a merged one.
-// A PR closed without merging is ignored.
-export function findPr(n, prs) {
-  const mine = prs.filter((p) => closesAll(p.body).includes(n) && (p.state === 'open' || p.merged_at))
-  return mine.find((p) => p.state === 'open') ?? mine[0] ?? null
+// The PRs whose body closes the Issue (it may close several), newest first. A PR closed without
+// merging is ignored. With `base`, so is a PR aimed at another branch.
+const closing = (n, prs, base) =>
+  prs.filter((p) => closesAll(p.body).includes(n) && (p.state === 'open' || p.merged_at) && (!base || p.base?.ref === base))
+
+// Of those, an open one wins over a merged one, then one on a branch `implement` named <n>-*, then the newest.
+export function findPr(n, prs, base) {
+  const mine = closing(n, prs, base)
+  const rank = (p) => (p.state === 'open' ? 0 : 2) + (p.head?.ref?.startsWith(`${n}-`) ? 0 : 1)
+  return mine.reduce((best, p) => (rank(p) < rank(best) ? p : best), mine[0]) ?? null
 }
 
 // A local branch named <n>-* that is ahead of the default branch: the one `implement` makes.
@@ -95,12 +100,12 @@ function branchAhead(n, base) {
 // `issue` is the Issue as the issues API returns it; `ctx` comes from runContext.
 export function stageOfIssue(n, issue, ctx) {
   const comments = list(`repos/{owner}/{repo}/issues/${n}/comments`)
-  const pr = findPr(n, ctx.prs)
+  const pr = findPr(n, ctx.prs, ctx.defaultBranch)
   const verdict = pr && prState(pr, list(`repos/{owner}/{repo}/issues/${pr.number}/comments`), ctx.trusted)
 
   const names = new Set(issue.labels.map((l) => l.name))
   const { state, priority, source } = ctx.config.labels
-  return stageOf({
+  const result = stageOf({
     closed: issue.state === 'closed',
     states: Object.entries(state).filter(([, label]) => names.has(label)).map(([key]) => key),
     priority: Object.values(priority).some((label) => names.has(label)),
@@ -116,6 +121,9 @@ export function stageOfIssue(n, issue, ctx) {
     },
     note: noteState(comments, ctx.trusted),
   })
+  const others = pr ? closing(n, ctx.prs, ctx.defaultBranch).filter((p) => p !== pr) : []
+  if (!others.length) return result
+  return { ...result, why: `${result.why} (using PR #${pr.number}; also closing: ${others.map((p) => `#${p.number}`).join(', ')})` }
 }
 
 function decide(argv) {
