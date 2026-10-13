@@ -6,4 +6,4 @@ Anything that must be queried across Issues is a label. Comments are read per Is
 
 Why: GitHub filters Issues by label on the server but does not find comments by content.
 
-Source: #1 Details decided (https://github.com/juhyeonni/cc-plugins/issues/1)
+Source: #1 Lookup (https://github.com/juhyeonni/cc-plugins/issues/1)
