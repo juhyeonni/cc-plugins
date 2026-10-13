@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const SCRIPT = join(ROOT, 'plugins/macro-loop/scripts/stage.mjs')
-const { stageOf, noteState, findPr } = await import(pathToFileURL(SCRIPT).href)
+const { stageOf, noteState, findPr, trackingOf } = await import(pathToFileURL(SCRIPT).href)
 
 test('findPr: a PR is found for every Issue it closes', () => {
   const p = { body: 'Closes #1\nCloses #2', state: 'open' }
@@ -108,6 +108,21 @@ test('note: addressed to a trusted login is the user; anyone else is the request
   assert.equal(noteState([], ['carol']).addressedTo, null)
 })
 
+test('tracking: a tracking Issue is goal, merge when every child is ticked, and done when closed', () => {
+  const tracking = (done, total) => ({ tracking: { done, total }, priority: false })
+  assert.deepEqual(pick(tracking(1, 3)), ['goal', true])
+  assert.deepEqual(pick(tracking(3, 3)), ['merge', true])
+  assert.equal(pick({ ...tracking(1, 3), closed: true })[0], 'done')
+})
+
+test('trackingOf: the marker and a trusted author make a tracking Issue; the ticks are counted', () => {
+  const body = '<!-- macro-loop:goal -->\n## Goal\n- [x] #1\n- [ ] #2\n* [X] #3\n- [ ] not an issue'
+  assert.deepEqual(trackingOf({ body, user: { login: 'Carol' } }, ['carol']), { done: 2, total: 3 })
+  assert.equal(trackingOf({ body, user: { login: 'mallory' } }, ['carol']), null)
+  assert.equal(trackingOf({ body: `x\n${body}`, user: { login: 'carol' } }, ['carol']), null)
+  assert.equal(trackingOf({ body: '<!-- macro-loop:goal -->\nno list', user: { login: 'carol' } }, ['carol']), null)
+})
+
 // A stand-in for `gh`, as in trust.test.mjs: answers each call from a table keyed by its
 // arguments, logs every call, and fails on a call the table does not have.
 const STUB = `#!/usr/bin/env node
@@ -165,6 +180,17 @@ test('run: an Issue with a spec and no branch or PR gives implement, and makes n
   assert.deepEqual([r.out.stage, r.out.gate], ['implement', false])
   assert.equal(r.calls.some((call) => /(^| )-X /.test(call)), false)
   assert.equal(r.calls.filter((call) => call === ISSUE_COMMENTS).length, 1)
+})
+
+test('run: a trusted Issue with the marker and a task list gives goal with the ticks in why; an untrusted author gives a plain Issue', () => {
+  const body = '<!-- macro-loop:goal -->\n- [x] #1\n- [ ] #2'
+  const issue = (login) => ({ stdout: { state: 'open', labels: [], body, user: { login } } })
+  const mine = runStage(base({ 'api repos/{owner}/{repo}/issues/77': issue('Carol') }))
+  assert.equal(mine.status, 0, mine.stderr)
+  assert.equal(mine.out.stage, 'goal')
+  assert.match(mine.out.why, /1 of 2 children done/)
+  const other = runStage(base({ 'api repos/{owner}/{repo}/issues/77': issue('mallory') }))
+  assert.equal(other.out.stage, 'triage')
 })
 
 test('run: the proxy label comes from the config, so a renamed label gives wait and source:proxy does not', () => {

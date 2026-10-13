@@ -26,6 +26,7 @@ Tell the user, in one line, what each round is about to do.
 |---|---|
 | `triage` | Call the Skill tool for `macro-loop:triage` with the Issue. |
 | `grilling` | Call `macro-loop:grilling` with the Issue. If `why` says "then spec", call `macro-loop:spec` right after it, without a second interview. If the Issue is `needs-decision` or `needs-info`, see **Recording what was settled**. |
+| `goal` | Follow the **Resume** section of `macro-loop:goal` for this Issue, written once there. |
 | `implement` | Call `macro-loop:implement`. It hands over to `open-pr` and `verify` itself. |
 | `open-pr` | Call `macro-loop:open-pr`. |
 | `verify` | Call `macro-loop:verify`. |
