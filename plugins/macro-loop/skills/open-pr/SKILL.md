@@ -5,7 +5,7 @@ description: "Push the named or current branch, asking first unless the user ask
 
 # Open PR
 
-Push the branch and open its PR with `Closes #<n>` in the body. `verify` finds the Issue, and through it the spec, from that line, so every PR this skill opens carries it.
+Push the branch and open its PR with a `Closes #<n>` line in the body for each Issue it is given. `verify` finds the Issues, and through them the specs, from those lines, so every PR this skill opens carries them. This skill never decides which Issues belong together: it writes the lines for the Issues it is given.
 
 Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. The body template's origin is in [CREDITS.md](CREDITS.md).
 
@@ -33,11 +33,11 @@ Push in a shell call of its own, with nothing that could hide its exit code (no 
 
 ## 3. Reuse an open PR
 
-If the branch already has an open PR, the push has updated it. Check that its body still has `Closes #<n>`; if not, tell the user, since `verify` needs that line. Report the PR's URL and skip steps 4 and 5. When `implement` called this skill, it continues with `verify`.
+If the branch already has an open PR, the push has updated it. Check that its body still has a `Closes #<n>` line for each given Issue; if not, tell the user, since `verify` needs that line. Report the PR's URL and skip steps 4 and 5. When `implement` called this skill, it continues with `verify`.
 
 ## 4. Write the body
 
-Start the body with `Closes #<n>` on its own line, then fill in the template below from the diff against the base branch (`git diff origin/<base>...<branch>`) and the Issue's spec.
+Start the body with one `Closes #<n>` line per Issue, each on its own line, then fill in the template below from the diff against the base branch (`git diff origin/<base>...<branch>`) and the Issue's spec.
 
 ```markdown
 Closes #<n>

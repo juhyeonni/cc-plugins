@@ -103,4 +103,4 @@ Trust is decided by login, never by the author association GitHub attaches to a 
 | Edit a PR body | `gh api -X PATCH repos/{owner}/{repo}/pulls/<n> -F body=@<file>` |
 | Fetch a PR's head into a local branch, without switching to it | `git fetch origin pull/<n>/head:pr-<n>` |
 
-`open-pr` writes `Closes #<n>` into every PR body it creates, and `verify` reads the Issue from there. The Issue a PR closes is `pr.closes` in the output of `scripts/trust.mjs --pr <n>` (see **Configuration** in `workflow.md`); never match the body by hand.
+`open-pr` writes one `Closes #<n>` line per Issue into every PR body it creates, and `verify` reads the Issues from there. The Issues a PR closes are `pr.closesAll` (`pr.closes` is the first) in the output of `scripts/trust.mjs --pr <n>` (see **Configuration** in `workflow.md`); never match the body by hand. One PR can close several Issues; each of them has that PR as its PR.

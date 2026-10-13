@@ -17,6 +17,8 @@ import { parseArgs } from 'node:util'
 
 // The line that links a PR to the Issue it implements; stage.mjs and status.mjs import it.
 export const CLOSES = /^\s*closes\s+#(\d+)\b/im
+// Every Issue a PR's body closes, in order.
+export const closesAll = (body) => [...String(body ?? '').matchAll(new RegExp(CLOSES.source, 'gim'))].map((m) => Number(m[1]))
 const SPEC = '<!-- macro-loop:spec -->'
 const VERDICT = '<!-- macro-loop:verify round='
 const TEMPLATE = new URL('../skills/init/templates/macro-loop.json', import.meta.url)
@@ -94,7 +96,8 @@ export function prState(p, comments, trusted) {
     head: p.head.sha,
     base: p.base.ref,
     // The Issue a PR implements is the one its body closes (`Closes #<n>`, see verify).
-    closes: Number(CLOSES.exec(p.body ?? '')?.[1]) || null,
+    closes: closesAll(p.body)[0] ?? null,
+    closesAll: closesAll(p.body),
     lastVerdict: verdicts.at(-1)?.id ?? null,
     lastVerdictResult: /^## Verify: (PASS|NEEDS-FIX)\b/m.exec(verdicts.at(-1)?.body ?? '')?.[1] ?? null,
     lastVerdictSha: /^<!-- macro-loop:verify round=\d+ sha=([0-9a-f]{7,40}) -->/.exec(verdicts.at(-1)?.body ?? '')?.[1] ?? null,

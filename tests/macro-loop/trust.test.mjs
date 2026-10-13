@@ -120,7 +120,7 @@ test('--pr: author, trust, head, base, last trusted verdict and round', () => {
   })
   const r = run(responses, ['--pr', '3'])
   assert.equal(r.status, 0, r.stderr)
-  assert.deepEqual(r.out.pr, { number: 3, author: 'AnpanManni', authorTrusted: false, head: 'abc123', base: 'main', closes: null, lastVerdict: 13, lastVerdictResult: null, lastVerdictSha: null, round: 3 })
+  assert.deepEqual(r.out.pr, { number: 3, author: 'AnpanManni', authorTrusted: false, head: 'abc123', base: 'main', closes: null, closesAll: [], lastVerdict: 13, lastVerdictResult: null, lastVerdictSha: null, round: 3 })
   const listed = run({ ...responses, [CONFIG]: contents({ trusted: ['anpanmanni'] }) }, ['--pr', '3'])
   assert.equal(listed.out.pr.authorTrusted, true)
 })
@@ -134,6 +134,7 @@ test('--pr alone: the Issue is the one the PR body closes, with its spec', () =>
   const r = run(responses, ['--pr', '3'])
   assert.equal(r.status, 0, r.stderr)
   assert.equal(r.out.pr.closes, 1)
+  assert.deepEqual(r.out.pr.closesAll, [1, 8])
   assert.deepEqual(r.out.issue, { number: 1, spec: 21 })
 })
 

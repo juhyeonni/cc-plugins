@@ -20,8 +20,8 @@ Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` a
 
 - **Branch:** judge the branch given by name, by the user or by `implement`. With no branch named, use the current branch, resolved to its name with `git branch --show-current` first, so no step refers to `HEAD`.
 - **PR:** the one the user named, else the open PR for the branch. Without a PR, verify the branch against the default branch and print the verdict in the terminal instead of posting it.
-- **Issue:** `pr.closes` in the trust command's output, from the `Closes #<n>` line in the PR body. Without a PR, the Issue the user named or the branch name points to. If the PR has no such line, say that the PR is not linked to an Issue and ask which Issue it implements, then run the trust command again with `--issue <n>` added. If there is none, follow **No Issue yet** in `workflow.md`. Once the Issue is known, offer to add `Closes #<n>` to the PR body (see `github.md`), so the next round finds it.
-- **Spec:** the comment whose id is `issue.spec` in the trust command's output. Without one, follow **Missing inputs** in `workflow.md` (`skipped:spec`). On proceed, judge against the Issue body and say so in the verdict: "no spec; judged against the Issue body".
+- **Issues:** `pr.closesAll` in the trust command's output, from the `Closes #<n>` lines in the PR body; one PR can close several. Steps 1 and 5 to 7 run for each Issue, and the other steps once for the PR. Without a PR, the Issue the user named or the branch name points to. If the PR has no such line, say that the PR is not linked to an Issue and ask which Issue it implements, then run the trust command again with `--issue <n>` added. If there is none, follow **No Issue yet** in `workflow.md`. Once the Issue is known, offer to add `Closes #<n>` to the PR body (see `github.md`), so the next round finds it.
+- **Spec:** the comment whose id is `issue.spec` in the trust command's output (for a PR that closes several Issues, run the command with `--issue <n>` for each of the others). Without one, follow **Missing inputs** in `workflow.md` (`skipped:spec`). On proceed, judge against the Issue body and say so in the verdict: "no spec; judged against the Issue body".
 
 ## 2. Count the round
 
@@ -89,7 +89,7 @@ Claude Code removes a verifier's worktree when it ends without changes, so a ver
 
 A verifier of either axis that stops without a report, or whose commands the hook refused, makes the run INCONCLUSIVE: print which axis did not report and why, post nothing, and say what would let it run. The verdict comment needs both reports, and one axis must not hide the other.
 
-From the Spec verifier's report:
+With several Issues, judge each Issue's report on its own; the PR is PASS only if every Issue passes, NEEDS-FIX if any is NEEDS-FIX, else INCONCLUSIVE. From the Spec verifier's report:
 
 - **INCONCLUSIVE** if its **Could not run** list is not empty: a check it was allowed to run did not run at all, or ran without a result anyone can read. This holds even when the diff seems to settle the criterion.
 - **NEEDS-FIX** if an acceptance criterion is unmet or implemented wrongly, or if the diff introduces a test or lint failure.
@@ -119,6 +119,8 @@ Failures already present on the base branch, behavior outside the spec (scope cr
 
 **Next:** <from step 8>
 ```
+
+For a PR that closes several Issues, keep the comment's marker and heading once, and give each Issue its own `Judged against`, `### Spec` and `### Standards` sections under a `## #<n>` heading, with that Issue's own result. The heading verdict is the PR's. The retry limit and the round count stay per PR.
 
 The manual checks come right under the heading, before both reports: a person reads the verdict before marking the PR ready, and a PASS must not hide what they still have to look at.
 
