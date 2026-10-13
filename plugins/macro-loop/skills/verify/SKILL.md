@@ -63,6 +63,7 @@ Spec verifier:
 Axis: spec
 Issue: #<n>
 Spec comment: <id> | none
+Also closes: #<m>, #<k> | none
 Base: origin/<base>
 Head: <sha of the branch>
 Run spec commands: yes | no
@@ -78,6 +79,8 @@ Spec comment: <id> | none
 Base: origin/<base>
 Head: <sha of the branch>
 ```
+
+`Also closes` is the rest of `pr.closesAll`, or `none` when the PR closes one Issue: work that another closed Issue's spec asks for is not scope creep for this one.
 
 If something about the change seems worth a verifier's attention, it goes in your own message to the user, never in a verifier's prompt.
 
