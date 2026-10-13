@@ -20,6 +20,8 @@ Read the spec: the comment whose id is `issue.spec` in the trust command's outpu
 
 Warn about both in one message and ask once.
 
+Note the spec comment's `updated_at` (`gh api repos/{owner}/{repo}/issues/comments/<id> --jq .updated_at`) together with its body.
+
 If the branch you will work on (step 2) has an open PR, read the comment whose id is `pr.lastVerdict`. If that verdict is NEEDS-FIX, its Spec findings are the work for this round.
 
 ## 2. Branch
@@ -57,6 +59,8 @@ If the work shows that the spec is wrong or incomplete, stop and tell the user w
 Commit your work to the current branch.
 
 ## 5. Hand over
+
+If there is a spec, read its `updated_at` again first. If it differs from the one you noted in step 1, the spec changed while you worked: show what changed, ask whether the work still matches it, and do not hand over until the person answers. Never rebuild silently. `verify` reads the spec fresh, so it needs no change.
 
 Call the Skill tool for `macro-loop:open-pr`, then for `macro-loop:verify`, each with the branch name: the branch you committed to in step 4. A skill does not run by itself: the Skill tool loads its steps into this turn. Carry out each skill's steps to the end before calling the next one. `open-pr` may ask before it pushes the branch and opens a draft PR, or pushes to the PR that already exists. `verify` judges the PR in a fresh context and posts the verdict.
 
