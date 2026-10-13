@@ -33,6 +33,8 @@ Following **Missing inputs** in `workflow.md`:
 
 Warn about both in one message and ask once.
 
+If the change is small (see **Short route** in `workflow.md`), propose the short route and let the person overrule it in one word. On the short route do not warn about grilling and add no `skipped:grilling` label, and write the short spec in step 4.
+
 ### 3. Explore
 
 Explore the codebase enough to make the criteria concrete: what exists today, where the change can be tested (prefer existing seams, and the highest one that works), and which commands the repo uses to test and lint. If the repo has a glossary or ADRs, use their vocabulary and respect their decisions.
@@ -60,6 +62,8 @@ Write the comment with this template and the rules in [WRITING-RULES.md](WRITING
 **Out of scope**
 - <what this change does not do>
 ```
+
+A short spec has Goal, acceptance criteria and out of scope; Decisions are optional. It carries the line `Route: short` right after the Goal line. `verify` judges it like any other spec.
 
 Each criterion names how it is checked:
 

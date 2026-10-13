@@ -35,6 +35,10 @@ Tell the user, in one line, what each round is about to do.
 | `stop` | Say what `why` says, and what a person decides. Then stop. |
 | `done` | Say that the Issue is done. Then stop. |
 
+## Short route
+
+When the Issue is small (see **Short route** in `workflow.md`), take the short route: go from `triage` straight to `macro-loop:spec`, with no `grilling` stage. Propose the route to the user first; they can overrule it in one word.
+
 ## Questions belong to the skills
 
 A skill asks its own questions: command approval, a `skipped:*` warning, a push, a branch it will not switch. Pass each one to the user as the skill asked it. Never answer for the user, and never add a `skipped:*` label yourself. If the user does not answer, or a skill stops to ask, stop. `implement`'s rules about branches and uncommitted changes apply: do not work around them.
