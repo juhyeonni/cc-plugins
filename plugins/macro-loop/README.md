@@ -26,6 +26,7 @@ Any stage can be the entry point. When a stage's input is missing, the skill war
 | `/macro-loop:open-pr` | Pushes the branch and opens a draft PR with `Closes #n`, asking first unless you asked for the push | A draft PR |
 | `/macro-loop:verify` | Judges the PR against the spec in fresh-context subagents and posts PASS or NEEDS-FIX | A PR comment |
 | `/macro-loop:execute` | Takes one or more Issues that are ready for implement, open-pr or verify, asks every question first, then implements, opens draft PRs and verifies them in parallel, and reports one row per Issue | Commits, draft PRs and PR comments |
+| `/macro-loop:goal` | Interviews you about a goal only, then carries the resulting Issues through every stage without asking for implementation details, and stops at the merge | A tracking Issue, child Issues, draft PRs and a summary comment |
 
 A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:grilling #12`, then `/macro-loop:spec #12`, then `/macro-loop:implement #12`, which ends with a draft PR opened and verified. `open-pr` asks before it pushes, unless you asked for the push yourself. A draft cannot be merged until you mark it "Ready for review", after reading the verdict.
 
@@ -33,7 +34,7 @@ A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:gri
 
 `/macro-loop:execute 12 15 18` does the machine stages for several Issues at once. Before anything starts, it asks which spec commands may run and whether to push; then it carries them all through implement, open-pr and verify in one workflow run, each Issue at its own pace, and stops before the merge. NEEDS-FIX is reported, never fixed automatically.
 
-`init`, `next` and `execute` start only from their slash command. The other skills also start from plain words, or when another skill hands over to them.
+`init`, `next`, `goal` and `execute` start only from their slash command. The other skills also start from plain words, or when another skill hands over to them.
 
 ## Contents
 
