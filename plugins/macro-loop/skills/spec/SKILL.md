@@ -37,7 +37,9 @@ If the change is small (see **Short route** in `workflow.md`), propose the short
 
 ### 3. Explore
 
-Explore the codebase enough to make the criteria concrete: what exists today, where the change can be tested (prefer existing seams, and the highest one that works), and which commands the repo uses to test and lint. If the repo has a glossary or ADRs, use their vocabulary and respect their decisions.
+Explore the codebase enough to make the criteria concrete: what exists today, where the change can be tested (prefer existing seams, and the highest one that works), and which commands the repo uses to test and lint. If the repo has a glossary, use its vocabulary.
+
+Standing decisions are ADR files: the path is the one the repo's `CLAUDE.md` (or `AGENTS.md`) points to, else `docs/adr/`. Read the ones with `Status: Accepted` from `origin/<default>` (only Accepted binds); skip quietly when there are none. Cite the ADRs a decision relies on. When the Issue conflicts with an Accepted ADR, stop and ask the user whether the task or the decision changes before drafting.
 
 "Today" means the default branch. Run `git fetch origin <default>` and read with `git show origin/<default>:<path>`. If another branch is checked out, say so: its unmerged changes are not today's behavior, and a criterion must not depend on them.
 
@@ -82,6 +84,15 @@ A decision settled on a grilling comparison page links that page and names the c
 Never mention uncommitted, untracked or other local-only files. Readers of the Issue cannot see them.
 
 Keep it short. A spec that needs scrolling is usually two Issues.
+
+When a decision must outlive this change, propose promoting it to an ADR. On a yes, add a decision saying the implementing PR adds the ADR file (and the pointer line in `CLAUDE.md` / `AGENTS.md`, if the repo has none), so the decision and its code merge together. An ADR is a few lines in a numbered file, one decision each (the repo's own ADR format wins if it has one):
+
+```markdown
+# <number>. <decision title>
+Status: Accepted
+<the decision, and a short reason>
+Source: #<n> D<k>
+```
 
 Show the draft to the user and let them edit it before publishing.
 

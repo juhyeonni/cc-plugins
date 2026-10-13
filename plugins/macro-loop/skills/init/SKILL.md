@@ -19,6 +19,7 @@ Look at the repo's starting state; don't assume:
 - `git remote -v`: is this a GitHub repo, and which one? Is its owner a person or an organization?
 - The repo's existing labels (see `github.md`).
 - `.github/ISSUE_TEMPLATE/`: which templates exist?
+- `docs/adr/` (or the ADR directory the repo uses), `CLAUDE.md` and `AGENTS.md`: does the repo have ADRs, and does the file it uses point to them?
 - `.github/macro-loop.json`: `configFile` in the trust command's output says whether the default branch has it, and `config.labels`, against [the template](templates/macro-loop.json), shows which labels it renames.
 
 ## 2. Present and ask, one section at a time
@@ -46,6 +47,8 @@ When the config file renames a label, create the renamed label with the color of
 **C. Config file.** Write [macro-loop.json](templates/macro-loop.json) to `.github/macro-loop.json`. Recommend the defaults, unless the repo already uses other names for the same roles (for example `priority:high` for `P1`). Then map those names in the file, so the skills use the existing labels instead of creating duplicates.
 
 The file's `trusted` list names whose spec and verdict comments count, and whose `check: cmd` commands `verify` may run after asking (see **Who is trusted** in `github.md`). On a repo owned by a person, recommend leaving it empty: the owner and whoever runs a skill are trusted. On an organization's repo, ask which logins to trust and fill them in; without a list, only the person running a skill is trusted.
+
+**D. Standing decisions.** With ADRs (default `docs/adr/`) and no pointer, propose one line in the `CLAUDE.md` or `AGENTS.md` the repo uses saying where the ADRs are; if neither file exists, ask before creating `CLAUDE.md`. With no ADRs, do nothing: no pointer and no directory, since the first ADR a `spec` promotes creates both. There is no config key for the path.
 
 ## 3. Confirm and write
 
