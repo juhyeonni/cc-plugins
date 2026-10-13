@@ -36,6 +36,12 @@ test('AC1: an Issue whose open PR author is not trusted is left out and sent to 
   ])
 })
 
+test('AC8: a tracking Issue is left out with its stage as the reason', () => {
+  const { run, left } = candidates([row(10, 'goal', { why: '1 of 3 children done' })], { trusted: TRUSTED, given: [10] })
+  assert.deepEqual(run, [])
+  assert.deepEqual(left, [{ number: 10, stage: 'goal', reason: 'stage goal needs a person: 1 of 3 children done' }])
+})
+
 test('AC2: given numbers keep their order, and a given non-candidate is reported, not run', () => {
   const rows = [row(1, 'implement'), row(2, 'grilling'), row(3, 'verify', { prAuthor: 'juhyeonni' })]
   const { run, left } = candidates(rows, { trusted: TRUSTED, given: [3, 2, 1, 99] })
