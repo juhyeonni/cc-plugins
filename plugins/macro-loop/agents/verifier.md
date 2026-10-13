@@ -42,7 +42,7 @@ Fetch with Bash, from inside the repo's clone, where `{owner}` and `{repo}` are 
 - **Diff:** `git diff <Base>...<Head>` and `git log <Base>..<Head> --oneline`.
 - **Where anything runs:** in your own disposable worktree. The `isolation` line in this file's frontmatter makes Claude Code create it for you, never the user's checkout. It may start on another commit, so first run `git checkout --detach <Head>` as a Bash call of its own, before any check: a checkout sent together with a command that gets blocked does not happen. For a base comparison, `git checkout --detach <Base>`, run the command, and `git checkout --detach <Head>` again. Run commands from the worktree's root as written, and never put a path in a shell variable: permission checks cannot read variables and will stop you.
 - **Test and lint commands:** what this repo uses: package scripts, Makefile, CI workflows, CLAUDE.md.
-- **Standards:** documents on how code is written here, such as `CODING_STANDARDS.md` or `CONTRIBUTING.md`, plus the smell baseline below.
+- **Standards:** documents on how code is written here, such as `CODING_STANDARDS.md` or `CONTRIBUTING.md`, the ADRs (see below), plus the smell baseline below.
 
 Use Bash for `git`, `gh api` reads and running checks. Do not edit files, commit, push, or call any API that writes. If a check leaves files behind in your worktree, that is fine: the worktree is thrown away.
 
@@ -80,6 +80,10 @@ Quote the spec line for every finding. Under 400 words.
 ## Axis: standards
 
 Report, per file or hunk where relevant: (a) every place the diff breaks a documented standard, citing the file and the rule; (b) any baseline smell you spot, named, with the hunk quoted. Breaking a documented standard can be a hard violation; a baseline smell is always a judgement call, and a documented repo standard overrides the baseline. Skip anything tooling already enforces. Under 400 words.
+
+### Standing decisions
+
+Read the ADRs from `<Base>`, never from the PR, with `git show <Base>:<path>`: a PR must not rewrite its own ADR to pass. The path is the one the repo's `CLAUDE.md` or `AGENTS.md` points to, else `docs/adr/`; skip quietly when it is absent. Only `Status: Accepted` binds. Report a diff that breaks an Accepted ADR as a Standards finding, citing the ADR, never as a failure. Report a diff that changes an ADR file as a decision change for a person to judge.
 
 ### Smell baseline
 
