@@ -8,7 +8,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const SCRIPT = join(ROOT, 'plugins/macro-loop/scripts/stage.mjs')
-const { stageOf, noteState } = await import(pathToFileURL(SCRIPT).href)
+const { stageOf, noteState, findPr } = await import(pathToFileURL(SCRIPT).href)
+
+test('findPr: a PR is found for every Issue it closes', () => {
+  const p = { body: 'Closes #1\nCloses #2', state: 'open' }
+  assert.equal(findPr(1, [p]), p)
+  assert.equal(findPr(2, [p]), p)
+  assert.equal(findPr(3, [p]), null)
+})
 
 const signals = (over = {}) => ({
   closed: false,
