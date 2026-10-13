@@ -42,6 +42,21 @@ Start the body with `Closes #<n>` on its own line, then fill in the template bel
 ```markdown
 Closes #<n>
 
+## What and why
+
+<two to four plain sentences: the problem and the result>
+
+## Decisions
+
+- <decision> · <reason> (<link to the spec comment>)
+- <decision made while implementing> · <reason> (not in spec)
+
+## Review focus
+
+- **Look at:** <files or behavior that matter most>
+- **Risky:** <what could break>
+- **Skim:** <what can be skimmed>
+
 ## Summary
 
 <diagram, diff-sketch, or tree>
@@ -63,6 +78,14 @@ Closes #<n>
 ```
 
 Skip all preambles and keep prose brief. Use the domain language of the repo's glossary, if it has one.
+
+### What and why, Decisions, Review focus
+
+The human layer: a reviewer who has not read the Issue should understand the PR from these three sections alone. Take the content from the Issue, the spec's decisions and the diff; ask the person for nothing. Keep the three together to a minute's reading.
+
+- **What and why:** the problem and the result, in plain words.
+- **Decisions:** at most five, each with its reason and a link to the spec comment. Say what a spec ID such as `AC3` means; never leave it bare. A decision made while implementing that the spec does not hold goes here too, marked "not in spec".
+- **Review focus:** where to look first, what is risky, what can be skimmed.
 
 ### Summary
 
