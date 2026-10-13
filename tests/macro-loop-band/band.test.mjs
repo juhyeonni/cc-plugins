@@ -29,8 +29,8 @@ const text = (s, now, isWorking, o = {}) => lines(render(s, { now, isWorking, co
 const pick = (r) => r && { tone: r.tone, stage: r.stage, action: r.action, track: r.track, round: r.round, time: r.time }
 
 test('constants: the skills, stages, track cells and columns the band knows', () => {
-  assert.deepEqual(SKILLS, ['next', 'triage', 'grilling', 'spec', 'implement', 'open-pr', 'verify'])
-  assert.deepEqual(STAGES, ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'resumable', 'wait', 'merge', 'stop', 'done'])
+  assert.deepEqual(SKILLS, ['next', 'triage', 'grilling', 'spec', 'implement', 'open-pr', 'verify', 'goal'])
+  assert.deepEqual(STAGES, ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'resumable', 'wait', 'merge', 'stop', 'done', 'goal'])
   assert.deepEqual(TRACK, ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'merge'])
   assert.deepEqual(COLUMNS, ['symbol', 'number', 'track', 'stage', 'action', 'round', 'time', 'spec', 'pr', 'verdict'])
   assert.equal(MAX_ROWS, 4)
@@ -457,4 +457,16 @@ test('AC25: past four Issues the band shows four rows and a +N more row', () => 
   const six = run([skill('next', 31 * MIN), stage(55, 'merge', 31 * MIN), turnEnd(31 * MIN)], five)
   assert.equal(lines(render(six, { now: 32 * MIN, columns: WIDE }))[4], '+2 more · /macro-loop:status')
   assert.equal(render(four(), { now: 0, columns: WIDE }).more, null)
+})
+
+test('a goal row comes first, its children under it, and merge is the person\'s turn', () => {
+  const g = run([skill('goal', 0), stage(26, 'goal', 1, '2 of 4 children done')])
+  const r = working(g, MIN, {})
+  assert.deepEqual([r.issue, r.stage, r.tone, r.track], [26, 'goal 2/4', 'run', '●●●◐○○'])
+  const kids = run([stage(27, 'verify', 2)], g)
+  assert.deepEqual(rows(kids, { now: MIN, isWorking: true }).map((x) => x.issue), [26, 27])
+  const m = run([stage(26, 'merge', 3, 'every child passed'), turnEnd(4)], kids)
+  assert.deepEqual(pick(idle(m, MIN)).action, 'merge the PRs')
+  assert.equal(idle(m, MIN).tone, 'you')
+  assert.equal(run([stage(26, 'done', 5)], m).goal, undefined)
 })

@@ -5,11 +5,14 @@
 // State = { cur, waiting }: cur is the Run the band shows first, waiting the other Issues this
 // session touched and has not finished (oldest first, one per Issue, never cur's) (D3).
 //
+// A goal is not a Run: state.goal = { issue, done, total, merge, running, since, idleSince } is
+// its row, shown first, with the Runs of its children under it. State without a goal has no key.
+//
 // A Run also keeps the GitHub ids it observed (D15): its PR, the Issue's spec comment, and the
 // PR's last verdict. Given the repo, rows() turns them into links.
 
-export const SKILLS = ['next', 'triage', 'grilling', 'spec', 'implement', 'open-pr', 'verify']
-export const STAGES = ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'resumable', 'wait', 'merge', 'stop', 'done']
+export const SKILLS = ['next', 'triage', 'grilling', 'spec', 'implement', 'open-pr', 'verify', 'goal']
+export const STAGES = ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'resumable', 'wait', 'merge', 'stop', 'done', 'goal']
 // D16: the track's six cells, and the cell each stage or skill sits on.
 export const TRACK = ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'merge']
 const POS = { triage: 0, wait: 0, resumable: 0, grilling: 1, spec: 1, implement: 2, 'open-pr': 3, verify: 4, merge: 5 }
@@ -63,6 +66,7 @@ const copy = (s) => {
   return {
     cur: isObj(o.cur) ? { ...o.cur } : null,
     waiting: Array.isArray(o.waiting) ? o.waiting.filter(isObj).map((w) => ({ ...w })) : [],
+    ...(isObj(o.goal) ? { goal: { ...o.goal } } : {}),
   }
 }
 
@@ -103,12 +107,26 @@ const focus = (s, m, at) => {
   s.cur = { ...base, skill: c.skill, running: c.running, since: c.since, issue: m, done: false, failed: false, pos: POS[c.skill] ?? base.pos }
 }
 
+const goalStage = (s, ev, at) => {
+  if (ev.stage === 'done') {
+    delete s.goal
+    return
+  }
+  s.goal = { ...(s.goal ?? { running: false, since: at, idleSince: null }), issue: ev.issue, merge: ev.stage === 'merge' }
+  const n = /^(\d+) of (\d+) children done/.exec(String(ev.why ?? ''))
+  if (n) Object.assign(s.goal, { done: Number(n[1]), total: Number(n[2]) })
+}
+
 const step = (s, ev) => {
   const at = ev.at
   switch (ev.type) {
     case 'skill': {
       const name = typeof ev.skill === 'string' ? SKILL.exec(ev.skill)?.[1] : undefined
       if (!SKILLS.includes(name)) return
+      if (name === 'goal') {
+        s.goal = { issue: null, done: 0, total: 0, merge: false, running: true, since: at, idleSince: null }
+        return
+      }
       const stopped = s.cur && !s.cur.running && STOPPED.includes(s.cur.stage)
       if (name === 'next' || stopped || s.cur?.done || s.cur?.failed) {
         if (s.cur && keep(s.cur)) park(s, s.cur)
@@ -121,6 +139,10 @@ const step = (s, ev) => {
     }
     case 'stage': {
       if (!optNum(ev.issue)) return
+      if (ev.ok === true && ev.issue != null && (ev.stage === 'goal' || (s.goal?.issue === ev.issue && (ev.stage === 'merge' || ev.stage === 'done')))) {
+        goalStage(s, ev, at)
+        return
+      }
       const m = ev.issue ?? s.cur?.issue ?? null
       s.cur ??= newRun(at)
       if (m !== null) focus(s, m, at)
@@ -157,15 +179,20 @@ const step = (s, ev) => {
       s.cur.pr = ev.pr
       return
     case 'turnStart':
+      if (s.goal && !s.goal.merge) s.goal.running = true
       if (s.cur?.done) s.cur = s.waiting.pop() ?? null
       // A skill's own row (no stage since it started) goes on: the person answered it.
       else if (s.cur?.skill && s.cur.stage === null && !s.cur.failed) s.cur.running = true
       return
     case 'turnEnd':
       if (s.cur?.running) Object.assign(s.cur, { running: false, idleSince: at })
+      if (s.goal?.running) Object.assign(s.goal, { running: false, idleSince: at })
       return
     case 'sessionEnd':
-      if (ev.reason === 'clear' || ev.reason === 'resume') Object.assign(s, initial())
+      if (ev.reason === 'clear' || ev.reason === 'resume') {
+        Object.assign(s, initial())
+        delete s.goal
+      }
   }
 }
 
@@ -252,6 +279,22 @@ function rowOf(run, { isWorking, now, base }, isCur) {
   }
 }
 
+// The goal's row: its stage cell reads `goal N/M`, its track the six cells scaled to done/total.
+// On the person's turn it says the merge, else the first child waiting for them.
+function goalRow(g, children, { isWorking, now, base }) {
+  const { done, total } = g
+  const issue = posInt(g.issue) ? g.issue : null
+  const pos = total > 0 ? Math.min(TRACK.length, Math.floor((done * TRACK.length) / total)) : null
+  const row = { stage: total > 0 ? `goal ${done}/${total}` : 'goal' }
+  if (g.merge) Object.assign(row, { tone: 'you', action: 'merge the PRs', time: since(g, now, true) })
+  else if (g.running && isWorking) Object.assign(row, { tone: 'run', time: since(g, now, false) })
+  else {
+    const c = children.find((r) => r.tone === 'you')
+    Object.assign(row, { tone: 'you', action: c?.action ?? 'answer above', time: since(g, now, true) })
+  }
+  return { ...row, issue, href: base && issue ? `${base}/issues/${issue}` : null, track: pos === null ? '' : track(pos), round: '', links: linksOf({}, base) }
+}
+
 // The rows to show, the current Issue first and the others oldest first, before layout; null
 // when there is nothing to show.
 export function rows(state, opts) {
@@ -260,9 +303,11 @@ export function rows(state, opts) {
     const cur = isObj(state) && isObj(state.cur) ? state.cur : null
     const waiting = isObj(state) && Array.isArray(state.waiting) ? state.waiting.filter(isObj) : []
     const runs = cur ? [cur, ...waiting] : waiting
-    if (!runs.length) return null
+    const goal = isObj(state) && isObj(state.goal) ? state.goal : null
+    if (!runs.length && !goal) return null
     const ctx = { isWorking: o.isWorking === true, now: Number.isFinite(o.now) ? o.now : 0, base: repoBase(o.repo) }
-    return runs.map((r) => rowOf(r, ctx, r === cur))
+    const out = runs.map((r) => rowOf(r, ctx, r === cur))
+    return goal ? [goalRow(goal, out, ctx), ...out] : out
   } catch {
     return null
   }
