@@ -87,7 +87,7 @@ function decide(argv) {
   const rows = statusLines({ issues: wanted, prs: [], stageFor: (i) => stageOfIssue(i.number, i, ctx), limit: Infinity })
     .filter((r) => r.kind === 'issue')
     .map((r) => {
-      const pr = findPr(r.number, ctx.prs)
+      const pr = findPr(r.number, ctx.prs, ctx.defaultBranch)
       return { number: r.number, stage: r.stage, why: r.why, prAuthor: pr?.state === 'open' ? pr.user?.login : null }
     })
   const { run, left } = candidates(rows, { trusted: ctx.trusted, given })
@@ -95,7 +95,7 @@ function decide(argv) {
     const comments = list(`repos/{owner}/{repo}/issues/${r.number}/comments`)
     r.spec = specOf(comments, ctx.trusted)
     r.commands = r.spec ? specCommands(api([`repos/{owner}/{repo}/issues/comments/${r.spec}`]).body) : []
-    const pr = findPr(r.number, ctx.prs)
+    const pr = findPr(r.number, ctx.prs, ctx.defaultBranch)
     if (pr?.state === 'open') {
       const s = prState(pr, list(`repos/{owner}/{repo}/issues/${pr.number}/comments`), ctx.trusted)
       r.pr = { number: pr.number, head: s.head, round: s.round, branch: pr.head.ref }
