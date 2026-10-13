@@ -197,6 +197,16 @@ test('run: an open PR with a PASS for its head gives merge, taking the PR from t
   assert.equal(r.calls.includes('api repos/{owner}/{repo}/pulls/5'), false)
 })
 
+test('run: with two open PRs closing the Issue, why names the PR used and the other one', () => {
+  const pr = (number, ref, branchBase = 'main') => ({ number, state: 'open', merged_at: null, body: 'Closes #77', user: { login: 'carol' }, head: { sha: 'abc1234', ref }, base: { ref: branchBase } })
+  const r = runStage(base({
+    [PULLS]: { stdout: [[pr(8, 'old'), pr(6, '77-fix'), pr(5, '77-test', 'seed')]] },
+    'api --paginate --slurp repos/{owner}/{repo}/issues/6/comments': { stdout: [[]] },
+  }))
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(r.out.why, /\(using PR #6; also closing: #8\)$/)
+})
+
 test('run: a failing gh call prints nothing on stdout, the error on stderr, and exits non-zero', () => {
   const r = runStage(base({ 'api repos/{owner}/{repo}/issues/77': { stderr: 'gh: Not Found (HTTP 404)\n', code: 1 } }))
   assert.notEqual(r.status, 0)
