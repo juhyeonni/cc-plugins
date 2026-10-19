@@ -31,10 +31,15 @@ The implementer needs to know when it is done, and `verify` needs something to c
 - **Good:** "AC2. After triage moves Issue #12 to `needs-info`, the Issue carries that label · check: cmd `gh api repos/{owner}/{repo}/issues/12/labels --jq 'map(.name) | index("needs-info") // error("needs-info missing")'`"
 - **Bad:** "Triage should work correctly"
 
-A string match, such as a `grep` for a class name, shows the change was written, not how the page behaves. A criterion about what a person sees on a screen is a `test` on rendered output, or a `manual` check that names what to look at: the page, the viewport and what must be true there.
+A check's target is what its criterion is about. A string match, such as a `grep` for a class name, shows the change was written, not how the page behaves. A stub, mock or fake shows the same: it passes against the stand-in, not against the real thing. So a criterion about what a person sees on a screen is a `test` on rendered output, or a `manual` check that names what to look at: the page, the viewport and what must be true there.
 
 - **Good:** "AC3. The table's columns line up with the header at 950px wide and wider · check: manual, open the task list at 950px and 1440px and compare each column with its header"
 - **Bad:** "AC3. The table uses fixed layout · check: cmd `grep -c table-fixed TaskTable.tsx`"
+
+A criterion about the deployed environment of the software being built (a deployment, an upstream, a proxy, a platform runtime) is split in two. The logic is checked against the stub, mock or fake with `test` or `cmd`. The real environment is its own `manual` criterion that names its target and when it can be checked, such as after deploy. A spec never points a check at such an environment: the plugin cannot tell which ones are safe to touch. A check of the GitHub state this plugin's skills leave (labels, comments, PRs) stays a `cmd`, because there GitHub is the real target, not a stand-in.
+
+- **Good:** "AC4. The gateway adds the security headers to an upstream response · check: test, against a stub upstream" and "AC5. The deployed `/aw/` response carries the security headers · check: manual, after deploy, request the production URL and compare its headers with the list in D2"
+- **Bad:** "AC4. Every response carries the security headers · check: a smoke test run against stub upstreams"
 
 A `cmd` check must be safe and able to fail:
 
