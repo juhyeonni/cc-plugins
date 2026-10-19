@@ -44,7 +44,7 @@ Skip it for pure code generation, or for questions the user just wants answered 
 
 1. **Slot diagnosis** (internal) — fills seven slots from what the user already gave: deliverable, outcome, audience, key sentence, evidence, ask, constraints.
 2. **Questions** — only the empty slots that are expensive to get wrong, ordered `outcome > audience > ask > key sentence > evidence > constraints > deliverable`. Budget: **max 4 per round, max 2 rounds**, asked through `AskUserQuestion` with a recommended option first. Leftover blanks become `[가정: ...]` markers in the draft.
-3. **One-line BLUF** — the core sentence is confirmed with the user *before* drafting. If it can't be written, the user doesn't know yet either — and the skill says so instead of drafting around it.
+3. **One-line BLUF** — the core sentence is declared, with a length budget, in one line *before* drafting; drafting continues without waiting for an answer. If it can't be written, the user doesn't know yet either — and the skill says so instead of drafting around it.
 4. **Draft** — C-C-C (Context → Content → Conclusion), conclusion first, one point per paragraph, verbs over noun chains.
 5. **Self-check** — a pre-submit checklist (first 3 lines carry the whole message, the ask names an owner and a deadline, no dangling `이것/그것`, no unearned hedging, sentences under ~70 chars for ko/ja).
 
@@ -63,7 +63,7 @@ Unattended runs (scheduler, background) skip the questions, fill every slot by i
 
 - **Question budget is a hard cap.** Interrogation is its own failure mode — past four questions the user disengages and answer quality drops. Unknowns become visible assumptions instead.
 - **Options are scenarios, not dials.** "Detailed / normal / brief" tells the user nothing. "3-line summary (for people skimming the thread)" vs "with repro steps (for whoever fixes it)" makes the choice by audience and use.
-- **The BLUF gate is the real value.** Confirming one sentence before drafting kills the most expensive failure — a polished draft pointed the wrong way.
+- **The BLUF gate is the real value.** Declaring one sentence before drafting kills the most expensive failure — a polished draft pointed the wrong way.
 
 ## Install
 
