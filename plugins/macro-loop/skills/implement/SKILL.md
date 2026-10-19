@@ -9,6 +9,8 @@ Implement the work the Issue's spec describes, then hand over to `open-pr` and `
 
 Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. Trust, the spec and the last verdict come from one command, run in the repo's checkout: `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --issue <n>`, plus `--pr <n>` when the branch you work on (step 2) has an open PR. **Configuration** in `workflow.md` says what it prints.
 
+Write commit messages and every comment a person reads by `${CLAUDE_PLUGIN_ROOT}/reference/writing.md`.
+
 ## 1. Find the Issue and its spec
 
 Use the Issue the user named, or the one the conversation or the branch name points to. If there is none, follow **No Issue yet** in `workflow.md`.
