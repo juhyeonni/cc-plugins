@@ -14,7 +14,7 @@ The context that wrote an artifact has blind spots. This plugin runs the review 
 
 The `red-team` skill:
 
-1. **Resolves the persona** — inline → `.claude/red-team/personas/*.md` (project, team-shareable) → memory (personal). If none, it asks.
+1. **Resolves the persona** — inline → `.claude/red-team/personas/*.md` (project, team-shareable) → memory (personal) → bundled example personas (matched by their `persona:` name). If none, it asks.
 2. **Reviews with fresh eyes** — invokes the `red-teamer` subagent with the persona + the artifact.
 3. **Reports** severity-ranked findings, each with location + the persona's reaction + a concrete fix, and a `PASS` / `NEEDS-FIX` verdict.
 4. **Fix-loops** — applies fixes and re-reviews (fresh again) until `PASS`.
@@ -31,7 +31,7 @@ The `red-team` skill:
 ## Design notes
 
 - **Honesty rule** — the reviewer must not manufacture findings. Declaring "no blockers, ship it" is a valid and valued result; inflating severity to justify another round is a failure mode it is told to avoid.
-- **Persona precedence** — inline > project file > memory.
+- **Persona precedence** — inline > project file > memory > bundled.
 - **Integrated mode** — for whole multi-part artifacts, it also checks contradictions / duplication / broken cross-references / term usage / staleness (things per-section review misses).
 
 ## Install
