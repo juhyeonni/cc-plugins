@@ -70,6 +70,8 @@ When you settled decisions without a grilling session, say so once, in a line un
 
 A short spec has Goal, acceptance criteria and out of scope; Decisions are optional. It carries the line `Route: short` right after the Goal line. `verify` judges it like any other spec.
 
+When `grilling` settled where a visible change goes (with `ui-placement`), the spec carries two more lines right after the Goal line, after `Route: short` when there is one: `UI: yes` and `Placement: <chosen option> (<comparison page URL>)`. Each starts its line exactly so, because `execute` reads them: it leaves out an Issue whose spec has `UI: yes` and no `Placement:` line. The components to reuse go in the reason of the placement decision.
+
 Each criterion names how it is checked:
 
 - `test`: an automated test covers it. Say which behavior the test checks, not which file it lives in.

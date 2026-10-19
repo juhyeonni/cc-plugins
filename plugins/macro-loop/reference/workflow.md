@@ -18,7 +18,7 @@ If the script fails, it prints nothing and exits non-zero with the error. Stop a
 
 `trusted` in the file lists the GitHub logins whose spec and verdict comments count, and whose `check: cmd` commands `verify` may run after asking. An empty list means the default described in **Who is trusted** in `github.md`.
 
-`uiKit` is the claude.ai URL of an artifact that renders the repo's UI markup, for `grilling` to build comparison pages on. `null` means the repo has none.
+`uiKit` is the claude.ai URL of an artifact that renders the repo's UI markup, for `ui-placement` (which `grilling` calls) to build comparison pages on. `null` means the repo has none.
 
 The rest of this plugin names labels by their default strings.
 
@@ -40,6 +40,7 @@ The rest of this plugin names labels by their default strings.
 | Skipped | `skipped:triage` | Work continued without triage |
 | Skipped | `skipped:grilling` | The spec was written without a grilling session |
 | Skipped | `skipped:spec` | Work continued without a spec |
+| Skipped | `skipped:ui-placement` | A UI Issue was built without a chosen placement |
 
 An Issue has been triaged when it carries a priority label. An open Issue without one is triage work.
 
@@ -68,6 +69,7 @@ Do not warn about a stage whose `skipped:*` label is already on the Issue.
 | A priority label on the Issue | `spec`, `implement` | `skipped:triage` |
 | Decisions with reasons, from a grilling session in this conversation or written on the Issue | `spec` | `skipped:grilling` |
 | A trusted spec comment on the Issue | `implement`, `verify` | `skipped:spec` |
+| A `Placement:` line in a spec that has `UI: yes` | `implement` | `skipped:ui-placement` |
 
 A skipped `verify` gets no label: no skill runs at merge time. Merged PRs without a verify marker show it instead.
 

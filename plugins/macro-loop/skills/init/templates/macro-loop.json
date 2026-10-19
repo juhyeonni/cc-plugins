@@ -18,7 +18,8 @@
     "skipped": {
       "triage": "skipped:triage",
       "grilling": "skipped:grilling",
-      "spec": "skipped:spec"
+      "spec": "skipped:spec",
+      "uiPlacement": "skipped:ui-placement"
     }
   }
 }

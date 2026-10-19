@@ -5,7 +5,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-const { candidates, specCommands, report } = await import(pathToFileURL(join(ROOT, 'plugins/macro-loop/scripts/execute.mjs')).href)
+const { candidates, specCommands, uiState, report } = await import(pathToFileURL(join(ROOT, 'plugins/macro-loop/scripts/execute.mjs')).href)
 
 const row = (number, stage, over = {}) => ({ number, stage, why: `why ${number}`, prAuthor: null, ...over })
 const TRUSTED = ['juhyeonni']
@@ -61,6 +61,32 @@ test('specCommands: lists the check: cmd commands of a spec, in order', () => {
   ].join('\n')
   assert.deepEqual(specCommands(body), ['ls plugins/x/SKILL.md', 'grep -c "a b" README.md'])
   assert.deepEqual(specCommands(''), [])
+})
+
+test('#115 AC1: a spec body is a UI Issue with no placement, a placed one, or not a UI Issue', () => {
+  assert.equal(uiState('**Goal:** x\nUI: yes\n\n**Decisions**\n'), 'missing')
+  assert.equal(uiState('**Goal:** x\nUI: yes\nPlacement: option b (https://claude.ai/artifact/x)\n'), 'placed')
+  assert.equal(uiState('**Goal:** x\n\n**Decisions**\n'), 'none')
+  assert.equal(uiState('**Goal:** x\nPlacement: option b\n'), 'none')
+  assert.equal(uiState('- D4. The spec holds `UI: yes` and a `Placement:` line.\n'), 'none')
+  assert.equal(uiState(undefined), 'none')
+})
+
+test('#115 AC2: a UI Issue with no placement is left out with its reason; a placed or non-UI Issue runs', () => {
+  const rows = [
+    row(1, 'implement', { ui: 'missing' }),
+    row(2, 'implement', { ui: 'placed' }),
+    row(3, 'implement', { ui: 'none' }),
+    row(4, 'implement'),
+    row(5, 'open-pr', { ui: 'missing' }),
+  ]
+  const { run, left } = candidates(rows, { trusted: TRUSTED })
+  assert.deepEqual(run.map((r) => r.number), [2, 3, 4, 5])
+  assert.equal(left.length, 1)
+  assert.equal(left[0].number, 1)
+  assert.equal(left[0].stage, 'implement')
+  assert.match(left[0].reason, /Placement:/)
+  assert.match(left[0].reason, /\/macro-loop:ui-placement/)
 })
 
 test('AC7: one row per Issue with the stages as columns and what a person does', () => {

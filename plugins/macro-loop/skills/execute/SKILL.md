@@ -15,7 +15,7 @@ Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` a
 In the repo's checkout, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/execute.mjs` followed by the Issue numbers the user gave, or nothing. It prints one JSON line, `{base, run, left}`. Never pick or leave out an Issue yourself.
 
 - `run`: each Issue's `number`, `start` (`implement`, `open-pr` or `verify`), `spec` (the spec comment's id), `commands` (the spec's `check: cmd` commands), `pr` (`number`, `head`, `round`, `branch`, or `null`) and `branch`.
-- `left`: each Issue the script did not take, with its `reason`.
+- `left`: each Issue the script did not take, with its `reason`. An Issue at `implement` whose spec has `UI: yes` and no `Placement:` line is here: its placement is not chosen yet.
 
 Without numbers, show the `run` list in its order and ask which to take: all, some by number, or none. With numbers, take `run` as it is. Show `left` either way.
 

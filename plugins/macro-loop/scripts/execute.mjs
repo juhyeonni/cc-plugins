@@ -18,10 +18,18 @@ import { statusLines } from './status.mjs'
 // The stages a machine can carry on without a person.
 export const START = ['implement', 'open-pr', 'verify']
 const UNTRUSTED = 'the PR author is not trusted: verify it with /macro-loop:verify'
+const NO_PLACEMENT = 'the spec has UI: yes and no Placement: line: choose one with /macro-loop:ui-placement'
 
 const lower = (login) => String(login ?? '').toLowerCase()
 
-// rows: {number, stage, why, prAuthor}. given: Issue numbers in the order the user named them.
+// A spec body's UI lines (#115): 'none' (not a UI Issue), 'missing' (UI: yes, no Placement:) or 'placed'.
+export function uiState(body) {
+  const text = String(body ?? '')
+  if (!/^UI: yes\s*$/m.test(text)) return 'none'
+  return /^Placement:\s*\S/m.test(text) ? 'placed' : 'missing'
+}
+
+// rows: {number, stage, why, prAuthor, ui?}. given: Issue numbers in the order the user named them.
 export function candidates(rows, { trusted, given = null }) {
   const by = new Map(rows.map((r) => [r.number, r]))
   const picked = given ? given.map((n) => by.get(n) ?? { number: n, stage: null }) : rows.filter((r) => START.includes(r.stage))
@@ -31,6 +39,7 @@ export function candidates(rows, { trusted, given = null }) {
     if (r.stage === null) left.push({ number: r.number, stage: null, reason: 'not an open Issue that status checked' })
     else if (!START.includes(r.stage)) left.push({ number: r.number, stage: r.stage, reason: `stage ${r.stage} needs a person: ${r.why}` })
     else if (r.prAuthor && !trusted.includes(lower(r.prAuthor))) left.push({ number: r.number, stage: r.stage, reason: UNTRUSTED })
+    else if (r.stage === 'implement' && r.ui === 'missing') left.push({ number: r.number, stage: r.stage, reason: NO_PLACEMENT })
     else run.push({ ...r, start: r.stage })
   }
   return { run, left }
@@ -84,17 +93,27 @@ function decide(argv) {
   const ctx = runContext()
   const issues = list('repos/{owner}/{repo}/issues?state=open&per_page=100').filter((i) => !i.pull_request)
   const wanted = given ? issues.filter((i) => given.includes(i.number)) : issues
+  // The trusted spec of an Issue, read once: its id and body.
+  const specs = new Map()
+  const specOfIssue = (n) => {
+    if (!specs.has(n)) {
+      const id = specOf(list(`repos/{owner}/{repo}/issues/${n}/comments`), ctx.trusted)
+      specs.set(n, { id, body: id ? api([`repos/{owner}/{repo}/issues/comments/${id}`]).body : '' })
+    }
+    return specs.get(n)
+  }
   const rows = statusLines({ issues: wanted, prs: [], stageFor: (i) => stageOfIssue(i.number, i, ctx), limit: Infinity })
     .filter((r) => r.kind === 'issue')
     .map((r) => {
       const pr = findPr(r.number, ctx.prs, ctx.defaultBranch)
-      return { number: r.number, stage: r.stage, why: r.why, prAuthor: pr?.state === 'open' ? pr.user?.login : null }
+      const ui = r.stage === 'implement' ? uiState(specOfIssue(r.number).body) : 'none'
+      return { number: r.number, stage: r.stage, why: r.why, prAuthor: pr?.state === 'open' ? pr.user?.login : null, ui }
     })
   const { run, left } = candidates(rows, { trusted: ctx.trusted, given })
   for (const r of run) {
-    const comments = list(`repos/{owner}/{repo}/issues/${r.number}/comments`)
-    r.spec = specOf(comments, ctx.trusted)
-    r.commands = r.spec ? specCommands(api([`repos/{owner}/{repo}/issues/comments/${r.spec}`]).body) : []
+    const spec = specOfIssue(r.number)
+    r.spec = spec.id
+    r.commands = spec.id ? specCommands(spec.body) : []
     const pr = findPr(r.number, ctx.prs, ctx.defaultBranch)
     if (pr?.state === 'open') {
       const s = prState(pr, list(`repos/{owner}/{repo}/issues/${pr.number}/comments`), ctx.trusted)
