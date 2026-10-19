@@ -11,8 +11,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
-import { aggregate, evaluate, formatReport } from './checks.mjs'
-import { findProjectDir, loadCalls } from './transcript.mjs'
+import { aggregate, evaluate, formatReport, lastReports, namedItems } from './checks.mjs'
+import { findProjectDir, loadCalls, loadReports } from './transcript.mjs'
 import { CANARIES, SANDBOX, findScenario, scenarios } from './scenarios.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -106,6 +106,7 @@ export function dryRun(scenario, models = MODELS) {
     ...(scenario.answers ?? []).map((a) => `  answer ${a.when}: ${a.say}`),
     ...(scenario.otherwise ? [`  otherwise: ${scenario.otherwise}`] : []),
     '',
+    ...(scenario.planted ? ['Planted items:', ...scenario.planted.map((i) => `  ${i.name}: ${i.pattern} in the ${i.axis} report`), ''] : []),
     `Checks: ${scenario.checks.join(', ')}`,
     ...(scenario.workBranch ? [`Branch the user names: ${scenario.workBranch}`] : []),
     `Expected verdict: ${scenario.expect.verdict ?? 'none'}${scenario.expect.measured ? ' (measured)' : ''}`,
@@ -285,7 +286,8 @@ async function runOnce(scenario, model, n, outDir) {
     tips: scenario.workBranch && { before: before.tip, after: after.tip, ancestor: isAncestor(repo, before.tip, after.tip) },
   }
   const { safety, verdict } = evaluate(scenario, obs)
-  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts, turns, comment, safety, verdict, expected: scenario.expect }
+  const named = scenario.planted && namedItems(scenario.planted, lastReports(loadReports(transcripts, sessionId)))
+  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts, turns, comment, safety, verdict, named, expected: scenario.expect }
   writeFileSync(join(outDir, `${scenario.id}-${model}-${n}.json`), JSON.stringify(result, null, 2))
   rmSync(work, { recursive: true, force: true })
   return result

@@ -69,3 +69,27 @@ function resultText(content) {
   if (Array.isArray(content)) return content.map((c) => c.text ?? '').join('\n')
   return ''
 }
+
+// The verifiers' own reports: the last text of each verifier subagent, with its axis and
+// start. The Agent call's result is not the report when the verifier ran in the background.
+export function loadReports(dir, sessionId) {
+  const subDir = join(dir, sessionId, 'subagents')
+  if (!existsSync(subDir)) return []
+  return readdirSync(subDir)
+    .filter((f) => f.endsWith('.jsonl'))
+    .flatMap((f) => {
+      const meta = JSON.parse(readFileSync(join(subDir, f.replace(/\.jsonl$/, '.meta.json')), 'utf8'))
+      return meta.agentType === 'macro-loop:verifier' ? [parseReport(readLines(join(subDir, f)))] : []
+    })
+    .filter(Boolean)
+}
+
+export function parseReport(lines) {
+  const events = lines.map((line) => JSON.parse(line))
+  const first = events.find((e) => e.type === 'user')
+  const prompt = typeof first?.message?.content === 'string' ? first.message.content : (first?.message?.content ?? []).map((c) => c.text ?? '').join('\n')
+  const axis = /^Axis: (standards|spec)/.exec(prompt.trim())?.[1]
+  const texts = events.filter((e) => e.type === 'assistant').flatMap((e) => (e.message?.content ?? []).filter((p) => p.type === 'text').map((p) => p.text))
+  if (!axis || texts.length === 0) return null
+  return { axis, start: first.timestamp, text: texts.at(-1) }
+}

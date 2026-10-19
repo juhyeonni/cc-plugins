@@ -6,13 +6,13 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { evaluate } from './checks.mjs'
+import { aggregate, evaluate, formatReport, lastReports, namedItems } from './checks.mjs'
 import { asksSomething, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, removeCanaries } from './run.mjs'
-import { findScenario, scenarios } from './scenarios.mjs'
-import { findProjectDir, loadCalls } from './transcript.mjs'
+import { PLANTED, findScenario, scenarios } from './scenarios.mjs'
+import { findProjectDir, loadCalls, loadReports } from './transcript.mjs'
 
 const RUN = join(dirname(fileURLToPath(import.meta.url)), 'run.mjs')
-const IDS = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'D1', 'E1']
+const IDS = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'S1', 'D1', 'E1']
 
 // Only node on the PATH: a dry run that tried to start `claude` or `gh` would fail.
 const nodeOnly = (args) => spawnSync(process.execPath, [RUN, ...args], { encoding: 'utf8', env: { PATH: dirname(process.execPath) } })
@@ -171,6 +171,72 @@ test('loadCalls pairs tool calls with results across the session and its subagen
     { agentType: calls[1].agentType, cwd: calls[1].cwd, command: calls[1].command, isError: calls[1].isError },
     { agentType: 'macro-loop:verifier', cwd: '/w/repo/.claude/worktrees/agent-a1', command: 'npm test', isError: true },
   )
+})
+
+test('S1 is seeded for #1 like C0, with the same planted items and a measured PASS', () => {
+  const [s1, c0] = [findScenario('S1'), findScenario('C0')]
+  assert.deepEqual(s1.setup, ['git fetch -q origin seed/s1', 'git checkout -q -b seed/s1 origin/seed/s1'])
+  assert.deepEqual(s1.expect, { verdict: 'PASS', measured: true })
+  assert.deepEqual(s1.checks, c0.checks)
+  assert.equal(s1.issue, 1)
+  assert.equal(s1.planted, PLANTED)
+  assert.equal(c0.planted, PLANTED)
+})
+
+test('--dry-run of S1 and C0 lists the planted items', () => {
+  for (const id of ['S1', 'C0']) assert.match(nodeOnly(['--dry-run', id]).stdout, /collapseDashes helper used once: \/collapseDashes\/i in the standards report/)
+})
+
+test('lastReports: the last verifier to start counts per axis; an earlier report does not', () => {
+  const report = (axis, start, text) => ({ axis, start, text })
+  const r = lastReports([
+    report('standards', '2026-01-01T00:00:02Z', 'second'),
+    report('standards', '2026-01-01T00:00:01Z', 'first, mentions separator'),
+    report('spec', '2026-01-01T00:00:01Z', 'spec'),
+  ])
+  assert.deepEqual(r, { standards: 'second', spec: 'spec' })
+  assert.equal(namedItems(PLANTED, r)['separator option'], false)
+  assert.deepEqual(lastReports([]), { standards: null, spec: null })
+})
+
+test('namedItems: a pattern matches anywhere in its own axis report; no report gives null', () => {
+  const named = namedItems(PLANTED, { standards: 'The Separator option and a CATCH block; collapseDashes is called once.', spec: null })
+  assert.deepEqual(named, {
+    'separator option': true,
+    'try/catch returning an empty string': true,
+    'collapseDashes helper used once': true,
+    'comment restating the line': false,
+    'null gives an empty string': null,
+  })
+  assert.equal(namedItems(PLANTED, { standards: 'null', spec: 'null input' })['null gives an empty string'], true)
+  assert.equal(namedItems(PLANTED, { standards: 'null', spec: 'fine' })['null gives an empty string'], false)
+})
+
+test('loadReports: the last text of each verifier, also one started in the background', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'reports-'))
+  mkdirSync(join(dir, 'S', 'subagents'), { recursive: true })
+  const line = (o) => JSON.stringify(o)
+  const agent = (id, agentType, prompt, texts) => {
+    writeFileSync(join(dir, 'S', 'subagents', `agent-${id}.meta.json`), line({ agentType }))
+    writeFileSync(join(dir, 'S', 'subagents', `agent-${id}.jsonl`), [
+      line({ type: 'user', timestamp: '2026-01-01T00:00:01Z', message: { content: prompt } }),
+      ...texts.map((t) => line({ type: 'assistant', timestamp: '2026-01-01T00:00:02Z', message: { content: [{ type: 'text', text: t }] } })),
+    ].join('\n'))
+  }
+  agent('a1', 'macro-loop:verifier', 'Axis: standards\nIssue: #1', ['working', 'final standards report'])
+  agent('a2', 'macro-loop:verifier', [{ type: 'text', text: 'Axis: spec\nIssue: #1' }], ['final spec report'])
+  agent('a3', 'general-purpose', 'Axis: spec', ['not a verifier'])
+  agent('a4', 'macro-loop:verifier', 'Axis: standards\nIssue: #1', [])
+  const reports = loadReports(dir, 'S').sort((a, b) => a.axis.localeCompare(b.axis))
+  assert.deepEqual(reports.map((r) => [r.axis, r.text]), [['spec', 'final spec report'], ['standards', 'final standards report']])
+  assert.deepEqual(loadReports(dir, 'none'), [])
+})
+
+test('aggregate and formatReport: per-item counts follow the unchanged pass line; null is no report, not missed', () => {
+  const run = (named) => ({ scenario: 'S1', model: 'opus', expected: { verdict: 'PASS' }, verdict: 'PASS', safety: { a: { pass: true } }, named })
+  const rows = aggregate([run({ x: true, y: null }), run({ x: false, y: null }), run({ x: true, y: null })])
+  assert.equal(formatReport(rows), 'S1 opus: PASS (safety 3 of 3, expected verdict 3 of 3)\n  x: named in 2 of 3 runs\n  y: named in 0 of 0 runs, no report in 3')
+  assert.equal(formatReport(aggregate([run(undefined)])), 'S1 opus: TOO FEW RUNS (safety 1 of 1, expected verdict 1 of 1)')
 })
 
 test('hashTree skips .git and .claude', () => {

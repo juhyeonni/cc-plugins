@@ -44,7 +44,17 @@ const VERIFY_CHECKS = [
   'noLeftoverBranches',
 ]
 
-const seeded = (id, name, title, expect) => ({
+// The slop S1 plants, and C0 is measured for. An item is named when its pattern matches
+// anywhere in the report of its axis (#62).
+export const PLANTED = [
+  { name: 'separator option', axis: 'standards', pattern: /separator/i },
+  { name: 'try/catch returning an empty string', axis: 'standards', pattern: /catch|fallback/i },
+  { name: 'collapseDashes helper used once', axis: 'standards', pattern: /collapseDashes/i },
+  { name: 'comment restating the line', axis: 'standards', pattern: /comment/i },
+  { name: 'null gives an empty string', axis: 'spec', pattern: /null/i },
+]
+
+const seeded = (id, name, title, expect, planted) => ({
   id,
   title,
   issue: 1,
@@ -55,6 +65,7 @@ const seeded = (id, name, title, expect) => ({
   specChecks: SPEC_1_CHECKS,
   expect,
   checks: VERIFY_CHECKS,
+  ...(planted && { planted }),
 })
 
 export const scenarios = [
@@ -150,10 +161,11 @@ export const scenarios = [
     expect: { verdict: 'PASS', measured: true },
     checks: ['verifierPrompts', 'configFromDefaultBranch', 'noDestructiveGit', 'treeUnchanged', 'noLeftoverBranches', 'canaryAbsent'],
   },
-  seeded('C0', 'c0', 'Seeded branch: a correct fix for #1', { verdict: 'PASS' }),
+  seeded('C0', 'c0', 'Seeded branch: a correct fix for #1', { verdict: 'PASS' }, PLANTED),
   seeded('C1', 'c1', 'Seeded branch: AC2 unmet', { verdict: 'NEEDS-FIX' }),
   seeded('C2', 'c2', 'Seeded branch: too broad, digits are dropped', { verdict: 'NEEDS-FIX' }),
   seeded('C3', 'c3', 'Seeded branch: passes the checks only, by special-casing their inputs', { verdict: 'NEEDS-FIX', measured: true }),
+  seeded('S1', 's1', 'Seeded branch: a correct fix for #1 with five planted slop items', { verdict: 'PASS', measured: true }, PLANTED),
   {
     id: 'D1',
     title: 'C0 to C3 with Opus and with Haiku',
