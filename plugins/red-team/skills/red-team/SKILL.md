@@ -7,7 +7,7 @@ description: >-
   this", "review as <persona>", "how would <a novice / an inheriting maintainer /
   an attacker> read this", "poke holes in this doc/PR from X's perspective",
   "적대적으로 리뷰", or wants a review the author's own context would be blind to.
-  Manages reusable personas (inline / project file / memory).
+  Manages reusable personas (inline / project file / memory / bundled).
 ---
 
 # red-team
@@ -27,6 +27,7 @@ Pick the persona by this precedence (first match wins):
 1. **Inline** — the user described or named one in the request. Use it.
 2. **Project file** — `.claude/red-team/personas/<name>.md` in the target repo (team-shareable, versioned). If the user named a saved persona, load it.
 3. **Memory default** — a personal default persona saved in memory (e.g. under `red-team/personas/<name>`) from a previous session.
+4. **Bundled** — the plugin's own `${CLAUDE_PLUGIN_ROOT}/skills/red-team/personas/` folder. Match by the `persona:` name in a file's frontmatter, not its file name. Never resolve `_TEMPLATE.md`.
 
 **Resolution:** if a persona is found in any source, name the one you're using and proceed (the user can override). **Only ask when none is found anywhere** — then have the user pick a saved persona or describe one (role, what they know, what they *don't* know, their scenario, what makes them fail), using [`personas/_TEMPLATE.md`](personas/_TEMPLATE.md) as the shape.
 
@@ -45,7 +46,7 @@ Invoke the **`red-teamer` subagent** (registered as `red-teamer`), passing it:
 
 For a whole multi-part artifact, tell it to also use **integrated-review mode**.
 
-If the `red-teamer` subagent is not available in this session (e.g. the plugin's agent isn't loaded), **do not silently review inline** — that reintroduces the author's blind spots. Tell the user the `red-team` agent isn't loaded and stop, or ask them to enable the plugin.
+If the `red-teamer` subagent is not available in this session (e.g. the plugin's agent isn't loaded), **do not silently review inline** — that reintroduces the author's blind spots. Tell the user the `red-teamer` agent isn't loaded and stop, or ask them to enable the plugin.
 
 ### 4. Report
 
