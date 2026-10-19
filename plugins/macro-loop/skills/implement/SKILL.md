@@ -19,8 +19,9 @@ Read the spec: the comment whose id is `issue.spec` in the trust command's outpu
 
 - No priority label on the Issue: `skipped:triage`.
 - No spec: `skipped:spec`. Say that `verify` will then judge against the Issue body.
+- The spec has the line `UI: yes` and no `Placement:` line: `skipped:ui-placement`. Say that the placement was not chosen against the real screen, and that `/macro-loop:ui-placement` chooses it.
 
-Warn about both in one message and ask once.
+Warn about all of them in one message and ask once.
 
 Note the spec comment's `updated_at` (`gh api repos/{owner}/{repo}/issues/comments/<id> --jq .updated_at`) together with its body.
 
