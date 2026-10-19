@@ -125,10 +125,10 @@ Failures already present on the base branch, behavior outside the spec (scope cr
 <Standards verifier report>
 ```
 
-The opening paragraph is for the person who merges. It comes right under the heading, before both reports, and is at most three sentences:
+The opening paragraph is for the person who merges. It comes right under the heading, before both reports:
 
-- **PASS:** that the PR can merge, and what the person does, from step 8. Then what to decide first: a documented repo standard the Standards report says the diff breaks, and scope creep that the spec's out-of-scope list names. With neither, say "Nothing to decide first". Smells, other scope creep and pre-existing failures stay in the reports.
-- **NEEDS-FIX:** each unmet or wrong criterion on its own line, by its ID and a few words, then the next step from step 8 (`/macro-loop:implement <branch>`).
+- **PASS:** at most three sentences: that the PR can merge, and what the person does, from step 8. Then what to decide first: a documented repo standard the Standards report says the diff breaks, and scope creep that the spec's out-of-scope list names. With neither, say "Nothing to decide first". Smells, other scope creep and pre-existing failures stay in the reports.
+- **NEEDS-FIX:** each unmet or wrong criterion on its own line, by its ID and a few words, then the next step from step 8 for this round.
 
 Under the paragraph, list the manual checks from the Spec report's **Manual checks**, each with its condition, or "No manual checks". This is the one place they appear: leave that list out of the Spec report below. A person reads the verdict before marking the PR ready, and a PASS must not hide what they still have to look at.
 
@@ -136,7 +136,7 @@ For a PR that closes several Issues, keep the comment's marker, heading and open
 
 `sha` is the `Head` from step 5: the commit the verifiers judged. Later stages compare it with the PR's head to tell whether a verdict is current.
 
-Keep both reports as the verifiers wrote them, lightly cleaned. The opening paragraph and the manual checks summarize only what the reports say: every sentence points to an item in them. Add nothing of your own, such as a new finding, a check this session ran earlier or advice the reports do not hold: a gap you see goes in your message to the user, outside the verdict. Don't merge or rerank findings across the axes: a change can follow every standard and still miss the spec, or match the spec and break the conventions, and one axis must not hide the other.
+Keep both reports as the verifiers wrote them, lightly cleaned, except that the Manual checks list moves to the top. The opening paragraph and the manual checks summarize only what the reports say: every sentence points to an item in them. Add nothing of your own, such as a new finding, a check this session ran earlier or advice the reports do not hold: a gap you see goes in your message to the user, outside the verdict. Don't merge or rerank findings across the axes: a change can follow every standard and still miss the spec, or match the spec and break the conventions, and one axis must not hide the other.
 
 **INCONCLUSIVE:** print what could not run and the error. Post no comment with the marker: an inconclusive run is not a round. Say what would let the checks run, then verify again.
 
