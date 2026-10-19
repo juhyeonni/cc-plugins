@@ -32,7 +32,7 @@ See each plugin's own README for details, setup, and usage.
 | [clear-draft](plugins/clear-draft/) | Ask for the missing inputs first, then write the draft. | — | 0.2.2 | `/plugin install clear-draft@juhyeonni` |
 | [macro-loop](plugins/macro-loop/) | A regular routine for AI-assisted development on GitHub Issues: triage, grill, spec, implement, open a PR, and verify in a fresh context. | GitHub / gh CLI | 0.7.1 | `/plugin install macro-loop@juhyeonni` |
 | [macro-loop-band](plugins/macro-loop-band/) | A band above the Claude Code prompt with one row per Issue the session's macro-loop skills touched: how far along it is, whose turn it is, what to do next, and links to its spec, PR and verdict. | Claude Code 2.1.287+ / macro-loop | 0.1.1 | `/plugin install macro-loop-band@juhyeonni` |
-| [red-team](plugins/red-team/) | Adversarially review a document or code diff as a specific persona — a target reader or user with real knowledge gaps. | — | 0.1.0 | `/plugin install red-team@juhyeonni` |
+| [red-team](plugins/red-team/) | Adversarially review a document or code diff as a specific persona — a target reader or user with real knowledge gaps. | — | 0.1.1 | `/plugin install red-team@juhyeonni` |
 <!-- PLUGINS:END -->
 
 ## Notes
