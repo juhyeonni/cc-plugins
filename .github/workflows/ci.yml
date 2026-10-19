@@ -13,4 +13,7 @@ jobs:
         with:
           node-version: 22
       - run: node --test "tests/**/*.test.mjs"
-      - run: node scripts/check-version-bump.mjs "origin/${{ github.base_ref }}" "${{ github.head_ref }}"
+      - run: node scripts/check-version-bump.mjs "origin/$BASE_REF" "$HEAD_REF"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
