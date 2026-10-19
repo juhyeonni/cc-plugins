@@ -13,6 +13,7 @@ Before the first GitHub call, read the conventions shared by this plugin's skill
 
 - `${CLAUDE_PLUGIN_ROOT}/reference/github.md`: GitHub access, markers, trust
 - `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`: labels, missing inputs, the no-Issue rule
+- `${CLAUDE_PLUGIN_ROOT}/reference/writing.md`: how text a person reads is written
 
 Trust and the existing spec come from one command, run in the repo's checkout: `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --issue <n>`. **Configuration** in `workflow.md` says what it prints.
 
@@ -64,6 +65,8 @@ Write the comment with this template and the rules in [WRITING-RULES.md](WRITING
 **Out of scope**
 - <what this change does not do>
 ```
+
+When you settled decisions without a grilling session, say so once, in a line under **Decisions** that names them (for example "D2 and D4 are the agent's, made without grilling"). Do not tag each decision.
 
 A short spec has Goal, acceptance criteria and out of scope; Decisions are optional. It carries the line `Route: short` right after the Goal line. `verify` judges it like any other spec.
 
