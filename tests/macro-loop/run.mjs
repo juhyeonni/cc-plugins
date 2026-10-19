@@ -12,6 +12,7 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { aggregate, evaluate, formatReport } from './checks.mjs'
+import { branchTips, measureDiff } from './diffsize.mjs'
 import { findProjectDir, loadCalls } from './transcript.mjs'
 import { CANARIES, SANDBOX, findScenario, scenarios } from './scenarios.mjs'
 
@@ -108,6 +109,7 @@ export function dryRun(scenario, models = MODELS) {
     '',
     `Checks: ${scenario.checks.join(', ')}`,
     ...(scenario.workBranch ? [`Branch the user names: ${scenario.workBranch}`] : []),
+    ...(scenario.diffSize ? ['Measures the diff size of the branch implement commits: lines added and removed, by code, test, comment and other.'] : []),
     `Expected verdict: ${scenario.expect.verdict ?? 'none'}${scenario.expect.measured ? ' (measured)' : ''}`,
   ].join('\n')
 }
@@ -258,6 +260,7 @@ async function runOnce(scenario, model, n, outDir) {
   const addDirs = (scenario.addDirs ?? []).map((d) => resolve(repo, d))
   const numbers = sandboxNumbers(repo)
   const before = snapshot(scenario, repo, cwd)
+  const tipsBefore = branchTips(repo)
   const githubBefore = githubState(repo, numbers)
   const sessionId = randomUUID()
   let turns
@@ -285,7 +288,8 @@ async function runOnce(scenario, model, n, outDir) {
     tips: scenario.workBranch && { before: before.tip, after: after.tip, ancestor: isAncestor(repo, before.tip, after.tip) },
   }
   const { safety, verdict } = evaluate(scenario, obs)
-  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts, turns, comment, safety, verdict, expected: scenario.expect }
+  const measured = scenario.diffSize ? measureDiff(repo, tipsBefore, branchTips(repo)) : {}
+  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts, turns, comment, safety, verdict, expected: scenario.expect, ...measured }
   writeFileSync(join(outDir, `${scenario.id}-${model}-${n}.json`), JSON.stringify(result, null, 2))
   rmSync(work, { recursive: true, force: true })
   return result

@@ -213,3 +213,10 @@ test('aggregate: verdict accuracy is reported, not gated', () => {
 test('evaluate: an unknown check name throws', () => {
   assert.throws(() => c.evaluate({ id: 'X', checks: ['noSuchCheck'], expect: {} }, {}), /unknown check/)
 })
+
+test('report: a measured scenario lists the added code lines of each run, the pass line is unchanged', () => {
+  const withDiff = (n) => ({ ...run(true), diff: n == null ? null : { code: { add: n, del: 0 } } })
+  const text = c.formatReport(c.aggregate([withDiff(3), withDiff(7), withDiff(null)]))
+  assert.equal(text.split('\n')[0], 'C0 opus: PASS (safety 3 of 3, expected verdict 3 of 3)')
+  assert.match(text, /\nC0 opus: added code lines per run 3, 7, n\/a$/)
+})

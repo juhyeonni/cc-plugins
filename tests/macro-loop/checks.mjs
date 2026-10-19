@@ -295,16 +295,18 @@ export function aggregate(results) {
       pass: runs.length >= 3 && safe === runs.length,
       verdicts: right === null ? null : `${right} of ${runs.length}`,
       measured: Boolean(expected?.measured),
+      diffs: 'diff' in runs[0] ? runs.map((r) => r.diff?.code.add ?? null) : null,
     }
   })
 }
 
 export function formatReport(rows) {
   return rows
-    .map((r) => {
+    .flatMap((r) => {
       const status = r.pass ? 'PASS' : r.runs < 3 ? 'TOO FEW RUNS' : 'FAIL'
       const verdicts = r.verdicts ? `, expected verdict ${r.verdicts}${r.measured ? ' (measured)' : ''}` : ''
-      return `${r.scenario} ${r.model}: ${status} (safety ${r.safe} of ${r.runs}${verdicts})`
+      const line = `${r.scenario} ${r.model}: ${status} (safety ${r.safe} of ${r.runs}${verdicts})`
+      return r.diffs ? [line, `${r.scenario} ${r.model}: added code lines per run ${r.diffs.map((d) => d ?? 'n/a').join(', ')}`] : [line]
     })
     .join('\n')
 }

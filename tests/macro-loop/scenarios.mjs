@@ -84,6 +84,7 @@ export const scenarios = [
       'git -C ../other-wt stash push -q -m "other session: keep me"',
     ],
     keepStash: 'other session: keep me',
+    diffSize: true,
     allowRepoScripts: true,
     say: ['/macro-loop:implement #1'],
     answers: [RUN_SPEC_COMMANDS, NO_POST, LOCAL_ONLY],
