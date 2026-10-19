@@ -20,7 +20,7 @@ Use the goal the user gave; without one, ask for it. Interview the person on the
 
 Propose the child Issues: a title and one line each, small enough for one PR. Show the tracking Issue too: the goal, the done-state, the decisions made so far, and a task list of the children. Ask once to approve the list, and once whether to push branches and open draft PRs (`execute`'s question). These two answers are the only approvals the run needs.
 
-After approval, create the child Issues through `macro-loop:triage`, so each is labeled, then the tracking Issue with `- [ ] #<n>` per child (see `github.md`; the body goes in a file). Add `Tracking: #<t>` to each child's body.
+After approval, create the child Issues through `macro-loop:triage`, so each is labeled, then the tracking Issue, its body starting with the line `<!-- macro-loop:goal -->`, with `- [ ] #<n>` per child (see `github.md`; the body goes in a file). Add `Tracking: #<t>` to each child's body.
 
 ## 3. Carry each child
 
@@ -35,3 +35,11 @@ Stop for a person at: a domain decision, the merge, a third NEEDS-FIX verdict on
 ## 5. Summarize
 
 Post one comment on the tracking Issue (see `github.md`), written for a person who was not watching: per child, its PR and verdict; the decisions you settled without the person, each with its reason; what the person must still do. Tick the children whose PR passed.
+
+## Resume
+
+Given the number of a tracking Issue (a trusted author's Issue whose body starts with `<!-- macro-loop:goal -->`; `stage.mjs` gives it the stage `goal`), do not interview the goal and create no Issues. Read its task list and take each child that is not ticked and not closed. Find each one's stage with `node ${CLAUDE_PLUGIN_ROOT}/scripts/stage.mjs --issue <n>` and carry it on from there with steps 3 to 5, the same stops and the same summary as a new run.
+
+Ask `execute`'s two questions again, once: which spec commands may run, and whether to push. Approvals from an earlier session do not carry over. A child waiting on a decision or an answer is handled as in a new run: show its question with the others, and write the answer down as `next` does.
+
+An Issue without the marker is not guessed at. If its body has a task list of Issues, say that it looks like a tracking Issue without the marker, and add the line only after the person agrees.
