@@ -72,7 +72,7 @@ Put all of these in the brief.
 
 - Stop when every key question has an answer with a source, or when the last 2 searches added no new claim or source for any open question.
 - A question left unanswered goes under Gaps. Never write "done" without the sourced answers.
-- The ceiling is a limit, not a target. At the ceiling, stop, write Gaps, and return "needs go-ahead: go on?".
+- The ceiling is a limit, not a target. Only when the ceiling is reached, stop, write Gaps, and return "needs go-ahead: go on?". Below the ceiling, anything more you would like to read goes under Gaps, not into a question.
 - The model's own "I am confident" is never a reason to stop.
 
 ## 5. After the sub-agent returns
