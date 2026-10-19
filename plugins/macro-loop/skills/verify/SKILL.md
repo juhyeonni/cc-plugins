@@ -127,7 +127,7 @@ Failures already present on the base branch, behavior outside the spec (scope cr
 
 The opening paragraph is for the person who merges. It comes right under the heading, before both reports:
 
-- **PASS:** at most three sentences: that the PR can merge, and what the person does, from step 8. Then what to decide first: a documented repo standard the Standards report says the diff breaks, and scope creep that the spec's out-of-scope list names. With neither, say "Nothing to decide first". Smells, other scope creep and pre-existing failures stay in the reports.
+- **PASS:** at most three sentences: that the PR can merge, and what the person does, from step 8. When there are manual checks, what they do starts with the manual checks below. Then what to decide first: a documented repo standard the Standards report says the diff breaks, and scope creep that the spec's out-of-scope list names. With neither, say "Nothing to decide first". Smells, other scope creep and pre-existing failures stay in the reports.
 - **NEEDS-FIX:** each unmet or wrong criterion on its own line, by its ID and a few words, then the next step from step 8 for this round.
 
 Under the paragraph, list the manual checks from the Spec report's **Manual checks**, each with its condition, or "No manual checks". This is the one place they appear: leave that list out of the Spec report below. A person reads the verdict before marking the PR ready, and a PASS must not hide what they still have to look at.
