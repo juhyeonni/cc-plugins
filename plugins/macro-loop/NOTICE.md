@@ -6,7 +6,7 @@ Parts of this plugin are derived from [mattpocock/skills](https://github.com/mat
 
 | File in this plugin | Upstream file | Change |
 |---|---|---|
-| `skills/grilling/SKILL.md` | `skills/productivity/grilling/SKILL.md` | Modified: adds a read-only working tree rule |
+| `skills/grilling/SKILL.md` | `skills/productivity/grilling/SKILL.md` | Modified: adds a read-only working tree rule, a first-round UI question that calls `macro-loop:ui-placement`, and research calls to `macro-loop:research` |
 | `skills/triage/SKILL.md` | `skills/engineering/triage/SKILL.md` | Modified |
 | `skills/spec/SKILL.md` | `skills/engineering/to-spec/SKILL.md` | Modified |
 | `skills/spec/WRITING-RULES.md` | `skills/engineering/triage/AGENT-BRIEF.md` | Modified |
