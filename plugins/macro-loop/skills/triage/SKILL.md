@@ -9,6 +9,8 @@ Give each open Issue a priority, a state and a source, so the queue says what to
 
 Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. The labels and their meanings are in `workflow.md`. The repo's own label names come from `config.labels` in the output of `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs`, run in the repo's checkout (see **Configuration** in `workflow.md`).
 
+Write triage notes and every other comment by `${CLAUDE_PLUGIN_ROOT}/reference/writing.md`.
+
 Triage treats the working tree as read-only: it changes Issues, labels and comments on GitHub, never files in the checkout, and it never runs the repo's code there. To run something, such as reproducing a bug, follow **Working tree before implement** in `workflow.md`.
 
 Every comment posted during triage starts with this line:
