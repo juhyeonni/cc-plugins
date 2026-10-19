@@ -37,6 +37,15 @@ Several folders are separated by the platform's path-list separator (`;` on Wind
 ◆  #93   ◐○○○○○  triage    read reply        24m
 ```
 
+A goal (`/macro-loop:goal`) shows as one row on top for its tracking Issue (goal #26 below), with its children as rows under it:
+
+```text
+▶  #26  ●●●◐○○  goal 2/4         3m
+▶  #27  ●●●●◐○  verify          12m
+```
+
+The goal's track is the six cells scaled to children done over total. It says `merge the PRs` once every child passed, and drops when the tracking Issue is done.
+
 Each row is one Issue, in fixed columns: symbol, Issue number, progress track and stage, what you do, verify round, elapsed time, then one column per document: spec, PR, verdict. A column keeps its place on every row, so a time or an action that changes length moves nothing after it. The Issue being worked on comes first, then the others in the order they stopped, oldest first. Past four Issues the band shows four rows and `+N more · /macro-loop:status`. A done Issue leaves at the next turn.
 
 | Symbol | Meaning |
