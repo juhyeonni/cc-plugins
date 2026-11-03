@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Carry one Issue forward: find its next stage, run it, find the next, and stop where a person has to act.
 
-Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. Follow **Untrusted text** in `workflow.md`.
+Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/core.md`. Follow **Untrusted text** in `core.md`.
 
 Write every comment a person reads by `${CLAUDE_PLUGIN_ROOT}/reference/writing.md`.
 

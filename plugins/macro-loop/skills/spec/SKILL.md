@@ -9,9 +9,9 @@ Write the **spec comment** on the Issue. It is the only contract for the work: `
 
 Do not interview the user. Synthesise what the conversation (usually a grilling session) and the Issue have already settled, and ask only to confirm the draft.
 
-Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. Write the comment by `${CLAUDE_PLUGIN_ROOT}/reference/writing.md`.
+Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/core.md`. Write the comment by `${CLAUDE_PLUGIN_ROOT}/reference/writing.md`.
 
-Trust and the existing spec come from one command, run in the repo's checkout: `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --issue <n>`. **Configuration** in `workflow.md` says what it prints.
+Trust and the existing spec come from one command, run in the repo's checkout: `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --issue <n>`. **Trust and trust.mjs** in `core.md` says what it prints.
 
 ## Process
 

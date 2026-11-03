@@ -7,7 +7,7 @@ Choose where a visible change goes before `implement` builds it, and hand the ch
 
 This skill is not a stage. The Issue still goes from triage to merge in the same order; this is how `grilling` settles the one decision a screen needs.
 
-Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`.
+Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/core.md`.
 
 The working tree is read-only, and that includes running the app or a browser in the checkout: see **Working tree before implement** in `workflow.md`.
 

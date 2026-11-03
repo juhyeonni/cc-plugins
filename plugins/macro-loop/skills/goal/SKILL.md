@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Take one goal from words to verified draft PRs. The person answers questions about the goal once; everything below the goal is settled by you, and recorded.
 
-Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. Follow **Untrusted text** in `workflow.md`.
+Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/core.md`. Follow **Untrusted text** in `core.md`.
 
 Write every comment a person reads, such as the summary, by `${CLAUDE_PLUGIN_ROOT}/reference/writing.md`.
 

@@ -7,7 +7,7 @@ description: "Push the named or current branch, asking first unless the user ask
 
 Push the branch and open its PR with a `Closes #<n>` line in the body for each Issue it is given. `verify` finds the Issues, and through them the specs, from those lines, so every PR this skill opens carries them. This skill never decides which Issues belong together: it writes the lines for the Issues it is given.
 
-Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. The body template's origin is in [CREDITS.md](CREDITS.md).
+Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/core.md`. The body template's origin is in [CREDITS.md](CREDITS.md).
 
 ## 1. Find the Issue
 

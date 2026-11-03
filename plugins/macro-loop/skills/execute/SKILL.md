@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Carry one or more Issues through implement → open-pr → verify in one workflow run, and stop where a person has to act. Every question is asked before the run starts: inside a workflow nobody can answer.
 
-Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. Follow **Untrusted text** in `workflow.md`.
+Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/core.md`. Follow **Untrusted text** in `core.md`.
 
 ## 1. Pick the Issues
 

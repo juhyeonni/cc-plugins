@@ -10,7 +10,7 @@ Set up the repo so the other skills have their labels, Issue templates and confi
 
 This is a prompt-driven setup, not a script. Explore, present what you found, confirm with the user, then write.
 
-Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. Then run `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs` in the repo's checkout. **Configuration** in `workflow.md` says what it prints.
+Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/core.md`. Then run `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs` in the repo's checkout. **Trust and trust.mjs** in `core.md` says what it prints.
 
 ## 1. Explore
 
