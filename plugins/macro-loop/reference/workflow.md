@@ -88,4 +88,4 @@ To see code run, dispatch a subagent with the Agent tool's `isolation` set to `"
 
 Never create a worktree by hand and `cd` into it to run code: if creating it fails, the commands after it run in the checkout.
 
-The git commands no skill uses are in **Stay at the repo root** in `core.md`.
+The git commands never to run are in **Stay at the repo root** in `core.md`.
