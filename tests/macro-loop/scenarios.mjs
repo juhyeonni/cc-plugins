@@ -17,7 +17,8 @@ const SPEC_1_CHECKS = [
 const VERIFY_1 = '/macro-loop:verify the current branch against #1'
 
 const RUN_SPEC_COMMANDS = {
-  when: /run (them|these|the (spec'?s? )?(`?check: cmd`? )?commands)|may the (spec )?verifier run|go-ahead/i,
+  // The model words it many ways: "may they run", "Can the verifiers run the spec's three check commands?" (#187).
+  when: /run (them|these|the (spec'?s? )?(\w+ )?(`?check(: cmd)?`? )?commands)|\b(may|can) (the |they |these )?(spec )?verifiers? run|\bmay they run|go-ahead/i,
   say: "Yes, the verifier may run the spec's commands.",
 }
 const LOCAL_ONLY = { when: /\bpush\b|pull request|\bPR\b/i, say: 'Keep it local: no push and no PR.' }
