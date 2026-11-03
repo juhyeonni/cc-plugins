@@ -12,7 +12,7 @@ Two axes, reported side by side:
 - **Spec:** does the diff do what the Issue's spec asks? This axis decides the verdict.
 - **Standards:** does the code follow this repo's documented standards? Reported, never a reason to fail.
 
-Each axis runs in its own `macro-loop:verifier` subagent. The subagent gets identifiers only and fetches the spec and the diff itself, so nothing from the context that wrote the change, including this one, reaches it.
+Each axis runs in its own `macro-loop:verifier` subagent, started with identifiers only (step 5).
 
 Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. Trust, the Issue, the spec and the round come from one command, run in the repo's checkout: `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --pr <n>` when there is a PR, which finds the Issue from the PR's body itself, else `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --issue <n>`. **Configuration** in `workflow.md` says what it prints.
 
@@ -48,7 +48,7 @@ The verifiers run code on this machine only with the user's go-ahead, and only i
 
 What to ask depends on the PR's author:
 
-- **`pr.authorTrusted` is false:** ask one question for the spec's commands and the tests and lint together. Say that the PR's author is not trusted, and that both run code from this PR: the change under test, and any script a command calls, such as `npm test`. The one answer sets both `Run spec commands` and `Run tests and lint`. An answer that allows only some of them is a no for all of them: say why, and that the verifiers will judge from the diff. This plugin's hook, `scripts/verifier-flags.mjs`, holds to this: a spec verifier started with the two lines set differently for such a PR gets both set to `no`. On no, the verifier judges every criterion from the diff and skips the tests and lint.
+- **`pr.authorTrusted` is false:** ask one question for the spec's commands and the tests and lint together. Say that the PR's author is not trusted, and that both run code from this PR: the change under test, and any script a command calls, such as `npm test`. The one answer sets both `Run spec commands` and `Run tests and lint`. An answer that allows only some of them is a no for all of them: say why, and that the verifiers will judge from the diff. The hook `scripts/verifier-flags.mjs` holds to this. On no, the verifier judges every criterion from the diff and skips the tests and lint.
 - **A trusted author, or no PR:** ask once whether the verifier may run the spec's commands. On no, it judges those criteria from the diff. The tests and lint run either way.
 
 If the user already approved these same commands earlier in this session, for example when `implement` asked, and the spec comment's `updated_at` is still the one that approval was given for, say so and use that answer instead of asking again. If `updated_at` changed, the approval is void: show the current list and ask again.
@@ -92,7 +92,7 @@ Claude Code removes a verifier's worktree when it ends without changes, so a ver
 
 ## 6. Decide the verdict
 
-A script decides the verdict and writes the comment, so the session that wrote the change never writes the part a person reads first. Each verifier's report ends with a `macro-loop-report` block (see `agents/verifier.md`), and the script reads only those blocks for the decision.
+A script decides the verdict and writes the comment from the data block each verifier's report ends with, so the session that wrote the change never writes what a person reads first.
 
 Write each report, exactly as the verifier returned it, to its own file in a directory made with `mktemp -d`. With several Issues, write the spec and standards reports of every Issue. Then run, in the repo's checkout:
 
@@ -100,27 +100,13 @@ Write each report, exactly as the verifier returned it, to its own file in a dir
 node ${CLAUDE_PLUGIN_ROOT}/scripts/verdict.mjs --round <N> --head <Head from step 5> --branch <branch> <report file>...
 ```
 
-It applies these rules, for each Issue on its own; the PR is NEEDS-FIX if any Issue is, else PASS:
-
-- **INCONCLUSIVE** if a report is missing, its block is missing or invalid, or a spec report's `couldNotRun` list is not empty: a check the verifier was allowed to run did not run at all, or ran without a result anyone can read. This holds even when the diff seems to settle the criterion. The script prints nothing on stdout, names why on stderr and exits non-zero.
-- **NEEDS-FIX** if an acceptance criterion is unmet or wrong, or the diff introduces a test or lint failure.
-- **PASS** otherwise.
-
-Failures already present on the base branch, behavior outside the spec (scope creep), and Standards findings are reported, not failed. `manual` criteria are listed for a person, not guessed. A criterion judged from the diff because running was declined is not INCONCLUSIVE; the report says how it was judged.
-
-Never decide the verdict yourself, and never rerun the script with a report you changed.
+It decides each Issue on its own: INCONCLUSIVE when a report or its block is missing or invalid, or `couldNotRun` is not empty, even when the diff seems to settle the criterion; NEEDS-FIX when a criterion is unmet or wrong or the diff introduces a failure; else PASS. The PR is NEEDS-FIX if any Issue is. A criterion judged from the diff because running was declined is not INCONCLUSIVE. Never decide the verdict yourself, and never rerun the script with a report you changed.
 
 ## 7. Report the verdict
 
 **PASS or NEEDS-FIX** (the script exited 0): post the script's output as the comment's body, unchanged. Redirect its stdout to a file in the same directory and post that file with `-F body=@<file>` (see `github.md`). Add nothing, cut nothing, and never write the comment by hand: a gap you see goes in your message to the user, outside the verdict. Without a PR, print the output, and offer to post it on the Issue as a plain comment without its first line, the marker, so the result is not left in the chat only. The verdict counts as posted only when the POST printed the comment's id. If it did not, the verdict was not posted: say so, with the error, and print the verdict here. Remove the directory afterwards.
 
-What the script prints, so a reader knows where to look:
-
-- The marker `<!-- macro-loop:verify round=N sha=<head> -->`, with the `Head` from step 5: later stages compare it with the PR's head to tell whether a verdict is current.
-- The heading `## Verify: PASS | NEEDS-FIX (round N of 3)`, which `scripts/trust.mjs` reads the result from, and the counts line `**Criteria:** <r> ran, <d> read, <m> manual`.
-- The opening paragraph, for the person who merges. **PASS:** that the PR can merge and what the person does, from step 8, starting with the manual checks when there are any. **NEEDS-FIX:** each unmet or wrong criterion on its own line, by its ID and words, and each introduced failure, then the next step from step 8 for this round. Either way it ends with what to decide first: each documented repo standard the Standards report says the diff breaks, or "Nothing to decide first".
-- The manual checks, each with its condition, or "No manual checks". This is the one place they appear.
-- `**Judged against:**`, then `### Spec` and `### Standards` with each report's prose as the verifier wrote it. For a PR that closes several Issues, each Issue gets these under a `## #<n>: <result>` heading.
+The comment starts with the marker `<!-- macro-loop:verify round=N sha=<head> -->` and the heading `## Verify: PASS | NEEDS-FIX (round N of 3)`, which `scripts/trust.mjs` reads; the rest is the script's (see `scripts/verdict.mjs`).
 
 **INCONCLUSIVE** (the script exited non-zero): print what it named and the error. Post no comment with the marker: an inconclusive run is not a round. Say what would let the checks run, then verify again.
 

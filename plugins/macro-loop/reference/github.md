@@ -76,7 +76,7 @@ A marker also counts only on a comment written by a trusted author. Every other 
 
 ### Who is trusted
 
-The trusted authors are:
+The trusted authors, whose spec and verdict comments count and whose `check: cmd` commands `verify` may run after asking, are:
 
 - **You:** the person running the skill.
 - **The `trusted` list** in `.github/macro-loop.json` on the default branch, if the file sets it (see **Configuration** in `workflow.md`).
@@ -90,7 +90,7 @@ Trust is decided by login, never by the author association GitHub attaches to a 
 
 ### Lookup
 
-`scripts/trust.mjs` finds the newest trusted comment that starts with a marker. `--issue <n>` gives the spec's id. `--pr <n>` gives the newest trusted verdict's id, and the round, which is the trusted verdicts plus one. Read a comment by its id (see **Comments**).
+`scripts/trust.mjs` finds the spec and the newest verdict (see **Configuration** in `workflow.md`). Read a comment by its id (see **Comments**).
 
 ## Pull requests
 
@@ -103,4 +103,4 @@ Trust is decided by login, never by the author association GitHub attaches to a 
 | Edit a PR body | `gh api -X PATCH repos/{owner}/{repo}/pulls/<n> -F body=@<file>` |
 | Fetch a PR's head into a local branch, without switching to it | `git fetch origin pull/<n>/head:pr-<n>` |
 
-`open-pr` writes one `Closes #<n>` line per Issue into every PR body it creates, and `verify` reads the Issues from there. The Issues a PR closes are `pr.closesAll` (`pr.closes` is the first) in the output of `scripts/trust.mjs --pr <n>` (see **Configuration** in `workflow.md`); never match the body by hand. One PR can close several Issues; each of them has that PR as its PR.
+`open-pr` writes one `Closes #<n>` line per Issue into every PR body it creates. The Issues a PR closes are `pr.closesAll` in the output of `scripts/trust.mjs --pr <n>`; never match the body by hand.

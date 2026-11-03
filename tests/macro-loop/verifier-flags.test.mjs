@@ -124,6 +124,22 @@ test('a verifier prompt with a line that is not an identifier line is refused, n
   }
 })
 
+test("the hook takes its identifier lines from one module, and every line of verify's template is in it", async () => {
+  const { isIdentifierLine } = await import(join(ROOT, 'plugins/macro-loop/scripts/identifier-lines.mjs'))
+  assert.match(readFileSync(HOOK, 'utf8'), /from '\.\/identifier-lines\.mjs'/)
+  const skill = readFileSync(join(ROOT, 'plugins/macro-loop/skills/verify/SKILL.md'), 'utf8')
+  const step = skill.slice(skill.indexOf('## 5.'), skill.indexOf('## 6.'))
+  const blocks = [...step.matchAll(/```text\n([\s\S]*?)```/g)].map((m) => m[1])
+  assert.equal(blocks.length, 2)
+  const fill = { '<n>': '1', '<id>': '5976278327', '<m>': '2', '<k>': '3', '<base>': 'main', '<sha of the branch>': HEAD }
+  const filled = blocks.join('').split('\n').filter(Boolean).flatMap((l) => {
+    const [name, values] = l.split(/: (.*)/)
+    return values.split(' | ').map((v) => `${name}: ${v.replace(/<[^>]+>/g, (p) => fill[p] ?? p)}`)
+  })
+  assert.equal(filled.length, 18)
+  for (const l of filled) assert.ok(isIdentifierLine(l), l)
+})
+
 test('identifier lines only, with Also closes and blank lines, and any other agent with a note: unchanged', () => {
   for (const input of [
     verifier(`${lines('spec', 'no', 'no').replace('Base:', 'Also closes: #2, #5\nBase:')}\n`),

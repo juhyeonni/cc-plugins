@@ -16,6 +16,7 @@
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { isIdentifierLine } from './identifier-lines.mjs'
 
 const TRUST = fileURLToPath(new URL('./trust.mjs', import.meta.url))
 
@@ -41,12 +42,10 @@ const input = JSON.parse(readFileSync(0, 'utf8'))
 const call = input.tool_input ?? {}
 const prompt = String(call.prompt ?? '')
 const line = (name) => new RegExp(`^${name}: (yes|no)$`, 'm').exec(prompt)?.[1]
-// verify's template lines (skills/verify step 5), and blank lines.
-const IDENTIFIER = /^(Axis: (spec|standards)|Issue: #\d+|Spec comment: (\d+|none)|Also closes: (none|#\d+(, #\d+)*)|Base: \S+|Head: [0-9a-f]{7,40}|Run spec commands: (yes|no)|Run tests and lint: (yes|no)|\s*)$/
 const runSpec = line('Run spec commands')
 const runTests = line('Run tests and lint')
 
-const others = call.subagent_type === 'macro-loop:verifier' ? prompt.split(/\r?\n/).filter((l) => !IDENTIFIER.test(l.trimEnd())) : []
+const others = call.subagent_type === 'macro-loop:verifier' ? prompt.split(/\r?\n/).filter((l) => l.trim() && !isIdentifierLine(l.trimEnd())) : []
 
 if (others.length) {
   answer({

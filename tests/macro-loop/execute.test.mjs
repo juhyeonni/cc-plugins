@@ -220,3 +220,17 @@ test('the workflow: its name, its three phases in order, and a description that 
 test('AC14: the workflow script holds no carriage return as checked out', () => {
   assert.ok(!readFileSync(WORKFLOW, 'utf8').includes('\r'), 'execute-run.js has CRLF line endings; see .gitattributes')
 })
+
+test('every line of the workflow verifier prompts is an identifier line from the hook module', async () => {
+  const { isIdentifierLine } = await import(pathToFileURL(join(ROOT, 'plugins/macro-loop/scripts/identifier-lines.mjs')).href)
+  const sha = (n) => String(n).padStart(40, 'a')
+  const answer = (p, o) => {
+    if (o.phase === 'implement') return { status: 'committed', branch: 'b', head: 'h', reason: '' }
+    if (o.phase === 'open-pr') return { status: 'opened', pr: 1, head: sha(1), reason: '' }
+    return 'report'
+  }
+  const { calls } = await runWorkflow([issue(1), issue(2, { start: 'verify', spec: null, runSpecCommands: false, pr: { number: 3, head: sha(2) } })], answer)
+  const prompts = calls.filter((c) => c.opts.agentType === 'macro-loop:verifier').map((c) => c.prompt)
+  assert.equal(prompts.length, 4)
+  for (const l of prompts.flatMap((p) => p.split('\n'))) assert.ok(isIdentifierLine(l), l)
+})

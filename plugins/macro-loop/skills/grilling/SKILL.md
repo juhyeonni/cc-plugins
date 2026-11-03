@@ -1,6 +1,6 @@
 ---
 name: grilling
-description: Grill the user relentlessly about a plan, decision, or idea. Use when the user wants to stress-test their thinking, or uses any 'grill' trigger phrases.
+description: "Interview the person in rounds of numbered questions, each with a recommended answer, until every decision in a plan is settled; researchable questions go to macro-loop:research. Its decisions feed macro-loop's spec. Use when the user wants a plan, decision or Issue stress-tested, or uses any 'grill' trigger phrases."
 ---
 
 Interview the user relentlessly until you reach a shared understanding. Map this as a **design tree**: every decision branches into the decisions that hang off it.
@@ -49,6 +49,6 @@ The session is done when the frontier is empty: every branch of the design tree 
 
 When research ran in the session, ask once at the end whether to leave the findings on the Issue. Show one combined draft in the shape `macro-loop:research` gives, and post it only on a yes. Ask nothing when no research ran.
 
-While grilling, the working tree is read-only: find facts by reading files, `git log` and `git show`. Never run the repo's own scripts, generators, builds or tests in the checkout, not even with `--help` or `--dry-run`: a script can ignore its flags and write anyway. Read the code to learn what it does. To see it run, dispatch the sub-agent with the Agent tool's `isolation` set to `"worktree"`: it runs in a disposable worktree, never in the checkout. That worktree can start on another commit, so the sub-agent first runs `git rev-parse HEAD origin/<default>`, and only if the two hashes differ, `git checkout --detach origin/<default>`, each in a Bash call of its own. Never make a worktree by hand and `cd` into it. Never use `git checkout -- .`, `git restore .`, `git reset --hard` or `git clean`: they throw away uncommitted work.
+While grilling, the working tree is read-only, and code that must run goes to a sub-agent in a worktree: follow **Working tree before implement** in `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`.
 
-Read a GitHub Issue with REST: `gh api repos/{owner}/{repo}/issues/<n>` and `gh api --paginate repos/{owner}/{repo}/issues/<n>/comments`. `gh issue` and `gh pr` call GraphQL, which Claude Code cloud sessions block.
+Read GitHub as **GitHub access** in `${CLAUDE_PLUGIN_ROOT}/reference/github.md` says.
