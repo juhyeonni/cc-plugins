@@ -6,11 +6,13 @@
 // verdict.mjs then finds no report and posts nothing. Any other agent's stop passes through
 // with no output.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-export const reportsDir = () => process.env.MACRO_LOOP_REPORTS ?? join(tmpdir(), 'macro-loop-reports')
+// Under the user's home, not the system temp folder: on Linux that is /tmp, shared by every
+// user, and verdict.mjs trusts what it finds here.
+export const reportsDir = () => process.env.MACRO_LOOP_REPORTS ?? join(homedir(), '.claude', 'macro-loop-reports')
 
 // The id becomes a file name, so only letters and digits are taken.
 export function reportPath(id) {
@@ -22,7 +24,7 @@ function save(input) {
   if (input.agent_type !== 'macro-loop:verifier') return
   const path = reportPath(input.agent_id)
   if (!input.last_assistant_message) throw new Error(`verifier ${input.agent_id} stopped without last_assistant_message`)
-  mkdirSync(reportsDir(), { recursive: true })
+  mkdirSync(reportsDir(), { recursive: true, mode: 0o700 })
   writeFileSync(path, input.last_assistant_message)
 }
 
