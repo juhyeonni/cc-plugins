@@ -7,7 +7,7 @@ Research a question and report what was found, where each fact came from, and wh
 
 The caller loads this skill, then starts one sub-agent per call with a brief built from it (step 3). The sub-agent does the searching. It never asks the person and never posts anything. What needs a person comes back as "needs go-ahead", and the caller asks.
 
-Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. Write the comment by `${CLAUDE_PLUGIN_ROOT}/reference/writing.md`.
+Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/core.md`. Write the comment by `${CLAUDE_PLUGIN_ROOT}/reference/writing.md`.
 
 The working tree is read-only: see **Working tree before implement** in `workflow.md`.
 

@@ -51,4 +51,4 @@ When research ran in the session, ask once at the end whether to leave the findi
 
 While grilling, the working tree is read-only, and code that must run goes to a sub-agent in a worktree: follow **Working tree before implement** in `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`.
 
-Read GitHub as **GitHub access** in `${CLAUDE_PLUGIN_ROOT}/reference/github.md` says.
+Read GitHub as **GitHub** in `${CLAUDE_PLUGIN_ROOT}/reference/core.md` says.
