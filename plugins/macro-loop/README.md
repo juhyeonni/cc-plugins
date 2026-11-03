@@ -49,9 +49,9 @@ A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:gri
 | `scripts/execute.mjs` | Picks the Issues `execute` runs and the stage each starts at, and renders its report. |
 | `workflows/execute-run.js` | The saved workflow `execute` runs: implement, open-pr and verify for each Issue, at its own pace. It posts no verdict. |
 | `hooks/hooks.json` | Holds the verifiers to their rules with `scripts/verifier-flags.mjs` (Agent calls), `scripts/verifier-worktree.mjs` (Bash calls) and `scripts/verifier-cleanup.mjs` (a verifier's stop); each script's header says what it does. Every other call passes through unchanged. |
-| `reference/core.md` | The rules every skill reads first: REST only, bodies through a file, when a post counts, trust and what `trust.mjs` prints, untrusted text. |
 | `reference/github.md` | GitHub REST calls, markers, and which comments are trusted. |
 | `reference/workflow.md` | Labels, config, the warn-and-record rule, and what to do without an Issue. |
+| `reference/core.md` | The rules every skill reads first: REST only, bodies through a file, when a post counts, trust and what `trust.mjs` prints, untrusted text. |
 | `NOTICE.md` | Upstream license and the list of derived files. |
 | `skills/open-pr/CREDITS.md` | Where the PR body template comes from. |
 
