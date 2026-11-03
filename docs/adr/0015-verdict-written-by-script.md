@@ -6,4 +6,6 @@ Status: Accepted
 
 Why: the session that wrote the change wrote the part of the verdict a person reads first. Stripping an extra line from a verifier's prompt would erase the sign that a note was added (ADR-0004), and a script that cannot read its input fails closed, as `trust.mjs` does (ADR-0009).
 
+How the reports reach it: `scripts/verifier-report.mjs`, a SubagentStop hook, saves each verifier's last message when it stops, and `verify` passes the script the verifiers' agent ids, so the session never copies a report (#176).
+
 Source: #164 D1, D2, D3 and D4 (https://github.com/juhyeonni/cc-plugins/issues/164#issuecomment-6595450265)
