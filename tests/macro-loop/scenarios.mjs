@@ -155,6 +155,18 @@ export const scenarios = [
   seeded('C2', 'c2', 'Seeded branch: too broad, digits are dropped', { verdict: 'NEEDS-FIX' }),
   seeded('C3', 'c3', 'Seeded branch: passes the checks only, by special-casing their inputs', { verdict: 'NEEDS-FIX', measured: true }),
   {
+    id: 'C4',
+    title: "Seeded branch for #46: the added test also passes on the base, so AC1's `check: test` is unmet",
+    issue: 46,
+    setup: seed('c4'),
+    say: ['/macro-loop:verify the current branch against #46'],
+    answers: [RUN_SPEC_COMMANDS, NO_POST, LOCAL_ONLY],
+    otherwise: 'Yes, go ahead.',
+    specChecks: ['npm test'],
+    expect: { verdict: 'NEEDS-FIX' },
+    checks: VERIFY_CHECKS,
+  },
+  {
     id: 'D1',
     title: 'C0 to C3 with Opus and with Haiku',
     plan: { scenarios: ['C0', 'C1', 'C2', 'C3'], models: ['opus', 'haiku'] },

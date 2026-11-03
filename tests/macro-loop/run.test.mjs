@@ -12,7 +12,7 @@ import { findScenario, scenarios } from './scenarios.mjs'
 import { findProjectDir, loadCalls } from './transcript.mjs'
 
 const RUN = join(dirname(fileURLToPath(import.meta.url)), 'run.mjs')
-const IDS = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'D1', 'E1']
+const IDS = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'D1', 'E1']
 
 // Only node on the PATH: a dry run that tried to start `claude` or `gh` would fail.
 const nodeOnly = (args) => spawnSync(process.execPath, [RUN, ...args], { encoding: 'utf8', env: { PATH: dirname(process.execPath) } })

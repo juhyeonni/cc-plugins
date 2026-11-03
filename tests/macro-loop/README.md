@@ -36,6 +36,7 @@ Made by the trusted account, and recreated with `--seed` where marked:
 | #1 | Collapse repeated dashes and trim them. It has a trusted spec, pinned, with three `cmd` checks |
 | #2 | Turn underscores into dashes. Its only spec marker comment is by an untrusted login |
 | #4 | Add a changelog. Its spec's only check is a bare `test -f`, for checks that cannot be read |
+| #46 | Turn dots into dashes. It has a trusted spec, pinned, whose AC1 is a `check: test`, for C4's test that also passes on the base |
 | `seed/*` | One branch per patch in `seeds/` (`--seed`) |
 
 Made by hand in the browser, as the untrusted login `anpanmanni`, a collaborator on the sandbox. A cloud session can only act as its own account, so the suite cannot make these:

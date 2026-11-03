@@ -164,6 +164,18 @@ test('--pr: the last verdict\'s result and the head SHA it judged; null when wri
   assert.deepEqual([old.lastVerdictResult, old.lastVerdictSha, old.round], ['PASS', null, 2])
 })
 
+test('--pr: the last verdict\'s result is read from a verdict that carries the counts line', () => {
+  const pr = { user: { login: 'carol' }, head: { sha: 'abc1234' }, base: { ref: 'main' } }
+  const counted = (result) => comment(1, 'carol', `<!-- macro-loop:verify round=1 sha=0123abc -->\n## Verify: ${result} (round 1 of 3)\n**Criteria:** 2 ran, 1 read, 1 manual\n\nOpening.`)
+  for (const result of ['PASS', 'NEEDS-FIX']) {
+    const out = run(base({
+      'api repos/{owner}/{repo}/pulls/3': { stdout: pr },
+      'api --paginate --slurp repos/{owner}/{repo}/issues/3/comments': { stdout: [[counted(result)]] },
+    }), ['--pr', '3']).out.pr
+    assert.equal(out.lastVerdictResult, result)
+  }
+})
+
 test('--pr: no trusted verdict gives round 1 and no last verdict', () => {
   const r = run(base({
     'api repos/{owner}/{repo}/pulls/3': { stdout: { user: { login: 'carol' }, head: { sha: 'abc123' }, base: { ref: 'main' } } },
