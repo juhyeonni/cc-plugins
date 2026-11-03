@@ -9,7 +9,7 @@ The caller loads this skill, then starts one sub-agent per call with a brief bui
 
 Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. Write the comment by `${CLAUDE_PLUGIN_ROOT}/reference/writing.md`.
 
-The working tree is read-only, as in `grilling`: find facts by reading files, `git log` and `git show origin/<default>:<path>`. Never run the repo's own code in the checkout. Code that must run goes to a sub-agent with worktree isolation; see **Working tree before implement** in `workflow.md`.
+The working tree is read-only: see **Working tree before implement** in `workflow.md`.
 
 ## 1. Write the key questions first
 

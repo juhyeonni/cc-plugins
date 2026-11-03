@@ -43,9 +43,9 @@ A criterion about the deployed environment of the software being built (a deploy
 
 A `cmd` check must be safe and able to fail:
 
-- It names its exact command in backticks. "check: cmd in a temporary worktree" with no command gives `verify` nothing to run or ask about.
+- It names its exact command in backticks. "check: cmd in a temporary worktree" with no command gives `verify` nothing to run or ask about. A criterion you cannot express as a command is `test` or `manual`.
 - It changes nothing where it runs. If it has to write, such as running a generator, it says that it runs in a temporary worktree.
-- It fails, by exit code, when the criterion is unmet. `git check-ignore a b c` passes if any one path is ignored, so check each path on its own. `node script.mjs; echo $?` always exits 0, so drop the `echo`. For something that must not happen, negate the command: `! git check-ignore -q .env.example` fails once `.env.example` is ignored.
+- It fails, by exit code, when the criterion is unmet: one assertion per command. `git check-ignore a b c` passes if any one path is ignored, so check each path on its own. `node script.mjs; echo $?` always exits 0, so drop the `echo`. For something that must not happen, negate the command: `! git check-ignore -q .env.example` fails once `.env.example` is ignored.
 - Its failure shows in the tool result. A bare `test`, `[` or `grep -q` prints nothing whether it passes or fails, and the Bash tool hides its exit code 1, so neither `spec` nor `verify` can read it. Use a command that prints or fails visibly: `ls <path>`, `git ls-files --error-unmatch <path>`, `grep -c` (it prints the count), `cmp`, or a `node -e` assertion. A `diff`, or a `grep` without `-q`, is readable through its output.
 - It is a plain command: no `$(…)`, `bash -c` or shell variables. Permission checks cannot read those, and `verify` runs each check exactly as written.
 - It does not run `git` inside `node -e`, not even through `require('child_process')`. An isolated verifier's permission check cannot confirm that such a command stays inside its worktree and refuses it, so the check lands under **Could not run** and the run is INCONCLUSIVE. Run `git` as its own plain command, as in `git ls-files --error-unmatch <path>`.

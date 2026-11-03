@@ -9,7 +9,7 @@ This skill is not a stage. The Issue still goes from triage to merge in the same
 
 Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`.
 
-The working tree is read-only, as in `grilling`: find facts by reading files, `git log` and `git show origin/<default>:<path>`. Never run the app, a browser or the repo's own code in the checkout. To see code run, follow **Working tree before implement** in `workflow.md`.
+The working tree is read-only, and that includes running the app or a browser in the checkout: see **Working tree before implement** in `workflow.md`.
 
 ## 1. Read the real screen first
 

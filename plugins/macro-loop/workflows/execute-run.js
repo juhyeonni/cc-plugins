@@ -71,7 +71,7 @@ Return status "opened" with the PR number and its head sha, or "stopped" with th
 async function verify(s) {
   if (!runs(s, 'verify')) return s
   const i = s.i
-  // verify's identifier lines (skills/verify step 5), and nothing else.
+  // verify's identifier lines, and nothing else: scripts/identifier-lines.mjs holds them, and a test checks these against it.
   const lines = (axis) => [
     `Axis: ${axis}`,
     `Issue: #${i.number}`,

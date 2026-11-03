@@ -16,7 +16,7 @@ Skills never read this file or decide trust themselves. Before a skill reads or 
 
 If the script fails, it prints nothing and exits non-zero with the error. Stop and tell the user what failed. Never read the file or the comments yourself instead.
 
-`trusted` in the file lists the GitHub logins whose spec and verdict comments count, and whose `check: cmd` commands `verify` may run after asking. An empty list means the default described in **Who is trusted** in `github.md`.
+`trusted` in the file is described in **Who is trusted** in `github.md`.
 
 `uiKit` is the claude.ai URL of an artifact that renders the repo's UI markup, for `ui-placement` (which `grilling` calls) to build comparison pages on. `null` means the repo has none.
 
@@ -90,7 +90,7 @@ An Issue created this way was never triaged, and a skill after `spec` finds no s
 
 ## Working tree before implement
 
-`triage`, `grilling` and `spec` treat the working tree as read-only: they never change files in the checkout, switch branches or move `HEAD`. They read files, `git log` and `git show origin/<default>:<path>`.
+`triage`, `grilling`, `research`, `ui-placement` and `spec` treat the working tree as read-only: they never change files in the checkout, switch branches or move `HEAD`. They read files, `git log` and `git show origin/<default>:<path>`.
 
 They also never run the repo's own code in the checkout: no scripts, generators, builds or tests, not even with `--help`, `--version` or `--dry-run`. A script can ignore its flags and write anyway. To learn what code does, read it.
 

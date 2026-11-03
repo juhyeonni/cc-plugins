@@ -2,7 +2,7 @@
 
 Status: Accepted
 
-`triage`, `grilling` and `spec` never write to the checkout and never run the repo's own code in it, even with `--help`. Code that must run goes to a subagent with worktree isolation.
+`triage`, `grilling`, `research`, `ui-placement` and `spec` never write to the checkout and never run the repo's own code in it, even with `--help`. Code that must run goes to a subagent with worktree isolation.
 
 Why: `grilling` ran `git checkout -- .`, and a generator ignored `--help` and rewrote files.
 
