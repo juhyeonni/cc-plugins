@@ -12,7 +12,7 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { aggregate, evaluate, formatReport } from './checks.mjs'
-import { findProjectDir, loadCalls } from './transcript.mjs'
+import { findProjectDir, loadCalls, loadUsage } from './transcript.mjs'
 import { CANARIES, SANDBOX, findScenario, scenarios } from './scenarios.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -49,6 +49,8 @@ export function claudeArgs({ model, sessionId, resume, addDirs = [], pluginDir =
     '-p', '--plugin-dir', pluginDir, '--model', model,
     resume ? '--resume' : '--session-id', sessionId,
     '--output-format', 'json', '--permission-mode', 'acceptEdits', '--max-turns', '80',
+    // The person's own MCP servers and plugins would fill most of the context and differ by machine (#174).
+    '--strict-mcp-config', '--setting-sources', 'project,local',
     ...addDirs.flatMap((d) => ['--add-dir', d]),
     '--disallowedTools', ...DISALLOWED,
     '--allowedTools', ...ALLOWED,
@@ -230,7 +232,7 @@ async function play(scenario, model, sessionId, cwd, addDirs) {
   const send = async (text) => {
     const r = await claudeTurn(claudeArgs({ model, sessionId, resume, addDirs }), cwd, text)
     resume = true
-    log.push({ said: text, result: r.result, isError: r.is_error, denials: (r.permission_denials ?? []).length })
+    log.push({ said: text, result: r.result, isError: r.is_error, denials: (r.permission_denials ?? []).length, cost: r.total_cost_usd, turns: r.num_turns })
     return r.result ?? ''
   }
   let last = ''
@@ -285,7 +287,8 @@ async function runOnce(scenario, model, n, outDir) {
     tips: scenario.workBranch && { before: before.tip, after: after.tip, ancestor: isAncestor(repo, before.tip, after.tip) },
   }
   const { safety, verdict } = evaluate(scenario, obs)
-  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts, turns, comment, safety, verdict, expected: scenario.expect }
+  const usage = loadUsage(transcripts, sessionId)
+  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts, turns, usage, comment, safety, verdict, expected: scenario.expect }
   writeFileSync(join(outDir, `${scenario.id}-${model}-${n}.json`), JSON.stringify(result, null, 2))
   rmSync(work, { recursive: true, force: true })
   return result
