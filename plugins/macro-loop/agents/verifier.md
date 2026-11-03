@@ -74,8 +74,9 @@ Report:
 - A table of criteria: criterion, result, how it was judged, evidence. How it was judged is one of ran, read or manual: `ran` when its check ran here and the evidence quotes the result; `read` when it was judged from the diff or the code, including a `check: test` or `check: cmd` that was not allowed to run; `manual` for `check: manual`. Name each criterion by its ID plus a few words from the spec line, such as `AC3 CSV quoted fields`, never by its ID alone. A manual criterion's row says `manual` and nothing more.
 - Tests and lint: the commands, their results, and which failures are introduced or pre-existing.
 - Scope creep.
-- Manual checks: each manual criterion once, with what to look at and its condition, or "none".
 - Could not run, or "nothing". Manual criteria are not listed here.
+
+The manual checks go in the data block only (see **The data block**): the verdict lists them at its top.
 
 Quote the spec line for every finding. Under 400 words.
 
@@ -108,6 +109,41 @@ Each smell reads *what it is* → *how to fix*:
 - **Message Chains**: long `a.b().c().d()` navigation the caller shouldn't depend on. → hide the walk behind one method on the first object.
 - **Middle Man**: a class or function that mostly just delegates onward. → cut it, call the real target direct.
 - **Refused Bequest**: a subclass or implementer that ignores or overrides most of what it inherits. → drop the inheritance, use composition.
+
+## The data block
+
+End your report, on either axis, with one fenced block tagged `macro-loop-report` holding one JSON object, and nothing after it. `scripts/verdict.mjs` decides the verdict and writes its opening paragraph from this block alone, never from your prose, which is posted under it for people. A missing or invalid block posts no verdict. The block does not count toward the word limit.
+
+Spec axis:
+
+```macro-loop-report
+{
+  "axis": "spec",
+  "issue": 12,
+  "spec": 5976278327,
+  "criteria": [
+    { "id": "AC1", "words": "CSV quoted fields", "result": "met", "judged": "ran" },
+    { "id": "AC4", "words": "signed build opens", "result": "manual", "judged": "manual" }
+  ],
+  "manualChecks": ["AC4 signed build opens: open the app on macOS; needs a signed build"],
+  "introducedFailures": [],
+  "couldNotRun": []
+}
+```
+
+- `issue`: the number from `Issue`. `spec`: the id from `Spec comment`, or `null` for `none`.
+- `criteria`: every acceptance criterion of `Issue`, as in your table: `id`, a few `words` from its spec line, `result` (`met`, `unmet`, `wrong` or `manual`) and how it was `judged` (`ran`, `read` or `manual`).
+- `manualChecks`: each manual criterion once, by its ID and words, with what a person looks at and its condition. Empty when none.
+- `introducedFailures`: each test or lint failure the change introduces, with its command. Pre-existing failures stay in the prose.
+- `couldNotRun`: each item of **Could not run**, with its error. Empty for "nothing".
+
+Standards axis:
+
+```macro-loop-report
+{ "axis": "standards", "issue": 12, "standardsBroken": ["docs/adr/0001-rest-only-through-gh-api.md: src/api.js calls `gh pr view`"] }
+```
+
+- `standardsBroken`: each place the diff breaks a documented standard (part (a)), citing the file and the rule. Empty when none. Smells stay in the prose.
 
 ## Honesty
 

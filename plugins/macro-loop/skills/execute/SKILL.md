@@ -50,7 +50,9 @@ The run returns one `{number, implement?, openPr?, verify?}` per Issue, with one
 
 ## 4. Post the verdicts
 
-For each Issue that reached verify, read the round with `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --pr <pr>`. Then decide the verdict and post it exactly as `verify` steps 6 and 7 say, with the `head` the run judged. A missing report, or a non-empty **Could not run** list, makes the run INCONCLUSIVE and posts nothing. Otherwise post PASS or NEEDS-FIX with the marker, the round and the head. Never add findings of your own.
+For each Issue that reached verify, read the round with `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --pr <pr>`. Write its `spec` and `standards` reports, exactly as the run returned them, to two files in a directory made with `mktemp -d`, and run `node ${CLAUDE_PLUGIN_ROOT}/scripts/verdict.mjs --round <round> --head <head> --branch <branch> <spec file> <standards file>`, with the `head` the run judged. A `null` report counts as missing: post nothing for that Issue, and report it INCONCLUSIVE.
+
+The script decides the verdict, as in `verify` steps 6 and 7. When it exits non-zero, the run is INCONCLUSIVE: post nothing, and report what it named. When it exits 0, post its output unchanged as the comment's body: redirect stdout to a file in the same directory and post it with `-F body=@<file>` (see `github.md`). Never decide the verdict or write the comment yourself, and add nothing to it. Remove the directory afterwards.
 
 ## 5. Report
 
