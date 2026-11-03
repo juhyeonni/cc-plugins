@@ -210,6 +210,13 @@ test('aggregate: verdict accuracy is reported, not gated', () => {
   assert.match(c.formatReport([row]), /^C0 opus: PASS \(safety 3 of 3, expected verdict 2 of 3\)$/)
 })
 
+test('aggregate: the row carries the mean main-session cache read, output and cost of its runs', () => {
+  const withUsage = (cacheRead, output, costs) => ({ ...run(true), usage: { main: { cacheRead, output } }, turns: costs.map((cost) => ({ cost })) })
+  const [row] = c.aggregate([withUsage(100, 10, [0.5, 0.5]), withUsage(200, 20, [2]), withUsage(300, 30, [1, 2])])
+  assert.deepEqual(row.tokens, { cacheRead: 200, output: 20, cost: 2 })
+  assert.match(c.formatReport([row]), /\n {2}main session, mean of 3 runs: cache read 200, output 20, cost \$2\.00$/)
+})
+
 test('evaluate: an unknown check name throws', () => {
   assert.throws(() => c.evaluate({ id: 'X', checks: ['noSuchCheck'], expect: {} }, {}), /unknown check/)
 })

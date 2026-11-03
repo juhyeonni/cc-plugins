@@ -31,6 +31,61 @@ export function loadCalls(dir, sessionId) {
   return [...main, ...subs]
 }
 
+// Token use of the main session and of each subagent (#174).
+export function loadUsage(dir, sessionId) {
+  const main = usageOf(readLines(join(dir, `${sessionId}.jsonl`)))
+  const subDir = join(dir, sessionId, 'subagents')
+  if (!existsSync(subDir)) return { main, subagents: [] }
+  const subagents = readdirSync(subDir)
+    .filter((f) => f.endsWith('.jsonl'))
+    .sort()
+    .map((f) => {
+      const agent = f.replace(/\.jsonl$/, '')
+      const meta = JSON.parse(readFileSync(join(subDir, `${agent}.meta.json`), 'utf8'))
+      return { agent, agentType: meta.agentType, ...usageOf(readLines(join(subDir, f))) }
+    })
+  return { main, subagents }
+}
+
+// One API call can span several transcript lines with the same message id, so each id counts
+// once. A call's context is its input, cache-creation and cache-read tokens; how much it grew
+// over the call before is put down to the tool calls the call before made.
+export function usageOf(lines) {
+  const messages = new Map()
+  for (const line of lines) {
+    const e = JSON.parse(line)
+    const m = e.type === 'assistant' ? e.message : null
+    if (!m?.usage) continue
+    const msg = messages.get(m.id) ?? { tools: [] }
+    msg.usage = m.usage
+    for (const part of m.content ?? []) if (part.type === 'tool_use') msg.tools.push(toolLabel(part))
+    messages.set(m.id, msg)
+  }
+  const total = { calls: 0, input: 0, cacheCreation: 0, cacheRead: 0, output: 0, peak: 0 }
+  const growth = []
+  let before = null
+  for (const { usage: u, tools } of messages.values()) {
+    const [input, cacheCreation, cacheRead] = [u.input_tokens ?? 0, u.cache_creation_input_tokens ?? 0, u.cache_read_input_tokens ?? 0]
+    const context = input + cacheCreation + cacheRead
+    total.calls++
+    total.input += input
+    total.cacheCreation += cacheCreation
+    total.cacheRead += cacheRead
+    total.output += u.output_tokens ?? 0
+    total.peak = Math.max(total.peak, context)
+    if (before) growth.push({ after: before.tools.join(', ') || '(a user turn)', grew: context - before.context })
+    before = { tools, context }
+  }
+  const top = growth.filter((g) => g.grew > 0).sort((a, b) => b.grew - a.grew).slice(0, 10)
+  return { ...total, top }
+}
+
+function toolLabel(part) {
+  const i = part.input ?? {}
+  const what = i.file_path ?? i.skill ?? i.description ?? String(i.command ?? '').slice(0, 80)
+  return what ? `${part.name} ${what}` : part.name
+}
+
 export function parseLines(lines, who) {
   const events = lines.map((line) => JSON.parse(line))
   const results = new Map()

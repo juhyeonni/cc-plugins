@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { evaluate } from './checks.mjs'
 import { asksSomething, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, removeCanaries } from './run.mjs'
 import { findScenario, scenarios } from './scenarios.mjs'
-import { findProjectDir, loadCalls } from './transcript.mjs'
+import { findProjectDir, loadCalls, loadUsage, usageOf } from './transcript.mjs'
 
 const RUN = join(dirname(fileURLToPath(import.meta.url)), 'run.mjs')
 const IDS = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'D1', 'E1']
@@ -133,6 +133,47 @@ test('claudeArgs: a new session, then resume, with push blocked', () => {
   assert.deepEqual(first.slice(first.indexOf('--session-id'), first.indexOf('--session-id') + 2), ['--session-id', 'S'])
   assert.ok(claudeArgs({ model: 'haiku', sessionId: 'S', resume: true }).includes('--resume'))
   assert.ok(first.includes('Bash(git push:*)'))
+})
+
+test("claudeArgs: a session runs without the person's own MCP servers, plugins and user settings", () => {
+  const args = claudeArgs({ model: 'opus', sessionId: 'S', resume: false })
+  assert.ok(args.includes('--strict-mcp-config'))
+  assert.deepEqual(args.slice(args.indexOf('--setting-sources'), args.indexOf('--setting-sources') + 2), ['--setting-sources', 'project,local'])
+})
+
+const assistant = (id, usage, content = []) => JSON.stringify({ type: 'assistant', message: { id, usage, content } })
+const ctx = (cacheRead, output = 10) => ({ input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: cacheRead, output_tokens: output })
+const readCall = (path) => ({ type: 'tool_use', name: 'Read', input: { file_path: path } })
+
+test('usageOf sums tokens per message id once, though a message spans several lines', () => {
+  const u = usageOf([
+    assistant('m1', ctx(100), [{ type: 'text', text: 'hi' }]),
+    assistant('m1', ctx(100, 20), [readCall('/a.md')]),
+    JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'x', content: 'a' }] } }),
+    assistant('m2', { input_tokens: 5, cache_creation_input_tokens: 50, cache_read_input_tokens: 100, output_tokens: 30 }),
+  ])
+  assert.deepEqual({ ...u, top: undefined }, { calls: 2, input: 5, cacheCreation: 50, cacheRead: 200, output: 50, peak: 155, top: undefined })
+})
+
+test("usageOf ranks the tool calls that grew the next call's context, at most ten", () => {
+  const lines = [assistant('m0', ctx(1000), [readCall('/big.md')]), assistant('m1', ctx(5000), [readCall('/small.md')]), assistant('m2', ctx(5100))]
+  for (let i = 3; i < 15; i++) lines.push(assistant(`m${i}`, ctx(5100 + i * 10)))
+  const { top } = usageOf(lines)
+  assert.equal(top.length, 10)
+  assert.deepEqual(top[0], { after: 'Read /big.md', grew: 4000 })
+  assert.deepEqual(top[1], { after: 'Read /small.md', grew: 100 })
+})
+
+test('loadUsage reads the main session and each subagent', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'usage-'))
+  const id = randomUUID()
+  writeFileSync(join(dir, `${id}.jsonl`), `${assistant('m1', ctx(10))}\n`)
+  mkdirSync(join(dir, id, 'subagents'), { recursive: true })
+  writeFileSync(join(dir, id, 'subagents', 'agent-a1.jsonl'), `${assistant('s1', ctx(7))}\n`)
+  writeFileSync(join(dir, id, 'subagents', 'agent-a1.meta.json'), JSON.stringify({ agentType: 'macro-loop:verifier' }))
+  const u = loadUsage(dir, id)
+  assert.equal(u.main.cacheRead, 10)
+  assert.deepEqual(u.subagents.map((s) => [s.agent, s.agentType, s.cacheRead]), [['agent-a1', 'macro-loop:verifier', 7]])
 })
 
 test('findProjectDir finds a session by its id in any project folder, and fails naming the id when none or two hold it', () => {
