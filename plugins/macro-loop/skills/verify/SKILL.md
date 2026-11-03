@@ -12,7 +12,7 @@ Two axes, reported side by side:
 - **Spec:** does the diff do what the Issue's spec asks? This axis decides the verdict.
 - **Standards:** does the code follow this repo's documented standards? Reported, never a reason to fail.
 
-Each axis runs in its own `macro-loop:verifier` subagent, started with identifiers only (step 5).
+Each axis runs in its own `macro-loop:verifier` subagent (step 5).
 
 Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` and `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`. Trust, the Issue, the spec and the round come from one command, run in the repo's checkout: `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --pr <n>` when there is a PR, which finds the Issue from the PR's body itself, else `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --issue <n>`. **Configuration** in `workflow.md` says what it prints.
 
@@ -41,25 +41,16 @@ Never switch or check out a branch in the user's checkout: the verifiers fetch t
 
 ## 4. Decide what may run
 
-The verifiers run code on this machine only with the user's go-ahead, and only in their own disposable worktrees, never in this checkout:
+List the `check: cmd` commands of a trusted spec comment and note its `updated_at` (`gh api repos/{owner}/{repo}/issues/comments/<id> --jq .updated_at`); no command from an Issue body ever runs. Tests and lint run at the PR head.
 
-- **Spec commands.** When the spec comes from a trusted spec comment, list every `check: cmd` command in it. Read the spec comment's `updated_at` (`gh api repos/{owner}/{repo}/issues/comments/<id> --jq .updated_at`) and note it with the list. When the judgment is against an Issue body, no command from it ever runs.
-- **Tests and lint.** The repo's tests and lint run at the PR head.
+- **`pr.authorTrusted` is false:** ask once for both: the author is not trusted, and both run this PR's code, such as `npm test`. The answer sets `Run spec commands` and `Run tests and lint` together; a partial yes is a no (`scripts/verifier-flags.mjs` holds to it), and the verifiers judge from the diff.
+- **Trusted author, or no PR:** ask once whether the spec's commands may run; on no, they are judged from the diff. Tests and lint run either way.
 
-What to ask depends on the PR's author:
-
-- **`pr.authorTrusted` is false:** ask one question for the spec's commands and the tests and lint together. Say that the PR's author is not trusted, and that both run code from this PR: the change under test, and any script a command calls, such as `npm test`. The one answer sets both `Run spec commands` and `Run tests and lint`. An answer that allows only some of them is a no for all of them: say why, and that the verifiers will judge from the diff. The hook `scripts/verifier-flags.mjs` holds to this. On no, the verifier judges every criterion from the diff and skips the tests and lint.
-- **A trusted author, or no PR:** ask once whether the verifier may run the spec's commands. On no, it judges those criteria from the diff. The tests and lint run either way.
-
-If the user already approved these same commands earlier in this session, for example when `implement` asked, and the spec comment's `updated_at` is still the one that approval was given for, say so and use that answer instead of asking again. If `updated_at` changed, the approval is void: show the current list and ask again.
-
-Just before step 5 starts the verifiers, read `updated_at` again. If it differs from the one noted, show the new command list and ask again: the approval must name what will run. If it is unchanged, start the verifiers without asking twice.
+An approval of the same commands earlier in this session, such as `implement`'s, holds while `updated_at` is unchanged: say so. Read `updated_at` again just before step 5; if it changed, show the new list and ask.
 
 ## 5. Identifiers only: start both verifiers
 
-Spawn two `macro-loop:verifier` subagents in one message, each with the Agent tool's `isolation` set to `"worktree"`, so each runs in a disposable worktree of its own, never in this checkout. The verifier's definition declares the same isolation for a call that leaves it out, but only the call's own `isolation` keeps a subagent from starting as a teammate in this checkout where agent teams are on. Each prompt is exactly the lines below, filled in, and nothing else: no notes, no summary of the change, no view on any criterion. The verifier fetches the rest itself.
-
-Spec verifier:
+Spawn both `macro-loop:verifier` subagents in one message, each Agent call with `isolation: "worktree"`: only that keeps one out of this checkout when agent teams are on. Each prompt is exactly these lines, filled:
 
 ```text
 Axis: spec
@@ -72,8 +63,6 @@ Run spec commands: yes | no
 Run tests and lint: yes | no
 ```
 
-Standards verifier:
-
 ```text
 Axis: standards
 Issue: #<n>
@@ -82,13 +71,9 @@ Base: origin/<base>
 Head: <sha of the branch>
 ```
 
-`Also closes` is the rest of `pr.closesAll`, or `none` when the PR closes one Issue: work that another closed Issue's spec asks for is not scope creep for this one.
+`Also closes` is the rest of `pr.closesAll`, or `none`. Anything else goes in your message to the user, never in a prompt: `scripts/verifier-flags.mjs` refuses other lines; start again with the lines alone.
 
-If something about the change seems worth a verifier's attention, it goes in your own message to the user, never in a verifier's prompt. This plugin's hook, `scripts/verifier-flags.mjs`, refuses a verifier call whose prompt holds any line other than these and blank lines, and names the line: start the verifier again with the lines alone.
-
-Never run a spec's checks yourself, and never offer to: this session may be the one that wrote the change. Only the verifiers' reports decide the verdict.
-
-Claude Code removes a verifier's worktree when it ends without changes, so a verifier continued with `SendMessage` would run in this checkout: never continue a verifier with `SendMessage`. This plugin's hook, `scripts/verifier-worktree.mjs`, refuses any command a verifier would run outside its own worktree.
+Never run a spec's checks yourself, or offer to. Never continue a verifier with `SendMessage`: its worktree is gone, and `scripts/verifier-worktree.mjs` refuses its commands.
 
 ## 6. Decide the verdict
 
