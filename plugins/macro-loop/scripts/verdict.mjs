@@ -7,14 +7,16 @@
 //   node verdict.mjs --round <n> --head <sha> --branch <name> (--agent <id> | <report file>)...
 //
 // Give one spec and one standards report per Issue the PR closes: as `--agent <id>`, the
-// report verifier-report.mjs saved when that verifier stopped (#176), or as a file. It prints
-// the comment to post. A missing or invalid block, a missing report, or a non-empty
-// could-not-run list prints nothing on stdout, names why on stderr and exits non-zero: nothing
-// is posted.
-import { existsSync, readFileSync } from 'node:fs'
+// report verifier-report.mjs saved when that verifier stopped (#176), or as a file. From files
+// it prints the comment to post; from `--agent` it writes the comment to
+// `verdict-<head>.md` in the reports directory and prints that path and the heading. A missing
+// or invalid block, a missing report, or a non-empty could-not-run list prints nothing on
+// stdout, names why on stderr and exits non-zero: nothing is posted.
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
-import { reportPath } from './verifier-report.mjs'
+import { reportPath, reportsDir } from './verifier-report.mjs'
 
 const TAG = '```macro-loop-report'
 const RESULTS = ['met', 'unmet', 'wrong', 'manual']
@@ -144,7 +146,13 @@ function main(argv) {
     ...positionals.map((file) => parseReport(readFileSync(file, 'utf8'), file)),
     ...agents.map((id) => parseReport(savedReport(id), `the report of verifier ${id}`)),
   ]
-  return verdict({ round: Number(values.round), head: values.head, branch: values.branch, reports })
+  const comment = verdict({ round: Number(values.round), head: values.head, branch: values.branch, reports })
+  if (!agents.length) return comment
+  // From saved reports, the comment goes to a file beside them, so the session needs no
+  // directory or redirect of its own, and only the file and the heading reach its context.
+  const out = join(reportsDir(), `verdict-${values.head}.md`)
+  writeFileSync(out, comment)
+  return `${out}\n${comment.split('\n').slice(1, 3).join('\n')}\n`
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

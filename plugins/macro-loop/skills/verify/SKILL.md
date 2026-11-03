@@ -94,17 +94,19 @@ Claude Code removes a verifier's worktree when it ends without changes, so a ver
 
 A script decides the verdict and writes the comment from the data block each verifier's report ends with, so the session that wrote the change never writes what a person reads first.
 
-The hook `scripts/verifier-report.mjs` saves each verifier's report when it stops. Never write a report to a file yourself. Once every verifier has finished, make a directory with `mktemp -d` and run, in the repo's checkout, with one `--agent` per verifier: the agent id the Agent tool returned for it, spec and standards of every Issue:
+The hook `scripts/verifier-report.mjs` saves each verifier's report when it stops. Never write a report to a file yourself. Once every verifier has finished, run, in the repo's checkout and as a Bash call of its own with nothing added, one `--agent` per verifier: the agent id the Agent tool returned for it, spec and standards of every Issue:
 
 ```sh
-node ${CLAUDE_PLUGIN_ROOT}/scripts/verdict.mjs --round <N> --head <Head from step 5> --branch <branch> --agent <id> --agent <id>... > <dir>/verdict.md
+node ${CLAUDE_PLUGIN_ROOT}/scripts/verdict.mjs --round <N> --head <Head from step 5> --branch <branch> --agent <id> --agent <id>...
 ```
+
+It writes the comment to a file beside the saved reports and prints that file's path and the heading.
 
 It decides each Issue on its own: INCONCLUSIVE when a report or its block is missing or invalid, or `couldNotRun` is not empty, even when the diff seems to settle the criterion; NEEDS-FIX when a criterion is unmet or wrong or the diff introduces a failure; else PASS. The PR is NEEDS-FIX if any Issue is. A criterion judged from the diff because running was declined is not INCONCLUSIVE. Never decide the verdict yourself.
 
 ## 7. Report the verdict
 
-**PASS or NEEDS-FIX** (the script exited 0): post the script's output as the comment's body, unchanged: post `<dir>/verdict.md` with `-F body=@<file>` (see `github.md`). Add nothing, cut nothing, and never write the comment by hand: a gap you see goes in your message to the user, outside the verdict. Without a PR, print the output, and offer to post it on the Issue as a plain comment without its first line, the marker, so the result is not left in the chat only. The verdict counts as posted only when the POST printed the comment's id. If it did not, the verdict was not posted: say so, with the error, and print the verdict here. Remove the directory afterwards.
+**PASS or NEEDS-FIX** (the script exited 0): post the file the script printed as the comment's body, unchanged, with `-F body=@<file>` (see `github.md`). Add nothing, cut nothing, and never write the comment by hand: a gap you see goes in your message to the user, outside the verdict. Without a PR, read the file and show it, and offer to post it on the Issue as a plain comment without its first line, the marker, so the result is not left in the chat only. The verdict counts as posted only when the POST printed the comment's id. If it did not, the verdict was not posted: say so, with the error, and show the verdict here.
 
 The comment starts with the marker `<!-- macro-loop:verify round=N sha=<head> -->` and the heading `## Verify: PASS | NEEDS-FIX (round N of 3)`, which `scripts/trust.mjs` reads; the rest is the script's (see `scripts/verdict.mjs`).
 
