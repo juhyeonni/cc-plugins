@@ -35,22 +35,14 @@ test("a verifier's stop saves its last message as <agent_id>.md", () => {
   assert.equal(readFileSync(join(r.reports, `${ID}.md`), 'utf8'), 'the report')
 })
 
-test('without last_assistant_message, the last assistant text in the transcript is saved', () => {
+test('without last_assistant_message, nothing is saved and the stop is named, even with a transcript holding text', () => {
   const tmp = mkdtempSync(join(tmpdir(), 'transcript-'))
   const transcript = join(tmp, 'agent.jsonl')
-  const line = (type, content) => JSON.stringify({ type, message: { content } })
-  writeFileSync(
-    transcript,
-    [
-      line('assistant', [{ type: 'text', text: 'an early note' }]),
-      line('user', [{ type: 'tool_result', tool_use_id: 't', content: 'ok' }]),
-      line('assistant', [{ type: 'text', text: 'the final report' }]),
-      line('assistant', [{ type: 'tool_use', id: 'u', name: 'Bash', input: {} }]),
-    ].join('\n') + '\n',
-  )
+  writeFileSync(transcript, `${JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'a stale report' }] } })}\n`)
   const r = hook({ last_assistant_message: undefined, agent_transcript_path: transcript })
-  assert.equal(r.status, 0, r.stderr)
-  assert.equal(readFileSync(join(r.reports, `${ID}.md`), 'utf8'), 'the final report')
+  assert.equal(r.status, 1)
+  assert.match(r.stderr, new RegExp(`verifier ${ID} stopped without last_assistant_message`))
+  assert.equal(existsSync(join(r.reports, `${ID}.md`)), false)
 })
 
 test("another agent's stop saves nothing and prints nothing", () => {

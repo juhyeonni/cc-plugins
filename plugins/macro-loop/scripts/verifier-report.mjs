@@ -2,9 +2,9 @@
 // The plugin's SubagentStop hook that saves a macro-loop:verifier's report (#176), from
 // hooks/hooks.json, so the report reaches verdict.mjs (`--agent <id>`) without the verify
 // session copying it. It saves the stop's `last_assistant_message` as `<agent_id>.md` in the
-// reports directory; without that field, the last assistant text in `agent_transcript_path`,
-// which can lag when the hook fires. Any other agent's stop passes through with no output.
-// A failure is named on stderr; verdict.mjs then finds no report and posts nothing.
+// reports directory. A stop without that field saves nothing and is named on stderr:
+// verdict.mjs then finds no report and posts nothing. Any other agent's stop passes through
+// with no output.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -18,24 +18,12 @@ export function reportPath(id) {
   return join(reportsDir(), `${id}.md`)
 }
 
-function lastText(transcript) {
-  const lines = readFileSync(transcript, 'utf8').split('\n').filter((l) => l.trim() !== '').reverse()
-  for (const line of lines) {
-    const e = JSON.parse(line)
-    if (e.type !== 'assistant' || !Array.isArray(e.message?.content)) continue
-    const text = e.message.content.filter((p) => p.type === 'text').map((p) => p.text).join('\n')
-    if (text.trim() !== '') return text
-  }
-  return null
-}
-
 function save(input) {
   if (input.agent_type !== 'macro-loop:verifier') return
   const path = reportPath(input.agent_id)
-  const text = input.last_assistant_message || (input.agent_transcript_path && lastText(input.agent_transcript_path))
-  if (!text) throw new Error(`verifier ${input.agent_id} stopped with no report`)
+  if (!input.last_assistant_message) throw new Error(`verifier ${input.agent_id} stopped without last_assistant_message`)
   mkdirSync(reportsDir(), { recursive: true })
-  writeFileSync(path, text)
+  writeFileSync(path, input.last_assistant_message)
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
