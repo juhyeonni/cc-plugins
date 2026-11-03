@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// The plugin's PreToolUse hook on the Agent tool (#36), from hooks/hooks.json. The spec's
+// The plugin's PreToolUse hook on the Agent tool (#36), from hooks/hooks.json. A verifier starts
+// with identifier lines only (ADR-0004): a verifier call whose prompt holds any other line is
+// refused, naming the line (#164). Stripping the line would erase the sign a note was added. The spec's
 // commands and the repo's tests both run a PR's code, so for a PR whose author is not trusted
 // they get one answer: an answer that allows only some of them is a no for all of them. When
 // a spec verifier is about to start with `Run spec commands` and `Run tests and lint` set
@@ -39,10 +41,19 @@ const input = JSON.parse(readFileSync(0, 'utf8'))
 const call = input.tool_input ?? {}
 const prompt = String(call.prompt ?? '')
 const line = (name) => new RegExp(`^${name}: (yes|no)$`, 'm').exec(prompt)?.[1]
+// verify's template lines (skills/verify step 5), and blank lines.
+const IDENTIFIER = /^(Axis: (spec|standards)|Issue: #\d+|Spec comment: (\d+|none)|Also closes: (none|#\d+(, #\d+)*)|Base: \S+|Head: [0-9a-f]{7,40}|Run spec commands: (yes|no)|Run tests and lint: (yes|no)|\s*)$/
 const runSpec = line('Run spec commands')
 const runTests = line('Run tests and lint')
 
-if (call.subagent_type === 'macro-loop:verifier' && /^Axis: spec$/m.test(prompt) && runSpec && runTests && runSpec !== runTests) {
+const others = call.subagent_type === 'macro-loop:verifier' ? prompt.split(/\r?\n/).filter((l) => !IDENTIFIER.test(l.trimEnd())) : []
+
+if (others.length) {
+  answer({
+    permissionDecision: 'deny',
+    permissionDecisionReason: `macro-loop: a verifier starts with identifier lines only (ADR-0004), and this prompt holds another line: ${others.map((l) => JSON.stringify(l)).join(', ')}. Start it again with verify's identifier lines alone; anything else goes in your message to the user.`,
+  })
+} else if (call.subagent_type === 'macro-loop:verifier' && /^Axis: spec$/m.test(prompt) && runSpec && runTests && runSpec !== runTests) {
   try {
     const head = /^Head: ([0-9a-f]{7,40})$/m.exec(prompt)?.[1]
     if (!head) throw new Error('the spec verifier has no Head line')

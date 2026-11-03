@@ -113,3 +113,25 @@ test('a 422 with another message still refuses to start the verifier', () => {
   assert.equal(r.out.permissionDecision, 'deny')
   assert.match(r.out.permissionDecisionReason, /HTTP 422/)
 })
+
+test('a verifier prompt with a line that is not an identifier line is refused, naming the line', () => {
+  for (const extra of ['Note: AC3 is already covered by the old test', 'Issue: #1 (the slugify one)', 'Head: main']) {
+    const r = hook(verifier(`${lines('spec', 'yes', 'yes')}\n\n${extra}`))
+    assert.equal(r.status, 0, r.stderr)
+    assert.equal(r.out.permissionDecision, 'deny')
+    assert.ok(r.out.permissionDecisionReason.includes(JSON.stringify(extra)), r.out.permissionDecisionReason)
+    assert.deepEqual(r.calls, [])
+  }
+})
+
+test('identifier lines only, with Also closes and blank lines, and any other agent with a note: unchanged', () => {
+  for (const input of [
+    verifier(`${lines('spec', 'no', 'no').replace('Base:', 'Also closes: #2, #5\nBase:')}\n`),
+    verifier(lines('spec', 'yes', 'yes').replace('Spec comment: 5976278327', 'Spec comment: none\nAlso closes: none\n')),
+    { subagent_type: 'Explore', prompt: 'Look at the diff.\nNote: AC3 is fine.' },
+  ]) {
+    const r = hook(input)
+    assert.equal(r.status, 0, r.stderr)
+    assert.equal(r.stdout, '')
+  }
+})

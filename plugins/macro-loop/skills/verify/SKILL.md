@@ -20,7 +20,7 @@ Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/github.md` a
 
 - **Branch:** judge the branch given by name, by the user or by `implement`. With no branch named, use the current branch, resolved to its name with `git branch --show-current` first, so no step refers to `HEAD`.
 - **PR:** the one the user named, else the open PR for the branch. Without a PR, verify the branch against the default branch and print the verdict in the terminal instead of posting it.
-- **Issues:** `pr.closesAll` in the trust command's output, from the `Closes #<n>` lines in the PR body; one PR can close several. Steps 1 and 5 to 7 run for each Issue, and the other steps once for the PR. Without a PR, the Issue the user named or the branch name points to. If the PR has no such line, say that the PR is not linked to an Issue and ask which Issue it implements, then run the trust command again with `--issue <n>` added. If there is none, follow **No Issue yet** in `workflow.md`. Once the Issue is known, offer to add `Closes #<n>` to the PR body (see `github.md`), so the next round finds it.
+- **Issues:** `pr.closesAll` in the trust command's output, from the `Closes #<n>` lines in the PR body; one PR can close several. Steps 1 and 5 run for each Issue, and the other steps once for the PR. Without a PR, the Issue the user named or the branch name points to. If the PR has no such line, say that the PR is not linked to an Issue and ask which Issue it implements, then run the trust command again with `--issue <n>` added. If there is none, follow **No Issue yet** in `workflow.md`. Once the Issue is known, offer to add `Closes #<n>` to the PR body (see `github.md`), so the next round finds it.
 - **Spec:** the comment whose id is `issue.spec` in the trust command's output (for a PR that closes several Issues, run the command with `--issue <n>` for each of the others). Without one, follow **Missing inputs** in `workflow.md` (`skipped:spec`). On proceed, judge against the Issue body and say so in the verdict: "no spec; judged against the Issue body".
 
 ## 2. Count the round
@@ -84,7 +84,7 @@ Head: <sha of the branch>
 
 `Also closes` is the rest of `pr.closesAll`, or `none` when the PR closes one Issue: work that another closed Issue's spec asks for is not scope creep for this one.
 
-If something about the change seems worth a verifier's attention, it goes in your own message to the user, never in a verifier's prompt.
+If something about the change seems worth a verifier's attention, it goes in your own message to the user, never in a verifier's prompt. This plugin's hook, `scripts/verifier-flags.mjs`, refuses a verifier call whose prompt holds any line other than these and blank lines, and names the line: start the verifier again with the lines alone.
 
 Never run a spec's checks yourself, and never offer to: this session may be the one that wrote the change. Only the verifiers' reports decide the verdict.
 
@@ -92,56 +92,37 @@ Claude Code removes a verifier's worktree when it ends without changes, so a ver
 
 ## 6. Decide the verdict
 
-A verifier of either axis that stops without a report, or whose commands the hook refused, makes the run INCONCLUSIVE: print which axis did not report and why, post nothing, and say what would let it run. The verdict comment needs both reports, and one axis must not hide the other.
+A script decides the verdict and writes the comment, so the session that wrote the change never writes the part a person reads first. Each verifier's report ends with a `macro-loop-report` block (see `agents/verifier.md`), and the script reads only those blocks for the decision.
 
-With several Issues, judge each Issue's report on its own; the PR is PASS only if every Issue passes, NEEDS-FIX if any is NEEDS-FIX, else INCONCLUSIVE. From the Spec verifier's report:
+Write each report, exactly as the verifier returned it, to its own file in a directory made with `mktemp -d`. With several Issues, write the spec and standards reports of every Issue. Then run, in the repo's checkout:
 
-- **INCONCLUSIVE** if its **Could not run** list is not empty: a check it was allowed to run did not run at all, or ran without a result anyone can read. This holds even when the diff seems to settle the criterion.
-- **NEEDS-FIX** if an acceptance criterion is unmet or implemented wrongly, or if the diff introduces a test or lint failure.
+```sh
+node ${CLAUDE_PLUGIN_ROOT}/scripts/verdict.mjs --round <N> --head <Head from step 5> --branch <branch> <report file>...
+```
+
+It applies these rules, for each Issue on its own; the PR is NEEDS-FIX if any Issue is, else PASS:
+
+- **INCONCLUSIVE** if a report is missing, its block is missing or invalid, or a spec report's `couldNotRun` list is not empty: a check the verifier was allowed to run did not run at all, or ran without a result anyone can read. This holds even when the diff seems to settle the criterion. The script prints nothing on stdout, names why on stderr and exits non-zero.
+- **NEEDS-FIX** if an acceptance criterion is unmet or wrong, or the diff introduces a test or lint failure.
 - **PASS** otherwise.
 
 Failures already present on the base branch, behavior outside the spec (scope creep), and Standards findings are reported, not failed. `manual` criteria are listed for a person, not guessed. A criterion judged from the diff because running was declined is not INCONCLUSIVE; the report says how it was judged.
 
+Never decide the verdict yourself, and never rerun the script with a report you changed.
+
 ## 7. Report the verdict
 
-**PASS or NEEDS-FIX:** post one comment on the PR. Without a PR, print it, and offer to post it on the Issue as a plain comment, without the marker, so the result is not left in the chat only. The verdict counts as posted only when the POST printed the comment's id (see `github.md`). If it did not, the verdict was not posted: say so, with the error, and print the verdict here.
+**PASS or NEEDS-FIX** (the script exited 0): post the script's output as the comment's body, unchanged. Redirect its stdout to a file in the same directory and post that file with `-F body=@<file>` (see `github.md`). Add nothing, cut nothing, and never write the comment by hand: a gap you see goes in your message to the user, outside the verdict. Without a PR, print the output, and offer to post it on the Issue as a plain comment without its first line, the marker, so the result is not left in the chat only. The verdict counts as posted only when the POST printed the comment's id. If it did not, the verdict was not posted: say so, with the error, and print the verdict here. Remove the directory afterwards.
 
-```markdown
-<!-- macro-loop:verify round=N sha=<head> -->
-## Verify: PASS | NEEDS-FIX (round N of 3)
-**Criteria:** <r> ran, <d> read, <m> manual
+What the script prints, so a reader knows where to look:
 
-<opening paragraph>
+- The marker `<!-- macro-loop:verify round=N sha=<head> -->`, with the `Head` from step 5: later stages compare it with the PR's head to tell whether a verdict is current.
+- The heading `## Verify: PASS | NEEDS-FIX (round N of 3)`, which `scripts/trust.mjs` reads the result from, and the counts line `**Criteria:** <r> ran, <d> read, <m> manual`.
+- The opening paragraph, for the person who merges. **PASS:** that the PR can merge and what the person does, from step 8, starting with the manual checks when there are any. **NEEDS-FIX:** each unmet or wrong criterion on its own line, by its ID and words, and each introduced failure, then the next step from step 8 for this round. Either way it ends with what to decide first: each documented repo standard the Standards report says the diff breaks, or "Nothing to decide first".
+- The manual checks, each with its condition, or "No manual checks". This is the one place they appear.
+- `**Judged against:**`, then `### Spec` and `### Standards` with each report's prose as the verifier wrote it. For a PR that closes several Issues, each Issue gets these under a `## #<n>: <result>` heading.
 
-- <manual check, with its condition>
-
-**Judged against:** the spec comment on #<n> | no spec; judged against the Issue body
-
-### Spec
-
-<Spec verifier report>
-
-### Standards
-
-<Standards verifier report>
-```
-
-The counts line comes right under the heading, which stays as it is: `scripts/trust.mjs` reads the result from the heading. It counts the Spec report's criteria by how each was judged, ran, read or manual, so a reader sees how much of the verdict rests on a run. With several Issues it counts the criteria of all of them. A PASS where nothing ran is still a PASS, with the counts showing it.
-
-The opening paragraph is for the person who merges. It comes under the counts line, before both reports:
-
-- **PASS:** at most three sentences: that the PR can merge, and what the person does, from step 8. When there are manual checks, what they do starts with the manual checks below. Then what to decide first: a documented repo standard the Standards report says the diff breaks, and scope creep that the spec's out-of-scope list names. With neither, say "Nothing to decide first". Smells, other scope creep and pre-existing failures stay in the reports.
-- **NEEDS-FIX:** each unmet or wrong criterion on its own line, by its ID and a few words, then the next step from step 8 for this round.
-
-Under the paragraph, list the manual checks from the Spec report's **Manual checks**, each with its condition, or "No manual checks". This is the one place they appear: leave that list out of the Spec report below. A person reads the verdict before marking the PR ready, and a PASS must not hide what they still have to look at.
-
-For a PR that closes several Issues, keep the comment's marker, heading and opening paragraph once, for the PR, and give each Issue its own `Judged against`, `### Spec` and `### Standards` sections under a `## #<n>` heading, with that Issue's own result. The heading verdict is the PR's. The retry limit and the round count stay per PR.
-
-`sha` is the `Head` from step 5: the commit the verifiers judged. Later stages compare it with the PR's head to tell whether a verdict is current.
-
-Keep both reports as the verifiers wrote them, lightly cleaned, except that the Manual checks list moves to the top. The opening paragraph and the manual checks summarize only what the reports say: every sentence points to an item in them. Add nothing of your own, such as a new finding, a check this session ran earlier or advice the reports do not hold: a gap you see goes in your message to the user, outside the verdict. Don't merge or rerank findings across the axes: a change can follow every standard and still miss the spec, or match the spec and break the conventions, and one axis must not hide the other.
-
-**INCONCLUSIVE:** print what could not run and the error. Post no comment with the marker: an inconclusive run is not a round. Say what would let the checks run, then verify again.
+**INCONCLUSIVE** (the script exited non-zero): print what it named and the error. Post no comment with the marker: an inconclusive run is not a round. Say what would let the checks run, then verify again.
 
 ## 8. Next step
 
