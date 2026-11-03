@@ -113,6 +113,24 @@ test('pickAnswer: the first unused matching rule, then otherwise', () => {
   assert.equal(pickAnswer(s, 'Should I push?', used), 'local')
 })
 
+const YES_RUN = "Yes, the verifier may run the spec's commands."
+
+test("pickAnswer: verify's question about the spec's commands is answered however it is worded (#187)", () => {
+  const c0 = findScenario('C0')
+  for (const ask of [
+    "No open PR for `seed/c0`.\n\n**Before I start the verifiers: may they run the spec's check commands?**",
+    "Round: 1, since there's no PR yet.\n\n**Can the verifier run the spec's check commands?** They are:",
+    "**Can the verifiers run the spec's three check commands?**\n\nI can then post it on Issue #1 as a plain comment.",
+    "May the verifier run the spec's commands?",
+  ]) assert.equal(pickAnswer(c0, ask, new Set()), YES_RUN, ask)
+})
+
+test('pickAnswer: a question only about posting, or only about a push, keeps its own answer (#187)', () => {
+  const c0 = findScenario('C0')
+  assert.equal(pickAnswer(c0, 'Should I post it on Issue #1 as a plain comment?', new Set()), 'No, do not post it anywhere.')
+  assert.equal(pickAnswer(c0, 'Do you want me to push the branch and open a PR?', new Set()), 'Keep it local: no push and no PR.')
+})
+
 test('asksSomething: a question in the prose or a request for yes or no; a summary is not', () => {
   assert.equal(asksSomething('**Do I have your go-ahead to:**\n1. Run spec commands\n2. Run the tests and lint\n\nPlease confirm yes/no.'), true)
   assert.equal(asksSomething('May the verifier run them?'), true)
