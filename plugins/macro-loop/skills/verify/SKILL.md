@@ -113,6 +113,6 @@ The comment starts with the marker `<!-- macro-loop:verify round=N sha=<head> --
 ## 8. Next step
 
 - **PASS:** the PR is ready for a person: read the verdict, mark the draft "Ready for review", then merge.
-- **NEEDS-FIX in round 1 or 2:** run `/macro-loop:implement <branch>`, with this branch's name, to fix the Spec findings; it hands back to verify.
+- **NEEDS-FIX in round 1 or 2:** tell the person to run `/macro-loop:implement <branch>`, with this branch's name, to fix the Spec findings; it hands back to verify. You never start it yourself: verify changes nothing in the checkout.
 - **NEEDS-FIX in round 3:** stop. Two re-verifications have not converged, and a person decides what happens next.
 - **INCONCLUSIVE:** fix what kept the checks from running, then verify again; the round number stays the same.
