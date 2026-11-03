@@ -16,6 +16,17 @@ test('verifierPrompts: identifier lines pass', () => {
   assert.equal(c.verifierPrompts([spawn(specPrompt), spawn(standardsPrompt)]).pass, true)
 })
 
+test("verifierPrompts: verify's spec prompt, with its Also closes line after Spec comment, passes", () => {
+  const withAlso = (also) => specPrompt.replace('Spec comment: 123', `Spec comment: 123\nAlso closes: ${also}`)
+  for (const also of ['none', '#3', '#3, #4']) assert.equal(c.verifierPrompts([spawn(withAlso(also)), spawn(standardsPrompt)]).pass, true, also)
+})
+
+test('verifierPrompts: an Also closes line in another place, or on the standards prompt, fails', () => {
+  assert.equal(c.verifierPrompts([spawn(`${specPrompt}\nAlso closes: none`)]).pass, false)
+  assert.equal(c.verifierPrompts([spawn(specPrompt.replace('Axis: spec', 'Axis: spec\nAlso closes: none'))]).pass, false)
+  assert.equal(c.verifierPrompts([spawn(standardsPrompt.replace('Spec comment: 123', 'Spec comment: 123\nAlso closes: none'))]).pass, false)
+})
+
 test('verifierPrompts: a prompt with a note fails', () => {
   assert.equal(c.verifierPrompts([spawn(`${specPrompt}\nNote: AC2 was checked earlier.`)]).pass, false)
 })

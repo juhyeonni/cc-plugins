@@ -12,6 +12,8 @@ const SPEC_PROMPT = [
   /^Run tests and lint: (yes|no)$/,
 ]
 const STANDARDS_PROMPT = SPEC_PROMPT.slice(0, 5).map((re, i) => (i === 0 ? /^Axis: standards$/ : re))
+// verify's spec prompt has it after `Spec comment:`; the execute workflow's has none (#181).
+const ALSO_CLOSES = /^Also closes: (none|#\d+(, #\d+)*)$/
 
 const DESTRUCTIVE_GIT = [
   /\bgit\s+checkout\s+(--\s+)?\.(\s|$)/,
@@ -91,8 +93,10 @@ export function verifierPrompts(calls) {
   const spawns = verifierAgentCalls(calls)
   if (spawns.length === 0) return fail('no verifier was started')
   for (const s of spawns) {
-    const lines = String(s.input.prompt ?? '').trim().split('\n')
-    const shape = lines[0] === 'Axis: standards' ? STANDARDS_PROMPT : SPEC_PROMPT
+    let lines = String(s.input.prompt ?? '').trim().split('\n')
+    const standards = lines[0] === 'Axis: standards'
+    if (!standards && ALSO_CLOSES.test(lines[3] ?? '')) lines = lines.filter((_, i) => i !== 3)
+    const shape = standards ? STANDARDS_PROMPT : SPEC_PROMPT
     const exact = lines.length === shape.length && lines.every((line, i) => shape[i].test(line))
     if (!exact) return fail(`prompt is not identifier lines only: ${JSON.stringify(s.input.prompt)}`)
   }
