@@ -12,19 +12,19 @@ const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), '../../plugins/macr
 
 const BUDGETS = {
   'agents/verifier.md': 13000,
-  'skills/execute/SKILL.md': 20500,
-  'skills/goal/SKILL.md': 20500,
-  'skills/grilling/SKILL.md': 20500,
-  'skills/implement/SKILL.md': 23000,
-  'skills/init/SKILL.md': 19500,
-  'skills/next/SKILL.md': 21000,
-  'skills/open-pr/SKILL.md': 25500,
-  'skills/research/SKILL.md': 23000,
-  'skills/spec/SKILL.md': 30000,
-  'skills/status/SKILL.md': 17500,
-  'skills/triage/SKILL.md': 25000,
-  'skills/ui-placement/SKILL.md': 19000,
-  'skills/verify/SKILL.md': 26000,
+  'skills/execute/SKILL.md': 9500,
+  'skills/goal/SKILL.md': 9000,
+  'skills/grilling/SKILL.md': 15500,
+  'skills/implement/SKILL.md': 11500,
+  'skills/init/SKILL.md': 8000,
+  'skills/next/SKILL.md': 9500,
+  'skills/open-pr/SKILL.md': 14500,
+  'skills/research/SKILL.md': 11500,
+  'skills/spec/SKILL.md': 19000,
+  'skills/status/SKILL.md': 6500,
+  'skills/triage/SKILL.md': 14000,
+  'skills/ui-placement/SKILL.md': 14000,
+  'skills/verify/SKILL.md': 12500,
 }
 
 function fakePlugin(skillText) {
