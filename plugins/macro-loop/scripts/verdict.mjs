@@ -4,14 +4,19 @@
 // `macro-loop-report` block (agents/verifier.md); the verdict and the opening paragraph come
 // from those blocks alone, never from the prose, which is posted under them as it is.
 //
-//   node verdict.mjs --round <n> --head <sha> --branch <name> <report file>...
+//   node verdict.mjs --round <n> --head <sha> --branch <name> (--agent <id> | <report file>)...
 //
-// Give one spec and one standards report per Issue the PR closes. It prints the comment to
-// post. A missing or invalid block, a missing report, or a non-empty could-not-run list
-// prints nothing on stdout, names why on stderr and exits non-zero: nothing is posted.
-import { readFileSync } from 'node:fs'
+// Give one spec and one standards report per Issue the PR closes: as `--agent <id>`, the
+// report verifier-report.mjs saved when that verifier stopped (#176), or as a file. From files
+// it prints the comment to post; from `--agent` it writes the comment to
+// `verdict-<head>.md` in the reports directory and prints that path and the heading. A missing
+// or invalid block, a missing report, or a non-empty could-not-run list prints nothing on
+// stdout, names why on stderr and exits non-zero: nothing is posted.
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
+import { reportPath, reportsDir } from './verifier-report.mjs'
 
 const TAG = '```macro-loop-report'
 const RESULTS = ['met', 'unmet', 'wrong', 'manual']
@@ -119,18 +124,35 @@ export function verdict({ round, head, branch, reports }) {
   ].join('\n').trimEnd() + '\n'
 }
 
+// The report verifier-report.mjs saved when that verifier stopped.
+function savedReport(id) {
+  const path = reportPath(id)
+  if (!existsSync(path)) throw new Error(`no saved report for verifier ${id} (${path})`)
+  return readFileSync(path, 'utf8')
+}
+
 function main(argv) {
   const { values, positionals } = parseArgs({
     args: argv,
-    options: { round: { type: 'string' }, head: { type: 'string' }, branch: { type: 'string' } },
+    options: { round: { type: 'string' }, head: { type: 'string' }, branch: { type: 'string' }, agent: { type: 'string', multiple: true } },
     allowPositionals: true,
   })
   if (!/^[1-9]\d*$/.test(values.round ?? '')) throw new Error('--round takes the round number')
   if (!/^[0-9a-f]{7,40}$/.test(values.head ?? '')) throw new Error('--head takes the commit sha the verifiers judged')
   if (!values.branch) throw new Error('--branch takes the branch name')
-  if (!positionals.length) throw new Error('no report files given')
-  const reports = positionals.map((file) => parseReport(readFileSync(file, 'utf8'), file))
-  return verdict({ round: Number(values.round), head: values.head, branch: values.branch, reports })
+  const agents = values.agent ?? []
+  if (!positionals.length && !agents.length) throw new Error('no reports given')
+  const reports = [
+    ...positionals.map((file) => parseReport(readFileSync(file, 'utf8'), file)),
+    ...agents.map((id) => parseReport(savedReport(id), `the report of verifier ${id}`)),
+  ]
+  const comment = verdict({ round: Number(values.round), head: values.head, branch: values.branch, reports })
+  if (!agents.length) return comment
+  // From saved reports, the comment goes to a file beside them, so the session needs no
+  // directory or redirect of its own, and only the file and the heading reach its context.
+  const out = join(reportsDir(), `verdict-${values.head}.md`)
+  writeFileSync(out, comment)
+  return `${out}\n${comment.split('\n').slice(1, 3).join('\n')}\n`
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

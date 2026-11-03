@@ -50,7 +50,7 @@ The run returns one entry per Issue, shaped as the workflow's header says. A sta
 
 ## 4. Post the verdicts
 
-For each Issue that reached verify, read the round with `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --pr <pr>`, then decide and post its verdict as `verify` steps 6 and 7 do, with the run's `spec` and `standards` reports as they came and the `head` the run judged. A `null` report counts as missing: post nothing for that Issue, and report it INCONCLUSIVE.
+For each Issue that reached verify, read the round with `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --pr <pr>`, then decide and post its verdict as `verify` steps 6 and 7 do, with the `head` the run judged. The run gives reports, not agent ids, so in place of `--agent` write the run's `spec` and `standards` reports, as they came, each to its own file in a directory made with `mktemp -d`, and pass the files; the script then prints the comment, so redirect it to a file in that directory and post that file. Remove the directory afterwards. A `null` report counts as missing: post nothing for that Issue, and report it INCONCLUSIVE.
 
 ## 5. Report
 

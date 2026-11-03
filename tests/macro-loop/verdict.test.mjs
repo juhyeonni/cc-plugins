@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -140,4 +140,31 @@ test('bad arguments print nothing to post', () => {
     assert.notEqual(r.status, 0)
     assert.equal(r.stdout, '')
   }
+})
+
+// Reports saved as verifier-report.mjs saves them, in a reports directory of the test's own.
+function runAgents(saved, ids) {
+  const reports = mkdtempSync(join(tmpdir(), 'reports-'))
+  for (const [id, text] of Object.entries(saved)) writeFileSync(join(reports, `${id}.md`), text)
+  const args = ['--round', '1', '--head', HEAD, '--branch', '12-csv', ...ids.flatMap((id) => ['--agent', id])]
+  return { ...spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8', env: { ...process.env, MACRO_LOOP_REPORTS: reports } }), reports }
+}
+
+test('--agent <id> reads the saved reports, writes the same comment as from files beside them, and prints only its path and heading', () => {
+  const [specReport, standardsReport] = ok()
+  const byAgent = runAgents({ aspec1: specReport, astd2: standardsReport }, ['aspec1', 'astd2'])
+  assert.equal(byAgent.status, 0, byAgent.stderr)
+  const out = join(byAgent.reports, `verdict-${HEAD}.md`)
+  const comment = run(ok()).stdout
+  assert.equal(readFileSync(out, 'utf8'), comment)
+  assert.equal(byAgent.stdout, `${out}\n${comment.split('\n').slice(1, 3).join('\n')}\n`)
+  assert.match(byAgent.stdout, /^.+\n## Verify: PASS \(round 1 of 3\)\n\*\*Criteria:\*\*/)
+})
+
+test('--agent <id> with no saved report prints nothing to post and names the id', () => {
+  const [specReport] = ok()
+  const r = runAgents({ aspec1: specReport }, ['aspec1', 'amissing9'])
+  assert.notEqual(r.status, 0)
+  assert.equal(r.stdout, '')
+  assert.match(r.stderr, /no saved report for verifier amissing9/)
 })
