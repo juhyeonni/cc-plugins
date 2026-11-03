@@ -109,6 +109,7 @@ Failures already present on the base branch, behavior outside the spec (scope cr
 ```markdown
 <!-- macro-loop:verify round=N sha=<head> -->
 ## Verify: PASS | NEEDS-FIX (round N of 3)
+**Criteria:** <r> ran, <d> read, <m> manual
 
 <opening paragraph>
 
@@ -125,7 +126,9 @@ Failures already present on the base branch, behavior outside the spec (scope cr
 <Standards verifier report>
 ```
 
-The opening paragraph is for the person who merges. It comes right under the heading, before both reports:
+The counts line comes right under the heading, which stays as it is: `scripts/trust.mjs` reads the result from the heading. It counts the Spec report's criteria by how each was judged, ran, read or manual, so a reader sees how much of the verdict rests on a run. With several Issues it counts the criteria of all of them. A PASS where nothing ran is still a PASS, with the counts showing it.
+
+The opening paragraph is for the person who merges. It comes under the counts line, before both reports:
 
 - **PASS:** at most three sentences: that the PR can merge, and what the person does, from step 8. When there are manual checks, what they do starts with the manual checks below. Then what to decide first: a documented repo standard the Standards report says the diff breaks, and scope creep that the spec's out-of-scope list names. With neither, say "Nothing to decide first". Smells, other scope creep and pre-existing failures stay in the reports.
 - **NEEDS-FIX:** each unmet or wrong criterion on its own line, by its ID and a few words, then the next step from step 8 for this round.

@@ -1,0 +1,29 @@
+diff --git a/src/slugify.js b/src/slugify.js
+index a6cb845..c4cf96c 100644
+--- a/src/slugify.js
++++ b/src/slugify.js
+@@ -1,10 +1,10 @@
+ 'use strict';
+ 
+-// Lower case, whitespace to dashes, then drop anything that is not a letter, digit or dash.
++// Lower case, whitespace and dots to dashes, then drop anything that is not a letter, digit or dash.
+ function slugify(text) {
+   return String(text)
+     .toLowerCase()
+-    .replace(/\s/g, '-')
++    .replace(/[\s.]/g, '-')
+     .replace(/[^a-z0-9-]/g, '');
+ }
+ 
+diff --git a/test/slugify.test.js b/test/slugify.test.js
+index 967d582..5f229d2 100644
+--- a/test/slugify.test.js
++++ b/test/slugify.test.js
+@@ -15,3 +15,7 @@ test('drops punctuation', () => {
+ test('keeps digits', () => {
+   assert.strictEqual(slugify('Top 10 Tips'), 'top-10-tips');
+ });
++
++test('turns dots into dashes', () => {
++  assert.strictEqual(slugify('a b'), 'a-b');
++});
