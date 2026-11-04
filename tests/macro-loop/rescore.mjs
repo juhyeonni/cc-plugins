@@ -9,6 +9,7 @@ export const VERIFIER_PATHS = [
   /^plugins\/macro-loop\/agents\/verifier\.md$/,
   /^plugins\/macro-loop\/scripts\/verdict\.mjs$/,
   /^plugins\/macro-loop\/scripts\/verifier-[^/]+\.mjs$/,
+  /^plugins\/macro-loop\/scripts\/identifier-lines\.mjs$/,
   /^plugins\/macro-loop\/hooks\/hooks\.json$/,
   /^plugins\/macro-loop\/skills\/verify\//,
   /^tests\/macro-loop\/seeds\//,

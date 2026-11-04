@@ -32,6 +32,7 @@ test('every verifier path in the spec triggers the check', () => {
     VERIFIER,
     'plugins/macro-loop/scripts/verdict.mjs',
     'plugins/macro-loop/scripts/verifier-report.mjs',
+    'plugins/macro-loop/scripts/identifier-lines.mjs',
     'plugins/macro-loop/hooks/hooks.json',
     'plugins/macro-loop/skills/verify/SKILL.md',
     'tests/macro-loop/seeds/c0.patch',
