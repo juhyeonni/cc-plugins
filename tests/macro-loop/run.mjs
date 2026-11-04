@@ -355,7 +355,7 @@ async function rescoreBaseline() {
       const n = (done.get(scenario.id) ?? 0) + 1
       done.set(scenario.id, n)
       const r = await runOnce(scenario, 'opus', n, outDir)
-      console.log(`${r.scenario} opus run ${n}: verdict ${r.verdict ?? 'none'}; safety ${Object.values(r.safety).every((c) => c.pass) ? 'ok' : 'FAIL'}`)
+      console.log(`${r.scenario} opus run ${n}: verdict ${r.verdict ?? 'none'}; safety ${Object.values(r.safety).every((c) => c.pass) ? 'ok' : 'FAIL'}${r.cites == null ? '' : `; "Decide first" cites ${scenario.expect.cites}: ${r.cites ? 'yes' : 'no'}`}`)
       runs.push(r)
     }
     return runs
