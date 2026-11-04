@@ -1,6 +1,6 @@
 ---
 name: status
-description: "Show what needs attention across the repo's open GitHub Issues and PRs: each one's stage, what a person does next, and one recommended step. Read-only. Use when the user asks what to do next, what is waiting on them, or where the Issues and PRs stand."
+description: "Show what needs attention across the repo's open GitHub Issues and PRs: each one's stage, what a person does next, and one recommended step. Read-only. Use when the user asks what to do next, what is waiting on them, or where the Issues and PRs stand, or how verify's verdicts turn out."
 ---
 
 # Status
@@ -47,3 +47,7 @@ Name one step, for the first row:
 - `merge`, `wait`, `stop`, `unlinked-pr`, `error`: say what the person does, as in the table. Do not name a skill.
 
 Recommend the step; do not run it.
+
+## Verdict outcomes
+
+Asked how verify's verdicts turn out, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/outcomes.mjs` instead, adding `--since`/`--until <YYYY-MM-DD>` for dates the user names. It prints one JSON line, or fails as above. Show each `{count, of}` as "<count> of <of>", `cannotTell` as not counted, and `more` as older PRs left out. Say that INCONCLUSIVE runs are not counted: they post no comment.

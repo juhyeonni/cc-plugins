@@ -63,6 +63,7 @@ Skills find their own comments by a hidden HTML marker on the comment's first li
 |---|---|---|
 | `<!-- macro-loop:spec -->` | Issue comment | `spec` |
 | `<!-- macro-loop:verify round=N sha=<head> -->` | PR comment | `verify` |
+| `<!-- macro-loop:missed pr=<N> -->` | Issue comment on a `missed-by-verify` Issue, naming the merged PR that caused the bug | `triage` |
 
 When a marker counts is in **Trust and trust.mjs** in `core.md`: a comment that quotes a marker further down is not a spec or a verdict.
 
