@@ -135,6 +135,13 @@ test('verdictComment: the marker and the round pass, with or without the expecte
   assert.equal(c.verdictComment(body, { round: 1, verdict: 'PASS' }).pass, true)
 })
 
+test('verdictComment: a marker with the judged head passes; a malformed sha fails', () => {
+  const sha = 'e8c89722a5abdff1a856f819e8a29805bb426896'
+  assert.equal(c.verdictComment(`<!-- macro-loop:verify round=1 sha=${sha} -->\n## Verify: PASS (round 1 of 3)`, { round: 1 }).pass, true)
+  assert.equal(c.verdictComment(`<!-- macro-loop:verify round=1 sha=e8c8972 -->\n## Verify: PASS (round 1 of 3)`, { round: 1 }).pass, false)
+  assert.equal(c.verdictComment(`<!-- macro-loop:verify round=2 sha=${sha} -->\n## Verify: PASS (round 2 of 3)`, { round: 1 }).pass, false)
+})
+
 test('verdictComment: a wrong round, a wrong verdict or no comment fails', () => {
   const body = '<!-- macro-loop:verify round=2 -->\n## Verify: PASS (round 2 of 3)'
   assert.equal(c.verdictComment(body, { round: 1 }).pass, false)
