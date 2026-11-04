@@ -14,7 +14,7 @@ Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/core.md`. Fo
 
 In the repo's checkout, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/execute.mjs` followed by the Issue numbers the user gave, or nothing. It prints one JSON line, `{base, run, left}`. Never pick or leave out an Issue yourself.
 
-- `run`: each Issue's `number`, `start` (`implement`, `open-pr` or `verify`), `spec` (the spec comment's id), `commands` (the spec's `check: cmd` commands), `pr` (`number`, `head`, `round`, `branch`, or `null`) and `branch`.
+- `run`: each Issue's `number`, `start` (`implement`, `open-pr` or `verify`), `spec` (the spec comment's id), `commands` (the spec's `check: cmd` commands), `pr` (`number`, `head`, `round`, `branch`, `answersLine`, or `null`) and `branch`.
 - `left`: each Issue the script did not take, with its `reason`.
 
 Without numbers, show the `run` list in its order and ask which to take: all, some by number, or none. With numbers, take `run` as it is. Show `left` either way.
@@ -41,7 +41,7 @@ Start the saved workflow `macro-loop:execute-run` once, with the Workflow tool's
 ```
 
 - `slug` is a few words from the Issue's title, lowercase, joined by `-`.
-- `branch` and `pr` come from step 1 (`pr` as `{ "number", "head" }`).
+- `branch` and `pr` come from step 1 (`pr` as `{ "number", "head", "answersLine" }`).
 - `runSpecCommands` and `push` come from the answers in step 2.
 
 If the saved workflow is refused or not found, stop and say so with the error. Never run its script inline instead: a run that does not match the saved workflow is not the one the person approved.

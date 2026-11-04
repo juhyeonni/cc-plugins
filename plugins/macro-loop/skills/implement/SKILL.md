@@ -27,7 +27,9 @@ Note the spec comment's `updated_at` (`gh api repos/{owner}/{repo}/issues/commen
 
 If the branch you will work on (step 2) has an open PR, read the comment whose id is `pr.lastVerdict`. If that verdict is NEEDS-FIX, its Spec findings are the work for this round.
 
-Before fixing, judge each finding by its ID (`AC2`, `F1`, `S1`). For each you judge wrong or not worth fixing, standards findings included, draft an answer (format: **Markers and trust** in `github.md`; round `pr.round - 1`). Show all drafts at once and post only the approved ones, as one comment; leave those unfixed and fix the rejected ones. For `intended` on a spec criterion, also say the spec should change: the spec is the contract.
+A finding marked "already answered" is settled: neither fix it nor draft another answer. Fix each other finding at every place its class covers in the diff, the places listed after "also at" included, not only the cited line: otherwise the next round finds the same mistake elsewhere.
+
+Before fixing, judge each finding that is not already answered by its ID (`AC2`, `F1`, `S1`). For each you judge wrong or not worth fixing, standards findings included, draft an answer (format: **Markers and trust** in `github.md`; round `pr.round - 1`). Show all drafts at once and post only the approved ones, as one comment; leave those unfixed and fix the rejected ones. For `intended` on a spec criterion, also say the spec should change: the spec is the contract.
 
 ## 2. Branch
 

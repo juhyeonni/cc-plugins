@@ -74,7 +74,7 @@ An answer records how a finding of round N's verdict was answered. Under the mar
 - F1 wrong: the failing test also fails on the base branch
 ```
 
-There is no `fixed`: the next round shows that. An answer never changes a verdict. `trust.mjs --pr` lists the trusted answers in `pr.answers`, each with `round`, `id`, `category`, `reason` and `comment` (the comment's id). A later answer to the same round and ID replaces an earlier one, and a line of any other shape is left out and named in `pr.answerWarnings`.
+There is no `fixed`: the next round shows that. An answer never changes a verdict. `trust.mjs --pr` lists the trusted answers in `pr.answers`, each with `round`, `id`, `category`, `reason`, `comment` (the comment's id) and `sha` (the head that round's trusted verdict judged, or `null`), and in `pr.answersLine` the verifiers' `Answers` line built from them. The next verdict shows a finding the verifier matched to an answer as already answered; it still counts. A later answer to the same round and ID replaces an earlier one, and a line of any other shape is left out and named in `pr.answerWarnings`.
 
 When a marker counts is in **Trust and trust.mjs** in `core.md`: a comment that quotes a marker further down is not a spec or a verdict.
 

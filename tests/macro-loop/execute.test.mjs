@@ -164,10 +164,17 @@ test('AC4: each Issue gets exactly two worktree verifiers with the identifier li
     }
   }
   const [s61, std61] = of(61).filter((c) => c.opts.phase === 'verify')
-  assert.equal(s61.prompt, 'Axis: spec\nIssue: #61\nSpec comment: 9061\nBase: origin/main\nHead: pr61\nRun spec commands: yes\nRun tests and lint: yes')
-  assert.equal(std61.prompt, 'Axis: standards\nIssue: #61\nSpec comment: 9061\nBase: origin/main\nHead: pr61')
+  assert.equal(s61.prompt, 'Axis: spec\nIssue: #61\nSpec comment: 9061\nBase: origin/main\nHead: pr61\nAnswers: none\nRun spec commands: yes\nRun tests and lint: yes')
+  assert.equal(std61.prompt, 'Axis: standards\nIssue: #61\nSpec comment: 9061\nBase: origin/main\nHead: pr61\nAnswers: none')
   const [s9] = of(9).filter((c) => c.opts.phase === 'verify')
-  assert.match(s9.prompt, /Head: ccc\nRun spec commands: no\nRun tests and lint: yes$/)
+  assert.match(s9.prompt, /Head: ccc\nAnswers: none\nRun spec commands: no\nRun tests and lint: yes$/)
+})
+
+test('AC10 (#198): both verifiers of an Issue with a PR get its Answers line', async () => {
+  const { of } = await runWorkflow([issue(9, { start: 'verify', pr: { number: 10, head: 'ccc', answersLine: '6631@abcdef0' } })], happy)
+  const v = of(9).filter((c) => c.opts.phase === 'verify')
+  assert.equal(v.length, 2)
+  for (const c of v) assert.match(c.prompt, /^Answers: 6631@abcdef0$/m)
 })
 
 test('AC5: each Issue gets only its own stages in one run, and its result under its number', async () => {

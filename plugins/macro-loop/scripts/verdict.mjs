@@ -23,14 +23,33 @@ const RESULTS = ['met', 'unmet', 'wrong', 'manual']
 const JUDGED = ['ran', 'read', 'manual']
 
 const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x)
-const strings = (x) => Array.isArray(x) && x.every((s) => typeof s === 'string' && s.trim() !== '')
+const text = (s) => typeof s === 'string' && s.trim() !== ''
+const strings = (x) => Array.isArray(x) && x.every(text)
 const isCriterion = (c) => isObject(c) && typeof c.id === 'string' && c.id !== '' && typeof c.words === 'string' && RESULTS.includes(c.result) && JUDGED.includes(c.judged)
+const isFailed = (c) => c.result === 'unmet' || c.result === 'wrong'
+
+// A finding the verifier matched to an answer carries `answered`, the answer comment's id (#198).
+function answered(f, what, bad) {
+  if (f.answered !== undefined && !(Number.isInteger(f.answered) && f.answered > 0)) bad(`has ${what} whose \`answered\` is not a comment id: ${JSON.stringify(f)}`)
+}
+
+// An unmet or wrong criterion and an introduced failure name their class of bug and the other
+// places in the diff where it occurs (#198).
+function classed(f, what, bad) {
+  if (!text(f.class)) bad(`has ${what} without \`class\`: ${JSON.stringify(f)}`)
+  if (!strings(f.alsoAt)) bad(`has ${what} without \`alsoAt\`, a list of file:line: ${JSON.stringify(f)}`)
+  answered(f, what, bad)
+}
 
 function validate(d, bad) {
   if (!isObject(d)) bad('is not a JSON object')
   if (!Number.isInteger(d.issue) || d.issue < 1) bad('has no `issue` number')
   if (d.axis === 'standards') {
-    if (!strings(d.standardsBroken)) bad('needs `standardsBroken`, a list of strings')
+    if (!Array.isArray(d.standardsBroken)) bad('needs `standardsBroken`, a list')
+    for (const b of d.standardsBroken) {
+      if (!isObject(b) || !text(b.standard)) bad(`has a broken standard that is not {standard, answered?}: ${JSON.stringify(b)}`)
+      answered(b, 'a broken standard', bad)
+    }
     return
   }
   if (d.axis !== 'spec') bad('needs `axis`, spec or standards')
@@ -38,7 +57,13 @@ function validate(d, bad) {
   if (!Array.isArray(d.criteria)) bad('needs `criteria`, a list')
   const wrong = d.criteria.find((c) => !isCriterion(c))
   if (wrong) bad(`has a criterion that is not {id, words, result, judged}: ${JSON.stringify(wrong)}`)
-  for (const k of ['manualChecks', 'introducedFailures', 'couldNotRun']) if (!strings(d[k])) bad(`needs \`${k}\`, a list of strings`)
+  for (const c of d.criteria.filter(isFailed)) classed(c, `${c.result} criterion ${c.id}`, bad)
+  for (const k of ['manualChecks', 'couldNotRun']) if (!strings(d[k])) bad(`needs \`${k}\`, a list of strings`)
+  if (!Array.isArray(d.introducedFailures)) bad('needs `introducedFailures`, a list')
+  for (const f of d.introducedFailures) {
+    if (!isObject(f) || !text(f.failure)) bad(`has an introduced failure that is not {failure, class, alsoAt}: ${JSON.stringify(f)}`)
+    classed(f, 'an introduced failure', bad)
+  }
 }
 
 // A report's prose, and the data in the block it ends with.
@@ -59,7 +84,7 @@ export function parseReport(text, name) {
   return { prose: text.slice(0, at).trim(), data }
 }
 
-const failed = (spec) => spec.criteria.filter((c) => c.result === 'unmet' || c.result === 'wrong')
+const failed = (spec) => spec.criteria.filter(isFailed)
 const resultOf = (spec) => (failed(spec).length || spec.introducedFailures.length ? 'NEEDS-FIX' : 'PASS')
 
 function byIssue(reports) {
@@ -78,20 +103,27 @@ function byIssue(reports) {
 }
 
 // Every finding has an ID unique within the verdict, so an answer can name it (#196): a
-// criterion keeps its AC ID, introduced failures are F1, F2…, broken standards S1, S2….
+// criterion keeps its AC ID, introduced failures are F1, F2…, broken standards S1, S2…. A
+// finding the verifier matched to an answer is one line linking the answer, and still counts (#198).
+const answeredNote = (f) => `already answered ([the answer](#issuecomment-${f.answered}))`
+const where = (f) => (f.alsoAt.length ? `also at ${f.alsoAt.join(', ')}` : 'no other place in the diff')
+const finding = (f, line) => (f.answered ? `${line}, ${answeredNote(f)}` : `${line}. Class: ${f.class}; ${where(f)}`)
+
 function opening(issues, result, round, branch) {
   const tag = (i) => (issues.length > 1 ? `#${i.number} ` : '')
-  const numbered = (prefix, list) => list.map(([i, text], k) => `- ${tag(i)}${prefix}${k + 1} ${text}`)
-  const broken = numbered('S', issues.flatMap((i) => i.standards.data.standardsBroken.map((b) => [i, b])))
+  const numbered = (prefix, list) => list.map(([i, f], k) => ({ f, id: `- ${tag(i)}${prefix}${k + 1} ` }))
+  const standards = numbered('S', issues.flatMap((i) => i.standards.data.standardsBroken.map((b) => [i, b])))
+  const broken = standards.filter((s) => !s.f.answered).map((s) => s.id + s.f.standard)
+  const settled = standards.filter((s) => s.f.answered).map((s) => `${s.id}${s.f.standard}, ${answeredNote(s.f)}`)
   const firstLine = broken.length ? 'Decide first: the Standards report says the diff breaks these documented standards:' : 'Nothing to decide first.'
-  const rest = broken.length ? ['', ...broken] : []
+  const rest = [...(broken.length ? ['', ...broken] : []), ...(settled.length ? ['', 'Standards findings already answered:', '', ...settled] : [])]
   if (result === 'PASS') {
     const manual = issues.some((i) => i.spec.data.manualChecks.length)
     return [`This PR can merge. ${manual ? 'Do the manual checks below, read' : 'Read'} this verdict, mark the draft "Ready for review", then merge. ${firstLine}`, ...rest].join('\n')
   }
   const items = [
-    ...issues.flatMap((i) => failed(i.spec.data).map((c) => `- ${tag(i)}${c.id} ${c.words}: ${c.result}`)),
-    ...numbered('F', issues.flatMap((i) => i.spec.data.introducedFailures.map((f) => [i, `Introduced failure: ${f}`]))),
+    ...issues.flatMap((i) => failed(i.spec.data).map((c) => `- ${tag(i)}${finding(c, `${c.id} ${c.words}: ${c.result}`)}`)),
+    ...numbered('F', issues.flatMap((i) => i.spec.data.introducedFailures.map((f) => [i, f]))).map((s) => s.id + finding(s.f, `Introduced failure: ${s.f.failure}`)),
   ]
   const next =
     round < 3

@@ -131,13 +131,27 @@ test("the hook takes its identifier lines from one module, and every line of ver
   const step = skill.slice(skill.indexOf('## 5.'), skill.indexOf('## 6.'))
   const blocks = [...step.matchAll(/```text\n([\s\S]*?)```/g)].map((m) => m[1])
   assert.equal(blocks.length, 2)
-  const fill = { '<n>': '1', '<id>': '5976278327', '<m>': '2', '<k>': '3', '<base>': 'main', '<sha of the branch>': HEAD }
+  const fill = { '<n>': '1', '<id>': '5976278327', '<m>': '2', '<k>': '3', '<base>': 'main', '<sha of the branch>': HEAD, '<answers line>': `6631883012@${HEAD}, 6631883013@abcdef0` }
   const filled = blocks.join('').split('\n').filter(Boolean).flatMap((l) => {
     const [name, values] = l.split(/: (.*)/)
     return values.split(' | ').map((v) => `${name}: ${v.replace(/<[^>]+>/g, (p) => fill[p] ?? p)}`)
   })
-  assert.equal(filled.length, 18)
+  assert.equal(filled.length, 22)
+  assert.equal(filled.filter((l) => l.startsWith('Answers: ')).length, 4)
   for (const l of filled) assert.ok(isIdentifierLine(l), l)
+})
+
+test('AC9 (#198): an Answers line of none or <id>@<sha>, … passes; a malformed one is refused, naming it', () => {
+  for (const answers of ['Answers: none', 'Answers: 6631883012@e8c8972', `Answers: 1@${HEAD}, 22@abcdef0`]) {
+    const r = hook(verifier(lines('standards').replace('Base:', `${answers}\nBase:`)))
+    assert.equal(r.status, 0, r.stderr)
+    assert.equal(r.stdout, '', answers)
+  }
+  for (const answers of ['Answers: ', 'Answers: 6631', 'Answers: 6631@main', 'Answers: 1@abcdef0,2@abcdef0', 'Answers: none, 1@abcdef0', 'Answers: AC2 was wrong']) {
+    const r = hook(verifier(lines('standards').replace('Base:', `${answers}\nBase:`)))
+    assert.equal(r.out?.permissionDecision, 'deny', answers)
+    assert.ok(r.out.permissionDecisionReason.includes(JSON.stringify(answers)), answers)
+  }
 })
 
 test('identifier lines only, with Also closes and blank lines, and any other agent with a note: unchanged', () => {

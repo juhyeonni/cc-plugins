@@ -9,7 +9,7 @@ export const meta = {
 }
 
 // args: { pluginRoot, base, issues: [{ number, slug, spec, start, runSpecCommands, push, branch, pr }] }
-//   start: 'implement' | 'open-pr' | 'verify'; pr: { number, head } or null
+//   start: 'implement' | 'open-pr' | 'verify'; pr: { number, head, answersLine } or null
 // Returns one { number, implement?, openPr?, verify? } per Issue, in the order given: each stage
 // that ran for it. A stage that cannot go on has ok: false and a reason, and no later stage runs
 // for that Issue. No Issue waits for another.
@@ -78,6 +78,7 @@ async function verify(s) {
     `Spec comment: ${i.spec ?? 'none'}`,
     `Base: origin/${args.base}`,
     `Head: ${s.head}`,
+    `Answers: ${i.pr?.answersLine ?? 'none'}`,
     ...(axis === 'spec' ? [`Run spec commands: ${i.runSpecCommands ? 'yes' : 'no'}`, 'Run tests and lint: yes'] : []),
   ].join('\n')
   const verifier = (axis) => () =>
