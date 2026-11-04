@@ -10,10 +10,30 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const HOOK = join(ROOT, 'plugins/macro-loop/scripts/verifier-report.mjs')
 const ID = 'a88ecdfd82743e9f2'
 
+function run(input, reports) {
+  const r = spawnSync(process.execPath, [HOOK], { input: JSON.stringify(input), encoding: 'utf8', env: { ...process.env, MACRO_LOOP_REPORTS: reports } })
+  return { ...r, reports }
+}
+
+// Runs the hook as Claude Code does when a verifier calls SubagentHandback (PostToolUse).
+function handback(fields = {}, reports = join(mkdtempSync(join(tmpdir(), 'report-')), 'reports')) {
+  return run({
+    session_id: 's',
+    cwd: reports,
+    hook_event_name: 'PostToolUse',
+    agent_id: ID,
+    agent_type: 'macro-loop:verifier',
+    tool_name: 'SubagentHandback',
+    tool_input: { message: 'the handed-back report' },
+    tool_response: {},
+    ...fields,
+  }, reports)
+}
+
 // Runs the hook as Claude Code does when an agent stops, with its reports directory in a temp folder.
-function hook(fields = {}) {
+function hook(fields = {}, reports) {
   const tmp = mkdtempSync(join(tmpdir(), 'report-'))
-  const reports = join(tmp, 'reports')
+  reports ??= join(tmp, 'reports')
   const input = {
     session_id: 's',
     cwd: tmp,
@@ -24,8 +44,38 @@ function hook(fields = {}) {
     last_assistant_message: 'the report',
     ...fields,
   }
-  const r = spawnSync(process.execPath, [HOOK], { input: JSON.stringify(input), encoding: 'utf8', env: { ...process.env, MACRO_LOOP_REPORTS: reports } })
-  return { ...r, reports, tmp }
+  return { ...run(input, reports), tmp }
+}
+
+test("a verifier's SubagentHandback saves its message as <agent_id>.md", () => {
+  const r = handback()
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(r.stdout, '')
+  assert.equal(readFileSync(join(r.reports, `${ID}.md`), 'utf8'), 'the handed-back report')
+})
+
+test("the plugin's hooks send SubagentHandback calls to this script", () => {
+  const hooks = JSON.parse(readFileSync(join(ROOT, 'plugins/macro-loop/hooks/hooks.json'), 'utf8')).hooks
+  const group = hooks.PostToolUse.find((g) => new RegExp(`^(${g.matcher})$`).test('SubagentHandback'))
+  assert.ok(group, 'no PostToolUse group matches SubagentHandback')
+  assert.ok(group.hooks.some((h) => h.args.some((a) => a.endsWith('/scripts/verifier-report.mjs'))))
+})
+
+test("another agent's SubagentHandback saves nothing and prints nothing", () => {
+  const r = handback({ agent_type: 'Explore' })
+  assert.equal(r.status, 0)
+  assert.equal(r.stdout + r.stderr, '')
+  assert.equal(existsSync(r.reports), false)
+})
+
+for (const [name, fields] of [['closing text', { last_assistant_message: 'Report handed back.' }], ['no message', { last_assistant_message: undefined }]]) {
+  test(`after a hand-back, the verifier's stop with ${name} leaves the saved report as it is`, () => {
+    const first = handback()
+    const r = hook(fields, first.reports)
+    assert.equal(r.status, 0, r.stderr)
+    assert.equal(r.stdout + r.stderr, '')
+    assert.equal(readFileSync(join(r.reports, `${ID}.md`), 'utf8'), 'the handed-back report')
+  })
 }
 
 test("a verifier's stop saves its last message as <agent_id>.md", () => {
