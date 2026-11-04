@@ -120,7 +120,7 @@ test('--pr: author, trust, head, base, last trusted verdict and round', () => {
   })
   const r = run(responses, ['--pr', '3'])
   assert.equal(r.status, 0, r.stderr)
-  assert.deepEqual(r.out.pr, { number: 3, author: 'AnpanManni', authorTrusted: false, head: 'abc123', base: 'main', closes: null, closesAll: [], lastVerdict: 13, lastVerdictResult: null, lastVerdictSha: null, round: 3, answers: [], answerWarnings: [] })
+  assert.deepEqual(r.out.pr, { number: 3, author: 'AnpanManni', authorTrusted: false, head: 'abc123', base: 'main', closes: null, closesAll: [], lastVerdict: 13, lastVerdictResult: null, lastVerdictSha: null, round: 3, answers: [], answerWarnings: [], answersLine: 'none' })
   const listed = run({ ...responses, [CONFIG]: contents({ trusted: ['anpanmanni'] }) }, ['--pr', '3'])
   assert.equal(listed.out.pr.authorTrusted, true)
 })
@@ -193,10 +193,24 @@ const answersOf = (comments) => run(base({
 test('--pr: pr.answers holds one entry per answer line of a trusted answer comment', () => {
   const pr = answersOf([comment(40, 'carol', '<!-- macro-loop:answer round=1 -->\n- AC2 wrong: the test it names already passes on main\n\n- S1 minor: a naming nit')])
   assert.deepEqual(pr.answers, [
-    { round: 1, id: 'AC2', category: 'wrong', reason: 'the test it names already passes on main', comment: 40 },
-    { round: 1, id: 'S1', category: 'minor', reason: 'a naming nit', comment: 40 },
+    { round: 1, id: 'AC2', category: 'wrong', reason: 'the test it names already passes on main', comment: 40, sha: null },
+    { round: 1, id: 'S1', category: 'minor', reason: 'a naming nit', comment: 40, sha: null },
   ])
   assert.deepEqual(pr.answerWarnings, [])
+})
+
+test('AC8 (#198): each answer carries the head its round\'s trusted verdict judged, or null; the Answers line leaves out null', () => {
+  const pr = answersOf([
+    comment(30, 'juhyeonni', '<!-- macro-loop:verify round=1 sha=aaaaaaa1 -->\n## Verify: NEEDS-FIX (round 1 of 3)'),
+    comment(31, 'mallory', '<!-- macro-loop:verify round=2 sha=bbbbbbb2 -->\n## Verify: NEEDS-FIX (round 2 of 3)'),
+    comment(32, 'juhyeonni', '<!-- macro-loop:verify round=3 -->\n## Verify: NEEDS-FIX (round 3 of 3)'),
+    comment(40, 'carol', '<!-- macro-loop:answer round=1 -->\n- AC2 wrong: passes on main\n- S1 minor: nit'),
+    comment(41, 'carol', '<!-- macro-loop:answer round=2 -->\n- F1 intended: by design'),
+    comment(42, 'carol', '<!-- macro-loop:answer round=3 -->\n- AC3 minor: later'),
+  ])
+  assert.deepEqual(pr.answers.map((a) => [a.comment, a.id, a.sha]), [[40, 'AC2', 'aaaaaaa1'], [40, 'S1', 'aaaaaaa1'], [41, 'F1', null], [42, 'AC3', null]])
+  assert.equal(pr.answersLine, '40@aaaaaaa1')
+  assert.equal(answersOf([]).answersLine, 'none')
 })
 
 test('--pr: an untrusted answer, or a marker not on the first line, adds nothing', () => {
@@ -209,7 +223,7 @@ test('--pr: an untrusted answer, or a marker not on the first line, adds nothing
 
 test('--pr: a line of another shape is left out and named in a warning; the valid lines stay', () => {
   const pr = answersOf([comment(43, 'carol', '<!-- macro-loop:answer round=2 -->\n- AC1 bogus: unknown category\n- AC2 wrong:\n- AC3 wrong:   \nJust a note\n- F1 intended: the retry is by design')])
-  assert.deepEqual(pr.answers, [{ round: 2, id: 'F1', category: 'intended', reason: 'the retry is by design', comment: 43 }])
+  assert.deepEqual(pr.answers, [{ round: 2, id: 'F1', category: 'intended', reason: 'the retry is by design', comment: 43, sha: null }])
   assert.equal(pr.answerWarnings.length, 4)
   for (const line of ['- AC1 bogus: unknown category', '- AC2 wrong:', '- AC3 wrong:', 'Just a note']) assert.ok(pr.answerWarnings.some((w) => w.includes(line)), line)
   assert.ok(pr.answerWarnings.every((w) => w.includes('43')))

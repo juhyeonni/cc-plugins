@@ -3,7 +3,7 @@
 // the default branch over the init template's defaults, the trusted logins, and, when
 // asked, an Issue's spec comment and a PR's author, last verdict (its id, result and the
 // head SHA it judged, null for a verdict written before the SHA was recorded), round and the
-// answers to its findings.
+// answers to its findings, each with the head its round judged, and the verifiers' Answers line.
 //
 //   node trust.mjs [--issue <n>] [--pr <n>]
 //
@@ -22,8 +22,14 @@ export const CLOSES = /^\s*closes\s+#(\d+)\b/im
 export const closesAll = (body) => [...String(body ?? '').matchAll(new RegExp(CLOSES.source, 'gim'))].map((m) => Number(m[1]))
 const SPEC = '<!-- macro-loop:spec -->'
 const VERDICT = '<!-- macro-loop:verify round='
+// A verdict comment's first line, as verdict.mjs writes it (the sha is missing on an older
+// one), and its heading. The scenario suite's checks import these too.
+export const VERDICT_MARKER = /^<!-- macro-loop:verify round=(\d+)(?: sha=([0-9a-f]{7,40}))? -->$/
+export const VERDICT_HEADING = /^## Verify: (PASS|NEEDS-FIX)\b/m
+export const verdictMarker = (body) => VERDICT_MARKER.exec(String(body ?? '').split(/\r?\n/)[0])
+export const CONFIG_FILE = '.github/macro-loop.json'
 const TEMPLATE = new URL('../skills/init/templates/macro-loop.json', import.meta.url)
-const CONFIG = 'repos/{owner}/{repo}/contents/.github/macro-loop.json'
+const CONFIG = `repos/{owner}/{repo}/contents/${CONFIG_FILE}`
 
 function gh(args) {
   const r = spawnSync('gh', ['api', ...args], { encoding: 'utf8', maxBuffer: 64 << 20 })
@@ -100,8 +106,8 @@ export function prState(p, comments, trusted) {
     closes: closesAll(p.body)[0] ?? null,
     closesAll: closesAll(p.body),
     lastVerdict: verdicts.at(-1)?.id ?? null,
-    lastVerdictResult: /^## Verify: (PASS|NEEDS-FIX)\b/m.exec(verdicts.at(-1)?.body ?? '')?.[1] ?? null,
-    lastVerdictSha: /^<!-- macro-loop:verify round=\d+ sha=([0-9a-f]{7,40}) -->/.exec(verdicts.at(-1)?.body ?? '')?.[1] ?? null,
+    lastVerdictResult: VERDICT_HEADING.exec(verdicts.at(-1)?.body ?? '')?.[1] ?? null,
+    lastVerdictSha: verdictMarker(verdicts.at(-1)?.body)?.[2] ?? null,
     round: verdicts.length + 1,
   }
 }
@@ -109,9 +115,24 @@ export function prState(p, comments, trusted) {
 const ANSWER_MARKER = /^<!-- macro-loop:answer round=(\d+) -->$/
 const ANSWER_LINE = /^- ((?:#\d+ )?[A-Z]+\d+) (wrong|intended|minor): (.*\S)\s*$/
 
+// The head sha each round's trusted verdict judged; a verdict written without one gives none.
+function verdictShas(comments, trusted) {
+  const shas = new Map()
+  for (const c of trustedMarked(comments, trusted, VERDICT)) {
+    const m = verdictMarker(c.body)
+    if (m) shas.set(Number(m[1]), m[2] ?? null)
+  }
+  return shas
+}
+
+// The verifiers' `Answers` identifier line (#198): each answer comment with the head its round
+// judged. An answer whose round has no sha is left out, so its findings are reported again.
+const answersLine = (answers) => [...new Set(answers.filter((a) => a.sha).map((a) => `${a.comment}@${a.sha}`))].join(', ') || 'none'
+
 // Answers to verify findings (#196): a record only, never read by verdict.mjs. The later
 // answer to the same round and finding wins; a line of another shape is named in a warning.
-function answersOf(comments, trusted) {
+export function answersOf(comments, trusted) {
+  const shas = verdictShas(comments, trusted)
   const answers = new Map()
   const warnings = []
   for (const c of trustedMarked(comments, trusted, '<!-- macro-loop:answer ')) {
@@ -124,10 +145,11 @@ function answersOf(comments, trusted) {
     for (const line of lines.filter((l) => l.trim())) {
       const m = ANSWER_LINE.exec(line)
       if (!m) warnings.push(`comment ${c.id}: "${line.trim()}" is not \`- <ID> <wrong|intended|minor>: <reason>\``)
-      else answers.set(`${round} ${m[1]}`, { round: Number(round), id: m[1], category: m[2], reason: m[3], comment: c.id })
+      else answers.set(`${round} ${m[1]}`, { round: Number(round), id: m[1], category: m[2], reason: m[3], comment: c.id, sha: shas.get(Number(round)) ?? null })
     }
   }
-  return { answers: [...answers.values()], answerWarnings: warnings }
+  const list = [...answers.values()]
+  return { answers: list, answerWarnings: warnings, answersLine: answersLine(list) }
 }
 
 const comments = (n) => api(['--paginate', '--slurp', `repos/{owner}/{repo}/issues/${n}/comments`]).flat()

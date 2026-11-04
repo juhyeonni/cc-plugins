@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { api, findPr, list, runContext, stageOfIssue } from './stage.mjs'
-import { prState, specOf } from './trust.mjs'
+import { answersOf, prState, specOf } from './trust.mjs'
 import { statusLines } from './status.mjs'
 
 // The stages a machine can carry on without a person.
@@ -116,8 +116,9 @@ function decide(argv) {
     r.commands = spec.id ? specCommands(spec.body) : []
     const pr = findPr(r.number, ctx.prs, ctx.defaultBranch)
     if (pr?.state === 'open') {
-      const s = prState(pr, list(`repos/{owner}/{repo}/issues/${pr.number}/comments`), ctx.trusted)
-      r.pr = { number: pr.number, head: s.head, round: s.round, branch: pr.head.ref }
+      const comments = list(`repos/{owner}/{repo}/issues/${pr.number}/comments`)
+      const s = prState(pr, comments, ctx.trusted)
+      r.pr = { number: pr.number, head: s.head, round: s.round, branch: pr.head.ref, answersLine: answersOf(comments, ctx.trusted).answersLine }
     } else r.pr = null
     r.branch = r.pr?.branch ?? branchOf(r.number)
   }

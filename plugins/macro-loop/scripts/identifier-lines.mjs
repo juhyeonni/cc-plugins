@@ -8,6 +8,7 @@ export const IDENTIFIER_LINES = [
   /^Also closes: (none|#\d+(, #\d+)*)$/,
   /^Base: \S+$/,
   /^Head: [0-9a-f]{7,40}$/,
+  /^Answers: (none|\d+@[0-9a-f]{7,40}(, \d+@[0-9a-f]{7,40})*)$/,
   /^Run spec commands: (yes|no)$/,
   /^Run tests and lint: (yes|no)$/,
 ]

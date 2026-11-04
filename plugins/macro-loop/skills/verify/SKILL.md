@@ -59,6 +59,7 @@ Spec comment: <id> | none
 Also closes: #<m>, #<k> | none
 Base: origin/<base>
 Head: <sha of the branch>
+Answers: none | <answers line>
 Run spec commands: yes | no
 Run tests and lint: yes | no
 ```
@@ -69,9 +70,10 @@ Issue: #<n>
 Spec comment: <id> | none
 Base: origin/<base>
 Head: <sha of the branch>
+Answers: none | <answers line>
 ```
 
-`Also closes` is the rest of `pr.closesAll`, or `none`. Anything else goes to the user, never in a prompt: `verifier-flags.mjs` refuses other lines; start again with the lines alone.
+`Also closes` is the rest of `pr.closesAll`, or `none`. `Answers` is `pr.answersLine` from the trust command, the same for both axes: each answer comment in `pr.answers` as `<comment>@<sha>`, leaving out answers whose `sha` is `null`, since the verifier then cannot tell whether the code changed. Without a PR, `none`. Anything else goes to the user, never in a prompt: `verifier-flags.mjs` refuses other lines; start again with the lines alone.
 
 Never run a spec's checks yourself, or offer to. Never continue a verifier with `SendMessage`: its worktree is gone, and `verifier-worktree.mjs` refuses its commands.
 

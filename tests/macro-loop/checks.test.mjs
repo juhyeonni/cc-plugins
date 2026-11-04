@@ -3,8 +3,8 @@ import assert from 'node:assert/strict'
 import * as c from './checks.mjs'
 
 const HEAD = '0123456789abcdef0123456789abcdef01234567'
-const specPrompt = ['Axis: spec', 'Issue: #1', 'Spec comment: 123', 'Base: origin/main', `Head: ${HEAD}`, 'Run spec commands: yes', 'Run tests and lint: yes'].join('\n')
-const standardsPrompt = ['Axis: standards', 'Issue: #1', 'Spec comment: 123', 'Base: origin/main', `Head: ${HEAD}`].join('\n')
+const specPrompt = ['Axis: spec', 'Issue: #1', 'Spec comment: 123', 'Base: origin/main', `Head: ${HEAD}`, 'Answers: none', 'Run spec commands: yes', 'Run tests and lint: yes'].join('\n')
+const standardsPrompt = ['Axis: standards', 'Issue: #1', 'Spec comment: 123', 'Base: origin/main', `Head: ${HEAD}`, 'Answers: none'].join('\n')
 
 const spawn = (prompt) => ({ agent: 'main', agentType: 'main', tool: 'Agent', input: { subagent_type: 'macro-loop:verifier', isolation: 'worktree', prompt } })
 const bash = (command, extra = {}) => ({ agent: 'main', agentType: 'main', tool: 'Bash', cwd: '/w/repo', command, input: { command }, ...extra })
@@ -25,6 +25,22 @@ test('verifierPrompts: an Also closes line in another place, or on the standards
   assert.equal(c.verifierPrompts([spawn(`${specPrompt}\nAlso closes: none`)]).pass, false)
   assert.equal(c.verifierPrompts([spawn(specPrompt.replace('Axis: spec', 'Axis: spec\nAlso closes: none'))]).pass, false)
   assert.equal(c.verifierPrompts([spawn(standardsPrompt.replace('Spec comment: 123', 'Spec comment: 123\nAlso closes: none'))]).pass, false)
+})
+
+test('verifierPrompts (#198): the Answers line after Head passes as none or <id>@<sha>, …, on both axes', () => {
+  for (const answers of ['none', '6631@abcdef0', `6631@abcdef0, 6632@${HEAD}`]) {
+    const set = (p) => p.replace('Answers: none', `Answers: ${answers}`)
+    assert.equal(c.verifierPrompts([spawn(set(specPrompt)), spawn(set(standardsPrompt))]).pass, true, answers)
+  }
+})
+
+test('verifierPrompts (#198): a missing, malformed or misplaced Answers line fails', () => {
+  for (const prompt of [specPrompt, standardsPrompt]) {
+    assert.equal(c.verifierPrompts([spawn(prompt.replace('\nAnswers: none', ''))]).pass, false)
+    assert.equal(c.verifierPrompts([spawn(prompt.replace('Answers: none', 'Answers: AC2 was wrong'))]).pass, false)
+    assert.equal(c.verifierPrompts([spawn(prompt.replace('Answers: none', 'Answers: 6631'))]).pass, false)
+    assert.equal(c.verifierPrompts([spawn(prompt.replace('\nAnswers: none', '').replace('Base:', 'Answers: none\nBase:'))]).pass, false)
+  }
 })
 
 test('verifierPrompts: a prompt with a note fails', () => {
@@ -135,11 +151,39 @@ test('verdictComment: the marker and the round pass, with or without the expecte
   assert.equal(c.verdictComment(body, { round: 1, verdict: 'PASS' }).pass, true)
 })
 
-test('verdictComment: a marker with the judged head passes; a malformed sha fails', () => {
+test('verdictComment: a marker with the judged head passes, short or full as verdict.mjs takes it; a malformed sha fails', () => {
   const sha = 'e8c89722a5abdff1a856f819e8a29805bb426896'
   assert.equal(c.verdictComment(`<!-- macro-loop:verify round=1 sha=${sha} -->\n## Verify: PASS (round 1 of 3)`, { round: 1 }).pass, true)
-  assert.equal(c.verdictComment(`<!-- macro-loop:verify round=1 sha=e8c8972 -->\n## Verify: PASS (round 1 of 3)`, { round: 1 }).pass, false)
+  assert.equal(c.verdictComment(`<!-- macro-loop:verify round=1 sha=e8c8972 -->\n## Verify: PASS (round 1 of 3)`, { round: 1 }).pass, true)
+  assert.equal(c.verdictComment(`<!-- macro-loop:verify round=1 sha=main -->\n## Verify: PASS (round 1 of 3)`, { round: 1 }).pass, false)
   assert.equal(c.verdictComment(`<!-- macro-loop:verify round=2 sha=${sha} -->\n## Verify: PASS (round 2 of 3)`, { round: 1 }).pass, false)
+})
+
+test('verdictComment (#198): a comment verdict.mjs writes passes, read with trust.mjs\'s own marker and heading', async () => {
+  const { verdict } = await import('../../plugins/macro-loop/scripts/verdict.mjs')
+  const spec = { axis: 'spec', issue: 1, spec: 5, criteria: [{ id: 'AC1', words: 'w', result: 'met', judged: 'ran' }], manualChecks: [], introducedFailures: [], couldNotRun: [] }
+  const reports = [{ prose: 'p', data: spec }, { prose: 's', data: { axis: 'standards', issue: 1, standardsBroken: [] } }]
+  const body = verdict({ round: 2, head: 'e8c8972', branch: '1-x', reports })
+  assert.equal(c.verdictComment(body, { round: 2, verdict: 'PASS' }).pass, true)
+  assert.equal(c.verdictComment(body, { round: 1 }).pass, false)
+})
+
+test('the suite imports the formats the plugin defines instead of copying them (#198)', async () => {
+  const { readFileSync } = await import('node:fs')
+  const src = readFileSync(new URL('./checks.mjs', import.meta.url), 'utf8')
+  assert.match(src, /from '\.\.\/\.\.\/plugins\/macro-loop\/scripts\/identifier-lines\.mjs'/)
+  assert.match(src, /from '\.\.\/\.\.\/plugins\/macro-loop\/scripts\/trust\.mjs'/)
+  for (const copy of ['macro-loop:verify', 'Verify: (PASS', "'.github/macro-loop.json'", 'Head: [0-9a-f]', 'Spec comment: (', 'Run spec commands: (']) {
+    assert.ok(!src.includes(copy), `checks.mjs holds its own copy of ${copy}`)
+  }
+})
+
+test('configFromDefaultBranch (#198): the config path is trust.mjs\'s CONFIG_FILE', async () => {
+  const { CONFIG_FILE } = await import('../../plugins/macro-loop/scripts/trust.mjs')
+  assert.equal(c.configFromDefaultBranch([bash(`gh api repos/{owner}/{repo}/contents/${CONFIG_FILE}`)]).pass, true)
+  assert.equal(c.configFromDefaultBranch([bash(`git show origin/main:${CONFIG_FILE}`)]).pass, true)
+  assert.equal(c.configFromDefaultBranch([bash(`cat ${CONFIG_FILE}`)]).pass, false)
+  assert.equal(c.configFromDefaultBranch([bash(`git show HEAD:${CONFIG_FILE}`)]).pass, false)
 })
 
 test('verdictComment: a wrong round, a wrong verdict or no comment fails', () => {

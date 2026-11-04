@@ -23,6 +23,10 @@ const spec = (over = {}) => ({
   ...over,
 })
 const standards = (over = {}) => ({ axis: 'standards', issue: 12, standardsBroken: [], ...over })
+const CLASS = 'a field with a quote is not escaped'
+const unmet = (id, words, over = {}) => ({ id, words, result: 'unmet', judged: 'ran', class: CLASS, alsoAt: [], ...over })
+const failure = (text, over = {}) => ({ failure: text, class: CLASS, alsoAt: [], ...over })
+const broken = (...list) => list.map((standard) => ({ standard }))
 const SPEC_PROSE = '| Criterion | Result |\n|---|---|\n| AC1 CSV quoted fields | met |'
 const STANDARDS_PROSE = 'No documented standard broken. Possible Mysterious Name: `f` in src/csv.js.'
 
@@ -57,26 +61,26 @@ test('PASS: the marker with round and head, the heading, the counts line, then t
 })
 
 test('NEEDS-FIX: an unmet criterion is listed by its ID and words, with the next step', () => {
-  const r = run(ok(spec({ criteria: [met('AC1', 'CSV quoted fields'), { id: 'AC2', words: 'empty input', result: 'unmet', judged: 'ran' }] })))
+  const r = run(ok(spec({ criteria: [met('AC1', 'CSV quoted fields'), unmet('AC2', 'empty input')] })))
   assert.equal(r.status, 0, r.stderr)
   assert.match(r.stdout, /^## Verify: NEEDS-FIX \(round 1 of 3\)$/m)
-  assert.match(r.stdout, /^- AC2 empty input: unmet$/m)
+  assert.match(r.stdout, /^- AC2 empty input: unmet\. /m)
   assert.doesNotMatch(r.stdout, /^- AC1/m)
   assert.match(r.stdout, /run `\/macro-loop:implement 12-csv`/)
 })
 
 test('NEEDS-FIX: an introduced failure alone fails the verdict; in round 3 a person decides', () => {
-  const r = run(ok(spec({ introducedFailures: ['npm test: csv.test.js "quotes" fails only on the head'] })), ['--round', '3', '--head', HEAD, '--branch', '12-csv'])
+  const r = run(ok(spec({ introducedFailures: [failure('npm test: csv.test.js "quotes" fails only on the head')] })), ['--round', '3', '--head', HEAD, '--branch', '12-csv'])
   assert.equal(r.status, 0, r.stderr)
   assert.match(r.stdout, /^## Verify: NEEDS-FIX \(round 3 of 3\)$/m)
-  assert.match(r.stdout, /^- F1 Introduced failure: npm test: csv\.test\.js "quotes" fails only on the head$/m)
+  assert.match(r.stdout, /^- F1 Introduced failure: npm test: csv\.test\.js "quotes" fails only on the head\. /m)
   assert.match(r.stdout, /a person decides what happens next/)
 })
 
 test('a wrong criterion fails the verdict too', () => {
-  const r = run(ok(spec({ criteria: [{ id: 'AC1', words: 'CSV quoted fields', result: 'wrong', judged: 'read' }] })))
+  const r = run(ok(spec({ criteria: [unmet('AC1', 'CSV quoted fields', { result: 'wrong', judged: 'read' })] })))
   assert.match(r.stdout, /^## Verify: NEEDS-FIX/m)
-  assert.match(r.stdout, /^- AC1 CSV quoted fields: wrong$/m)
+  assert.match(r.stdout, /^- AC1 CSV quoted fields: wrong\. /m)
 })
 
 test('nothing to post: a missing block, an invalid block, a missing report or a could-not-run entry', () => {
@@ -104,25 +108,24 @@ test('the block the report ends with counts, not one quoted above it', () => {
 })
 
 test('the opening paragraph names a broken documented standard instead of "Nothing to decide first"', () => {
-  const r = run(ok(spec(), standards({ standardsBroken: ['ADR 0001: src/api.js calls `gh pr view`, which uses GraphQL'] })))
+  const r = run(ok(spec(), standards({ standardsBroken: broken('ADR 0001: src/api.js calls `gh pr view`, which uses GraphQL') })))
   assert.equal(r.status, 0, r.stderr)
   assert.doesNotMatch(r.stdout, /Nothing to decide first/)
   assert.match(r.stdout, /Decide first: the Standards report says the diff breaks these documented standards:\n\n- S1 ADR 0001: src\/api\.js calls `gh pr view`, which uses GraphQL\n/)
 })
 
 test('every finding gets an ID in report order: AC IDs, then F1, F2…, then S1, S2…', () => {
-  const unmet = { id: 'AC2', words: 'empty input', result: 'unmet', judged: 'ran' }
   const r = run(ok(
-    spec({ criteria: [met('AC1', 'CSV quoted fields'), unmet], introducedFailures: ['lint fails', 'a test fails'] }),
-    standards({ standardsBroken: ['ADR 0001: GraphQL', 'ADR 0008: no id check'] }),
+    spec({ criteria: [met('AC1', 'CSV quoted fields'), unmet('AC2', 'empty input')], introducedFailures: [failure('lint fails'), failure('a test fails')] }),
+    standards({ standardsBroken: broken('ADR 0001: GraphQL', 'ADR 0008: no id check') }),
   ))
   assert.equal(r.status, 0, r.stderr)
-  const items = r.stdout.split('\n').filter((l) => /^- (AC|F|S)\d/.test(l))
+  const items = r.stdout.split('\n').filter((l) => /^- (AC|F|S)\d/.test(l)).map((l) => l.split('. Class:')[0])
   assert.deepEqual(items, ['- AC2 empty input: unmet', '- F1 Introduced failure: lint fails', '- F2 Introduced failure: a test fails', '- S1 ADR 0001: GraphQL', '- S2 ADR 0008: no id check'])
 })
 
 test('PASS with broken standards lists them as S1, S2…', () => {
-  const r = run(ok(spec(), standards({ standardsBroken: ['ADR 0001: GraphQL', 'ADR 0008: no id check'] })))
+  const r = run(ok(spec(), standards({ standardsBroken: broken('ADR 0001: GraphQL', 'ADR 0008: no id check') })))
   assert.match(r.stdout, /^## Verify: PASS/m)
   assert.match(r.stdout, /^- S1 ADR 0001: GraphQL\n- S2 ADR 0008: no id check$/m)
 })
@@ -142,13 +145,80 @@ test('no spec: judged against the Issue body', () => {
 })
 
 test('a PR that closes two Issues: one heading for the PR, one section per Issue', () => {
-  const unmet = { id: 'AC1', words: 'dots to dashes', result: 'unmet', judged: 'ran' }
-  const r = run([...ok(), 'B' + block(spec({ issue: 13, criteria: [unmet] })), 'C' + block(standards({ issue: 13 }))])
+  const r = run([...ok(), 'B' + block(spec({ issue: 13, criteria: [unmet('AC1', 'dots to dashes')] })), 'C' + block(standards({ issue: 13 }))])
   assert.equal(r.status, 0, r.stderr)
   assert.match(r.stdout, /^## Verify: NEEDS-FIX \(round 1 of 3\)$/m)
-  assert.match(r.stdout, /^- #13 AC1 dots to dashes: unmet$/m)
+  assert.match(r.stdout, /^- #13 AC1 dots to dashes: unmet\. /m)
   assert.match(r.stdout, /^## #12: PASS$/m)
   assert.match(r.stdout, /^## #13: NEEDS-FIX$/m)
+})
+
+const refused = (reports, why) => {
+  const r = run(reports)
+  assert.notEqual(r.status, 0)
+  assert.equal(r.stdout, '')
+  assert.match(r.stderr, why)
+}
+
+test('AC1 (#198): an unmet or wrong criterion without `class` or `alsoAt` posts nothing and names the field', () => {
+  for (const result of ['unmet', 'wrong']) {
+    const c = unmet('AC2', 'empty input', { result })
+    refused(ok(spec({ criteria: [{ ...c, class: undefined }] })), new RegExp(`${result} criterion AC2 without \`class\``))
+    refused(ok(spec({ criteria: [{ ...c, class: ' ' }] })), /without `class`/)
+    refused(ok(spec({ criteria: [{ ...c, alsoAt: undefined }] })), new RegExp(`${result} criterion AC2 without \`alsoAt\``))
+    refused(ok(spec({ criteria: [{ ...c, alsoAt: 'src/csv.js:3' }] })), /without `alsoAt`/)
+  }
+})
+
+test('AC2 (#198): an introduced failure that is a string, or lacks `failure`, `class` or `alsoAt`, posts nothing', () => {
+  refused(ok(spec({ introducedFailures: ['lint fails'] })), /introduced failure that is not \{failure, class, alsoAt\}/)
+  refused(ok(spec({ introducedFailures: [{ class: CLASS, alsoAt: [] }] })), /introduced failure that is not/)
+  refused(ok(spec({ introducedFailures: [failure('lint fails', { class: undefined })] })), /an introduced failure without `class`/)
+  refused(ok(spec({ introducedFailures: [failure('lint fails', { alsoAt: undefined })] })), /an introduced failure without `alsoAt`/)
+  refused(ok(spec({ introducedFailures: 'none' })), /needs `introducedFailures`/)
+})
+
+test('AC3 (#198): a met or manual criterion without `class` or `alsoAt` is accepted (guards existing behavior)', () => {
+  const r = run(ok(spec({ criteria: [met('AC1', 'CSV quoted fields'), { id: 'AC3', words: 'signed build', result: 'manual', judged: 'manual' }], manualChecks: ['AC3 signed build: open it'] })))
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(r.stdout, /^## Verify: PASS/m)
+})
+
+test('AC4 (#198): each unmet or wrong criterion and introduced failure shows its class and other places, or that there is none', () => {
+  const r = run(ok(spec({
+    criteria: [unmet('AC1', 'CSV quoted fields', { alsoAt: ['src/csv.js:40', 'src/tsv.js:12'] }), unmet('AC2', 'empty input', { result: 'wrong', class: 'an empty list is read as null' })],
+    introducedFailures: [failure('npm test: csv.test.js fails', { class: 'a test imports a removed export', alsoAt: ['test/tsv.test.js:2'] })],
+  })))
+  assert.equal(r.status, 0, r.stderr)
+  const items = r.stdout.split('\n').filter((l) => /^- (AC|F)\d/.test(l))
+  assert.deepEqual(items, [
+    `- AC1 CSV quoted fields: unmet. Class: ${CLASS}; also at src/csv.js:40, src/tsv.js:12`,
+    '- AC2 empty input: wrong. Class: an empty list is read as null; no other place in the diff',
+    '- F1 Introduced failure: npm test: csv.test.js fails. Class: a test imports a removed export; also at test/tsv.test.js:2',
+  ])
+})
+
+test('AC5 and AC6 (#198): an answered finding is one line linking its answer, without class or places, and still fails the verdict', () => {
+  for (const s of [
+    spec({ criteria: [met('AC1', 'CSV quoted fields'), unmet('AC2', 'empty input', { answered: 6631, alsoAt: ['src/csv.js:9'] })] }),
+    spec({ introducedFailures: [failure('lint fails', { answered: 6631 })] }),
+  ]) {
+    const r = run(ok(s))
+    assert.equal(r.status, 0, r.stderr)
+    assert.match(r.stdout, /^## Verify: NEEDS-FIX/m)
+    const [item] = r.stdout.split('\n').filter((l) => /^- (AC|F)\d/.test(l))
+    assert.match(item, /^- (AC2 empty input: unmet|F1 Introduced failure: lint fails), already answered \(\[the answer\]\(#issuecomment-6631\)\)$/)
+  }
+  refused(ok(spec({ criteria: [unmet('AC2', 'empty input', { answered: 'yes' })] })), /`answered` is not a comment id/)
+})
+
+test('AC7 (#198): an answered broken standard is not under "Decide first", and is shown as answered with its link', () => {
+  const r = run(ok(spec(), standards({ standardsBroken: [{ standard: 'ADR 0001: GraphQL', answered: 6640 }, { standard: 'ADR 0008: no id check' }] })))
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(r.stdout, /Decide first: the Standards report says the diff breaks these documented standards:\n\n- S2 ADR 0008: no id check\n\nStandards findings already answered:\n\n- S1 ADR 0001: GraphQL, already answered \(\[the answer\]\(#issuecomment-6640\)\)\n/)
+  const only = run(ok(spec(), standards({ standardsBroken: [{ standard: 'ADR 0001: GraphQL', answered: 6640 }] })))
+  assert.match(only.stdout, /Nothing to decide first\.\n\nStandards findings already answered:\n\n- S1 ADR 0001: GraphQL, already answered/)
+  refused(ok(spec(), standards({ standardsBroken: ['ADR 0001: GraphQL'] })), /broken standard that is not \{standard, answered\?\}/)
 })
 
 test('bad arguments print nothing to post', () => {
