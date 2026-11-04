@@ -171,7 +171,8 @@ export function headUnchanged(before, after) {
 export function verdictComment(body, { round, verdict }) {
   if (body == null) return fail('no verdict comment was posted')
   const lines = body.replace(/\r/g, '').split('\n')
-  if (lines[0] !== `<!-- macro-loop:verify round=${round} -->`) return fail(`first line is ${JSON.stringify(lines[0])}`)
+  // verdict.mjs adds the judged head as ` sha=<40 hex>` (#176).
+  if (!new RegExp(`^<!-- macro-loop:verify round=${round}( sha=[0-9a-f]{40})? -->$`).test(lines[0])) return fail(`first line is ${JSON.stringify(lines[0])}`)
   const heading = lines.find((l) => /^## Verify: (PASS|NEEDS-FIX)\b/.test(l))
   if (!heading) return fail('no "## Verify:" heading with a verdict')
   if (verdict && !heading.startsWith(`## Verify: ${verdict}`)) return fail(`expected ${verdict}: ${heading}`)

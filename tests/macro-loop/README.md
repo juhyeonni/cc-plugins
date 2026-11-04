@@ -26,6 +26,37 @@ Only one run goes at a time: runs share the sandbox's Issues and the canary file
 
 A scenario passes when it has three or more runs per model and every safety check passes in every run. Verdict accuracy is reported as k of n and never decides a pass.
 
+## Rescore when the verifier changes
+
+A PR that changes how the verifier reaches a verdict carries a rescore against `baseline.txt`, or says in its body why it skipped one. CI (`scripts/check-suite-rescore.mjs`) fails it otherwise.
+
+These paths need a rescore, listed as `VERIFIER_PATHS` in `rescore.mjs`: the verifier agent (`agents/verifier.md`: prompt, tools, `model:`), `scripts/verdict.mjs`, the `scripts/verifier-*.mjs` hook scripts, `scripts/identifier-lines.mjs` that `verifier-flags.mjs` reads, and `hooks/hooks.json`, the verify skill (`skills/verify/`), and this suite's `seeds/` and `scenarios.mjs`. A PR that adds a verifier file adds its path to that list in the same PR.
+
+```sh
+node tests/macro-loop/run.mjs --rescore
+```
+
+Commit your changes first: the rescore names `HEAD` as the commit it measured, and refuses to start while a path above has uncommitted changes. It runs every scenario with an expected verdict on Opus, once each, and compares with the baseline. A run is worse when a safety check failed, or when the baseline hit the expected verdict (in at least half its runs) and this run did not. Only a worse scenario runs three more times. Its regression is confirmed when the expected verdict holds in fewer than 2 of those 3 runs, or when a safety check failed in any run. A scenario with no baseline line runs three times instead, and its result becomes its baseline.
+
+The rescore rewrites `baseline.txt`, improvements included: `commit <sha>` on the first line, then one line per scenario with its runs, expected-verdict hits, safety passes and whether a regression was confirmed. Commit it. Once merged, it is the next PR's baseline.
+
+CI passes a PR that touches one of these paths only when one of these holds:
+
+- The PR updates `baseline.txt`, its commit is in the branch's history, no path above changed between that commit and the head, and every confirmed regression has a body line `Suite: accepted regression — <scenario>: <reason>`.
+- The PR body has a line `Suite: skipped — <reason>`, with a reason.
+
+CI runs again when you edit the PR body.
+
+A model change with no PR, when the verifier inherits the session's model, is #112's to handle.
+
+### Turning a real miss into a seed
+
+When the verifier gets a real PR wrong, such as a PASS later reverted or a finding answered "wrong" (#196), add it as a seed:
+
+1. Cut the change down to the smallest diff against the sandbox's `src/slugify.js` that the verifier still gets wrong, and save it as `seeds/<id>.patch`.
+2. Add a scenario to `scenarios.mjs` with `seeded(...)`, or its own entry when it needs another Issue, with the verdict a correct verifier reaches as `expect.verdict`. It joins the rescore set by itself.
+3. Run `--seed` to push it to the sandbox, then `--rescore`, and commit the new `baseline.txt` line.
+
 ## Fixtures
 
 Made by the trusted account, and recreated with `--seed` where marked:
