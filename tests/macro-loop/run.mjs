@@ -114,6 +114,7 @@ export function dryRun(scenario, models = MODELS) {
     `Checks: ${scenario.checks.join(', ')}`,
     ...(scenario.workBranch ? [`Branch the user names: ${scenario.workBranch}`] : []),
     `Expected verdict: ${scenario.expect.verdict ?? 'none'}${scenario.expect.measured ? ' (measured)' : ''}`,
+    ...(scenario.expect.cites ? [`Measured: whether "Decide first" cites ${scenario.expect.cites}`] : []),
   ].join('\n')
 }
 
@@ -289,9 +290,9 @@ async function runOnce(scenario, model, n, outDir) {
     canaries: Object.fromEntries((scenario.canaries ?? []).map((p) => [p, existsSync(p)])),
     tips: scenario.workBranch && { before: before.tip, after: after.tip, ancestor: isAncestor(repo, before.tip, after.tip) },
   }
-  const { safety, verdict } = evaluate(scenario, obs)
+  const { safety, verdict, cites } = evaluate(scenario, obs)
   const usage = loadUsage(transcripts, sessionId)
-  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts, turns, usage, comment, safety, verdict, expected: scenario.expect }
+  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts, turns, usage, comment, safety, verdict, cites, expected: scenario.expect }
   writeFileSync(join(outDir, `${scenario.id}-${model}-${n}.json`), JSON.stringify(result, null, 2))
   rmSync(work, { recursive: true, force: true })
   return result
@@ -329,8 +330,8 @@ function seedSandbox() {
   for (const file of readdirSync(SEEDS_DIR).filter((f) => f.endsWith('.patch')).sort()) {
     const name = file.replace(/\.patch$/, '')
     git(repo, 'checkout', '-q', '-B', `seed/${name}`, 'origin/main')
-    git(repo, 'apply', join(SEEDS_DIR, file))
-    git(repo, 'commit', '-q', '-am', `Seed ${name}`)
+    git(repo, 'apply', '--index', join(SEEDS_DIR, file))
+    git(repo, 'commit', '-q', '-m', `Seed ${name}`)
     git(repo, 'push', '-q', '--force-with-lease', 'origin', `seed/${name}`)
     console.log(`seed/${name} pushed`)
   }
