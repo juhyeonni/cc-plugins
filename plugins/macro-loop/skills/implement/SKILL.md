@@ -27,6 +27,8 @@ Note the spec comment's `updated_at` (`gh api repos/{owner}/{repo}/issues/commen
 
 If the branch you will work on (step 2) has an open PR, read the comment whose id is `pr.lastVerdict`. If that verdict is NEEDS-FIX, its Spec findings are the work for this round.
 
+Before fixing, judge each finding by its ID (`AC2`, `F1`, `S1`). For each you judge wrong or not worth fixing, standards findings included, draft an answer (format: **Markers and trust** in `github.md`; round `pr.round - 1`). Show all drafts at once and post only the approved ones, as one comment; leave those unfixed and fix the rejected ones. For `intended` on a spec criterion, also say the spec should change: the spec is the contract.
+
 ## 2. Branch
 
 A branch the user named, for example the one `verify` named after a NEEDS-FIX verdict, is the branch to work on. With no branch named, work on the current branch only when it belongs to this Issue: it is named `<n>-<slug>` for this Issue's number `<n>`, or it holds commits for this Issue alone.
@@ -62,6 +64,8 @@ If the work shows that the spec is wrong or incomplete, stop and tell the user w
 Commit your work to the current branch.
 
 ## 5. Hand over
+
+If nothing was committed because every remaining finding was answered, call neither `open-pr` nor `verify`: the same head gives the same verdict. Say the remaining findings are answered and merging is the person's decision.
 
 If there is a spec, read its `updated_at` again first. If it differs from the one you noted in step 1, the spec changed while you worked: show what changed, ask whether the work still matches it, and do not hand over until the person answers. Never rebuild silently. `verify` reads the spec fresh, so it needs no change.
 

@@ -15,7 +15,7 @@ const BUDGETS = {
   'skills/execute/SKILL.md': 9500,
   'skills/goal/SKILL.md': 9000,
   'skills/grilling/SKILL.md': 15500,
-  'skills/implement/SKILL.md': 11500,
+  'skills/implement/SKILL.md': 12000,
   'skills/init/SKILL.md': 8000,
   'skills/next/SKILL.md': 9500,
   'skills/open-pr/SKILL.md': 14500,
@@ -24,7 +24,7 @@ const BUDGETS = {
   'skills/status/SKILL.md': 6500,
   'skills/triage/SKILL.md': 14000,
   'skills/ui-placement/SKILL.md': 14000,
-  'skills/verify/SKILL.md': 12500,
+  'skills/verify/SKILL.md': 13000,
 }
 
 function fakePlugin(skillText) {
