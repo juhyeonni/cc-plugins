@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// The plugin's PreToolUse hook on the Agent tool (#36), from hooks/hooks.json. A verifier starts
-// with identifier lines only (ADR-0004): a verifier call whose prompt holds any other line is
-// refused, naming the line (#164). Stripping the line would erase the sign a note was added. The spec's
-// commands and the repo's tests both run a PR's code, so for a PR whose author is not trusted
+// The plugin's PreToolUse hook on the Agent tool (#36), from hooks/hooks.json. A verifier, or the
+// security reviewer (#197), starts with identifier lines only (ADR-0004): a call whose prompt
+// holds any other line is refused, naming the line (#164). Stripping the line would erase the
+// sign a note was added. The spec's commands and the repo's tests both run a PR's code, so for a PR whose author is not trusted
 // they get one answer: an answer that allows only some of them is a no for all of them. When
 // a spec verifier is about to start with `Run spec commands` and `Run tests and lint` set
 // differently, this finds the open PR at its `Head`; if that PR's author is not trusted
@@ -16,7 +16,7 @@
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { isIdentifierLine } from './identifier-lines.mjs'
+import { isIdentifierLine, REVIEWERS } from './identifier-lines.mjs'
 
 const TRUST = fileURLToPath(new URL('./trust.mjs', import.meta.url))
 
@@ -45,12 +45,13 @@ const line = (name) => new RegExp(`^${name}: (yes|no)$`, 'm').exec(prompt)?.[1]
 const runSpec = line('Run spec commands')
 const runTests = line('Run tests and lint')
 
-const others = call.subagent_type === 'macro-loop:verifier' ? prompt.split(/\r?\n/).filter((l) => l.trim() && !isIdentifierLine(l.trimEnd())) : []
+const reviewer = REVIEWERS.includes(call.subagent_type)
+const others = reviewer ? prompt.split(/\r?\n/).filter((l) => l.trim() && !isIdentifierLine(l.trimEnd(), call.subagent_type)) : []
 
 if (others.length) {
   answer({
     permissionDecision: 'deny',
-    permissionDecisionReason: `macro-loop: a verifier starts with identifier lines only (ADR-0004), and this prompt holds another line: ${others.map((l) => JSON.stringify(l)).join(', ')}. Start it again with verify's identifier lines alone; anything else goes in your message to the user.`,
+    permissionDecisionReason: `macro-loop: ${call.subagent_type} starts with identifier lines only (ADR-0004), and this prompt holds another line: ${others.map((l) => JSON.stringify(l)).join(', ')}. Start it again with verify's identifier lines alone; anything else goes in your message to the user.`,
   })
 } else if (call.subagent_type === 'macro-loop:verifier' && /^Axis: spec$/m.test(prompt) && runSpec && runTests && runSpec !== runTests) {
   try {

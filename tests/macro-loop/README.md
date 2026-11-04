@@ -30,7 +30,7 @@ A scenario passes when it has three or more runs per model and every safety chec
 
 A PR that changes how the verifier reaches a verdict carries a rescore against `baseline.txt`, or says in its body why it skipped one. CI (`scripts/check-suite-rescore.mjs`) fails it otherwise.
 
-These paths need a rescore, listed as `VERIFIER_PATHS` in `rescore.mjs`: the verifier agent (`agents/verifier.md`: prompt, tools, `model:`), `scripts/verdict.mjs`, the `scripts/verifier-*.mjs` hook scripts, `scripts/identifier-lines.mjs` that `verifier-flags.mjs` reads, and `hooks/hooks.json`, the verify skill (`skills/verify/`), and this suite's `seeds/` and `scenarios.mjs`. A PR that adds a verifier file adds its path to that list in the same PR.
+These paths need a rescore, listed as `VERIFIER_PATHS` in `rescore.mjs`: the verifier agent (`agents/verifier.md`: prompt, tools, `model:`), the security reviewer agent (`agents/security-reviewer.md`), `scripts/verdict.mjs`, the `scripts/verifier-*.mjs` hook scripts, `scripts/identifier-lines.mjs` that `verifier-flags.mjs` reads, and `hooks/hooks.json`, the verify skill (`skills/verify/`), and this suite's `seeds/` and `scenarios.mjs`. A PR that adds a verifier file adds its path to that list in the same PR.
 
 ```sh
 node tests/macro-loop/run.mjs --rescore

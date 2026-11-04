@@ -7,6 +7,7 @@ export const BASELINE = 'tests/macro-loop/baseline.txt'
 // A change to any of these needs a rescore. A PR that adds a verifier file adds its path here.
 export const VERIFIER_PATHS = [
   /^plugins\/macro-loop\/agents\/verifier\.md$/,
+  /^plugins\/macro-loop\/agents\/security-reviewer\.md$/,
   /^plugins\/macro-loop\/scripts\/verdict\.mjs$/,
   /^plugins\/macro-loop\/scripts\/verifier-[^/]+\.mjs$/,
   /^plugins\/macro-loop\/scripts\/identifier-lines\.mjs$/,

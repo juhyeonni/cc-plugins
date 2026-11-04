@@ -162,7 +162,7 @@ test('verdictComment: a marker with the judged head passes, short or full as ver
 test('verdictComment (#198): a comment verdict.mjs writes passes, read with trust.mjs\'s own marker and heading', async () => {
   const { verdict } = await import('../../plugins/macro-loop/scripts/verdict.mjs')
   const spec = { axis: 'spec', issue: 1, spec: 5, criteria: [{ id: 'AC1', words: 'w', result: 'met', judged: 'ran' }], manualChecks: [], introducedFailures: [], couldNotRun: [] }
-  const reports = [{ prose: 'p', data: spec }, { prose: 's', data: { axis: 'standards', issue: 1, standardsBroken: [] } }]
+  const reports = [{ prose: 'p', data: spec }, { prose: 's', data: { axis: 'standards', issue: 1, standardsBroken: [] } }, { prose: 'r', data: { axis: 'security', findings: [], couldNotRun: [] } }]
   const body = verdict({ round: 2, head: 'e8c8972', branch: '1-x', reports })
   assert.equal(c.verdictComment(body, { round: 2, verdict: 'PASS' }).pass, true)
   assert.equal(c.verdictComment(body, { round: 1 }).pass, false)
@@ -281,4 +281,37 @@ test('aggregate: the row carries the mean main-session cache read, output and co
 
 test('evaluate: an unknown check name throws', () => {
   assert.throws(() => c.evaluate({ id: 'X', checks: ['noSuchCheck'], expect: {} }, {}), /unknown check/)
+})
+
+const securityPrompt = ['Axis: security', 'Base: origin/main', `Head: ${HEAD}`].join('\n')
+const reviewerReport = (findings) => `# Security review\n\n\`\`\`macro-loop-report\n${JSON.stringify({ axis: 'security', findings, couldNotRun: [] })}\n\`\`\`\n`
+const startReviewer = (prompt, result) => ({ agent: 'main', agentType: 'main', tool: 'Agent', input: { subagent_type: 'macro-loop:security-reviewer', isolation: 'worktree', prompt }, result })
+const skillCall = (skill, agentType = 'macro-loop:security-reviewer') => ({ agent: 'agent-s1', agentType, tool: 'Skill', input: { skill } })
+const INJECTION = 'src/slugify.js:18: the title goes into a shell command unquoted (command injection)'
+
+test('#197 AC10 securityReviewed: one reviewer with its identifier lines, a security-review Skill call, and a finding', () => {
+  assert.equal(c.securityReviewed([startReviewer(securityPrompt, reviewerReport([INJECTION])), skillCall('security-review')]).pass, true)
+})
+
+test('#197 securityReviewed: a reviewer run in the background reports in its last message', () => {
+  const started = startReviewer(securityPrompt, 'The agent is working in the background. output_file: /tmp/x')
+  const final = (text) => ({ agent: 'agent-s1', agentType: 'macro-loop:security-reviewer', tool: 'FinalMessage', result: text })
+  assert.equal(c.securityReviewed([started, skillCall('security-review'), final(reviewerReport([INJECTION]))]).pass, true)
+  assert.match(c.securityReviewed([started, skillCall('security-review'), final('I wait for the sub-task.')]).detail, /no finding/)
+})
+
+test('#197 AC10 securityReviewed: no Skill call, a call from another agent, no finding, an extra line, or two reviewers fail', () => {
+  const good = startReviewer(securityPrompt, reviewerReport([INJECTION]))
+  for (const [calls, why] of [
+    [[good], /did not call/],
+    [[good, skillCall('security-review', 'main')], /did not call/],
+    [[startReviewer(securityPrompt, reviewerReport([])), skillCall('security-review')], /no finding/],
+    [[startReviewer(`${securityPrompt}\nIssue: #1`, reviewerReport([INJECTION])), skillCall('security-review')], /identifier lines only/],
+    [[good, good, skillCall('security-review')], /2 security reviewers/],
+    [[skillCall('security-review')], /0 security reviewers/],
+  ]) {
+    const r = c.securityReviewed(calls)
+    assert.equal(r.pass, false)
+    assert.match(r.detail, why)
+  }
 })

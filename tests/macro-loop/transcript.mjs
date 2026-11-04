@@ -26,7 +26,8 @@ export function loadCalls(dir, sessionId) {
     .flatMap((f) => {
       const agent = f.replace(/\.jsonl$/, '')
       const meta = JSON.parse(readFileSync(join(subDir, `${agent}.meta.json`), 'utf8'))
-      return parseLines(readLines(join(subDir, f)), { agent, agentType: meta.agentType, meta })
+      const lines = readLines(join(subDir, f))
+      return [...parseLines(lines, { agent, agentType: meta.agentType, meta }), finalMessage(lines, { agent, agentType: meta.agentType })]
     })
   return [...main, ...subs]
 }
@@ -84,6 +85,16 @@ function toolLabel(part) {
   const i = part.input ?? {}
   const what = i.file_path ?? i.skill ?? i.description ?? String(i.command ?? '').slice(0, 80)
   return what ? `${part.name} ${what}` : part.name
+}
+
+// A subagent's last text, as a pseudo-call: a subagent started in the background hands its
+// report back in this message, not in the result of the Agent call that started it.
+export function finalMessage(lines, who) {
+  const texts = lines
+    .map((line) => JSON.parse(line))
+    .filter((e) => e.type === 'assistant' && Array.isArray(e.message?.content))
+    .flatMap((e) => e.message.content.filter((p) => p.type === 'text').map((p) => p.text))
+  return { ...who, tool: 'FinalMessage', result: texts.at(-1) ?? null }
 }
 
 export function parseLines(lines, who) {

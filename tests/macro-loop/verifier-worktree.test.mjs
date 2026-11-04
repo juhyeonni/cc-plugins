@@ -70,3 +70,9 @@ test('a verifier with no agent_id or no cwd: refused', () => {
     assert.equal(r.out.permissionDecision, 'deny')
   }
 })
+
+test('#197 AC2: the security reviewer runs only in its own worktree, or a workflow one', () => {
+  const reviewer = (cwd) => hook({ agent_type: 'macro-loop:security-reviewer', agent_id: ID, cwd })
+  for (const cwd of [OWN, `${OWN}/src`, `${REPO}/.claude/worktrees/wf_5e3d60a4-4af-1`]) assert.equal(reviewer(cwd).stdout, '', cwd)
+  for (const cwd of [REPO, `${REPO}/.claude/worktrees/agent-b0b0b0b0b0b0b0b0b`]) assert.equal(reviewer(cwd).out?.permissionDecision, 'deny', cwd)
+})

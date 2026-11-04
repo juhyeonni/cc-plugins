@@ -141,8 +141,8 @@ const happy = (p, o) => {
 
 test('AC3: an Issue from implement goes implement → open-pr → verify, every row starting #<n>', async () => {
   const { value, calls } = await runWorkflow([issue(61)], happy)
-  assert.deepEqual(calls.map((c) => c.opts.phase), ['implement', 'open-pr', 'verify', 'verify'])
-  assert.deepEqual(calls.map((c) => c.opts.label), ['#61 implement', '#61 open-pr', '#61 verify · spec', '#61 verify · standards'])
+  assert.deepEqual(calls.map((c) => c.opts.phase), ['implement', 'open-pr', 'verify', 'verify', 'verify'])
+  assert.deepEqual(calls.map((c) => c.opts.label), ['#61 implement', '#61 open-pr', '#61 verify · spec', '#61 verify · standards', '#61 verify · security'])
   const impl = calls[0]
   assert.equal(impl.opts.isolation, 'worktree')
   assert.match(impl.prompt, /never edit the spec/i)
@@ -150,20 +150,20 @@ test('AC3: an Issue from implement goes implement → open-pr → verify, every 
   assert.match(impl.prompt, /git branch -D/)
   assert.match(impl.prompt, /worktree-\* branch/)
   assert.match(calls[1].prompt, /approved the push up front/)
-  assert.deepEqual(value, [{ number: 61, implement: { ok: true, branch: '61-s61', head: 'impl61' }, openPr: { ok: true, pr: 161, head: 'pr61' }, verify: { pr: 161, head: 'pr61', spec: 'report #61 verify · spec', standards: 'report #61 verify · standards' } }])
+  assert.deepEqual(value, [{ number: 61, implement: { ok: true, branch: '61-s61', head: 'impl61' }, openPr: { ok: true, pr: 161, head: 'pr61' }, verify: { pr: 161, head: 'pr61', spec: 'report #61 verify · spec', standards: 'report #61 verify · standards', security: 'report #61 verify · security' } }])
 })
 
 test('AC4: each Issue gets exactly two worktree verifiers with the identifier lines and its own head', async () => {
   const { of } = await runWorkflow([issue(61), issue(9, { start: 'verify', runSpecCommands: false, pr: { number: 10, head: 'ccc' } })], happy)
   for (const n of [61, 9]) {
-    const v = of(n).filter((c) => c.opts.phase === 'verify')
+    const v = of(n).filter((c) => c.opts.agentType === 'macro-loop:verifier')
     assert.equal(v.length, 2)
     for (const c of v) {
       assert.equal(c.opts.agentType, 'macro-loop:verifier')
       assert.equal(c.opts.isolation, 'worktree')
     }
   }
-  const [s61, std61] = of(61).filter((c) => c.opts.phase === 'verify')
+  const [s61, std61] = of(61).filter((c) => c.opts.agentType === 'macro-loop:verifier')
   assert.equal(s61.prompt, 'Axis: spec\nIssue: #61\nSpec comment: 9061\nBase: origin/main\nHead: pr61\nAnswers: none\nRun spec commands: yes\nRun tests and lint: yes')
   assert.equal(std61.prompt, 'Axis: standards\nIssue: #61\nSpec comment: 9061\nBase: origin/main\nHead: pr61\nAnswers: none')
   const [s9] = of(9).filter((c) => c.opts.phase === 'verify')
@@ -172,17 +172,17 @@ test('AC4: each Issue gets exactly two worktree verifiers with the identifier li
 
 test('AC10 (#198): both verifiers of an Issue with a PR get its Answers line', async () => {
   const { of } = await runWorkflow([issue(9, { start: 'verify', pr: { number: 10, head: 'ccc', answersLine: '6631@abcdef0' } })], happy)
-  const v = of(9).filter((c) => c.opts.phase === 'verify')
+  const v = of(9).filter((c) => c.opts.agentType === 'macro-loop:verifier')
   assert.equal(v.length, 2)
   for (const c of v) assert.match(c.prompt, /^Answers: 6631@abcdef0$/m)
 })
 
 test('AC5: each Issue gets only its own stages in one run, and its result under its number', async () => {
   const { value, of } = await runWorkflow([issue(7), issue(70, { start: 'open-pr', branch: '70-x' }), issue(9, { start: 'verify', pr: { number: 10, head: 'ccc' } })], happy)
-  assert.deepEqual(of(7).map((c) => c.opts.phase), ['implement', 'open-pr', 'verify', 'verify'])
-  assert.deepEqual(of(70).map((c) => c.opts.phase), ['open-pr', 'verify', 'verify'])
+  assert.deepEqual(of(7).map((c) => c.opts.phase), ['implement', 'open-pr', 'verify', 'verify', 'verify'])
+  assert.deepEqual(of(70).map((c) => c.opts.phase), ['open-pr', 'verify', 'verify', 'verify'])
   assert.match(of(70)[0].prompt, /branch 70-x/)
-  assert.deepEqual(of(9).map((c) => c.opts.phase), ['verify', 'verify'])
+  assert.deepEqual(of(9).map((c) => c.opts.phase), ['verify', 'verify', 'verify'])
   assert.deepEqual(value.map((r) => r.number), [7, 70, 9])
   assert.equal(value[1].implement, undefined)
   assert.deepEqual(Object.keys(value[2]), ['number', 'verify'])
@@ -207,13 +207,13 @@ test('AC6: an Issue stops at the stage that cannot go on, and the others still g
     assert.ok(!of(n).some((c) => c.opts.phase === 'verify'), n)
   }
   assert.ok(!of(3).some((c) => c.opts.phase === 'open-pr'))
-  assert.deepEqual(of(5).map((c) => c.opts.phase), ['implement', 'open-pr', 'verify', 'verify'])
+  assert.deepEqual(of(5).map((c) => c.opts.phase), ['implement', 'open-pr', 'verify', 'verify', 'verify'])
   assert.equal(by[5].verify.pr, 105)
 })
 
 test('AC6: no implement after a verdict, and verify posts nothing', async () => {
   const { calls } = await runWorkflow([issue(9, { start: 'verify', pr: { number: 10, head: 'ccc' } })], () => 'NEEDS-FIX')
-  assert.ok(calls.every((c) => c.opts.agentType === 'macro-loop:verifier'))
+  assert.ok(calls.every((c) => ['macro-loop:verifier', 'macro-loop:security-reviewer'].includes(c.opts.agentType)))
   assert.doesNotMatch(readFileSync(WORKFLOW, 'utf8'), /-X (POST|PATCH|PUT|DELETE)\b/)
 })
 
@@ -237,7 +237,27 @@ test('every line of the workflow verifier prompts is an identifier line from the
     return 'report'
   }
   const { calls } = await runWorkflow([issue(1), issue(2, { start: 'verify', spec: null, runSpecCommands: false, pr: { number: 3, head: sha(2) } })], answer)
-  const prompts = calls.filter((c) => c.opts.agentType === 'macro-loop:verifier').map((c) => c.prompt)
-  assert.equal(prompts.length, 4)
-  for (const l of prompts.flatMap((p) => p.split('\n'))) assert.ok(isIdentifierLine(l), l)
+  const prompts = (agentType) => calls.filter((c) => c.opts.agentType === agentType).map((c) => c.prompt)
+  assert.equal(prompts('macro-loop:verifier').length, 4)
+  assert.equal(prompts('macro-loop:security-reviewer').length, 2)
+  for (const type of ['macro-loop:verifier', 'macro-loop:security-reviewer']) {
+    for (const l of prompts(type).flatMap((p) => p.split('\n'))) assert.ok(isIdentifierLine(l, type), l)
+  }
+})
+
+test('#197 AC8: each PR gets one worktree security reviewer with Axis, Base and its own head, and its report comes back', async () => {
+  const { value, of } = await runWorkflow([issue(61), issue(9, { start: 'verify', pr: { number: 10, head: 'ccc' } })], happy)
+  for (const [n, head] of [[61, 'pr61'], [9, 'ccc']]) {
+    const reviewers = of(n).filter((c) => c.opts.agentType === 'macro-loop:security-reviewer')
+    assert.equal(reviewers.length, 1, n)
+    assert.equal(reviewers[0].opts.isolation, 'worktree')
+    assert.equal(reviewers[0].prompt, `Axis: security\nBase: origin/main\nHead: ${head}`)
+  }
+  assert.equal(value[1].verify.security, 'report #9 verify · security')
+})
+
+test("#197 AC8: execute's step 4 passes the security report to verdict.mjs", () => {
+  const skill = readFileSync(join(ROOT, 'plugins/macro-loop/skills/execute/SKILL.md'), 'utf8')
+  const step = skill.slice(skill.indexOf('## 4.'), skill.indexOf('## 5.'))
+  assert.match(step, /`spec`, `standards` and `security` reports/)
 })

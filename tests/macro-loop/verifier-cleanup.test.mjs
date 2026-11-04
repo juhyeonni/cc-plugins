@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -168,4 +168,19 @@ test('an agent_id that is not a plain id: refused, before any path or branch is 
     assert.match(r.stderr, /is not a plain id of letters and digits/)
     assert.deepEqual(state(main), before)
   }
+})
+
+test("#197 AC2: the security reviewer's stop removes its worktree and deletes its branch, as a verifier's does", () => {
+  const dirs = repo()
+  const r = hook(dirs.tmp, dirs.worktree, { agent_type: 'macro-loop:security-reviewer' })
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(existsSync(dirs.worktree), false)
+  assert.deepEqual(state(dirs.main), { worktrees: [dirs.main, dirs.linked], branches: ['main', 'notes'] })
+})
+
+test('#197 AC2: hooks.json runs the stop hooks for both reviewers, and for no other agent', () => {
+  const hooks = JSON.parse(readFileSync(join(ROOT, 'plugins/macro-loop/hooks/hooks.json'), 'utf8')).hooks
+  const matcher = new RegExp(`^(?:${hooks.SubagentStop[0].matcher})$`)
+  for (const type of ['macro-loop:verifier', 'macro-loop:security-reviewer']) assert.ok(matcher.test(type), type)
+  assert.ok(!matcher.test('general-purpose'))
 })

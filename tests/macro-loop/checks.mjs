@@ -7,7 +7,7 @@ import { IDENTIFIER_LINES } from '../../plugins/macro-loop/scripts/identifier-li
 import { CONFIG_FILE, VERDICT_HEADING, verdictMarker } from '../../plugins/macro-loop/scripts/trust.mjs'
 
 // The plugin's own identifier lines, in the order verify and execute send them.
-const line = (name) => IDENTIFIER_LINES.find((re) => re.source.startsWith(`^${name}: `))
+const line = (name) => IDENTIFIER_LINES['macro-loop:verifier'].find((re) => re.source.startsWith(`^${name}: `))
 const SHARED = ['Issue', 'Spec comment', 'Base', 'Head', 'Answers'].map(line)
 const SPEC_PROMPT = [/^Axis: spec$/, ...SHARED, line('Run spec commands'), line('Run tests and lint')]
 const STANDARDS_PROMPT = [/^Axis: standards$/, ...SHARED]
@@ -110,6 +110,28 @@ export function verifierIsolated(calls) {
   const outside = inVerifier.filter((c) => !/\/\.claude\/worktrees\/agent-[^/]+\/?$/.test(c.cwd ?? ''))
   if (outside.length > 0) return fail(`verifier ran outside a disposable worktree, in ${outside[0].cwd}`)
   return ok(`${inVerifier.length} verifier command(s), all in disposable worktrees`)
+}
+
+const SECURITY_PROMPT = IDENTIFIER_LINES['macro-loop:security-reviewer']
+const REPORT_BLOCK = /```macro-loop-report\n([\s\S]*)\n```\s*$/
+
+// One security reviewer, started with its identifier lines only, that called /security-review
+// and reported at least one finding (#197), in the Agent call's result or, for a reviewer run in the background, in its last message.
+export function securityReviewed(calls) {
+  const spawns = calls.filter((c) => c.tool === 'Agent' && c.input?.subagent_type === 'macro-loop:security-reviewer')
+  if (spawns.length !== 1) return fail(`${spawns.length} security reviewers were started, not one`)
+  const lines = String(spawns[0].input.prompt ?? '').trim().split('\n')
+  if (lines.length !== 3 || !lines.every((l, i) => SECURITY_PROMPT[i].test(l))) return fail(`prompt is not identifier lines only: ${JSON.stringify(spawns[0].input.prompt)}`)
+  const skill = calls.some((c) => c.agentType === 'macro-loop:security-reviewer' && c.tool === 'Skill' && /(^|:)security-review$/.test(c.input?.skill ?? ''))
+  if (!skill) return fail('the security reviewer did not call the security-review skill')
+  let findings = []
+  try {
+    const finals = calls.filter((c) => c.agentType === 'macro-loop:security-reviewer' && c.tool === 'FinalMessage').map((c) => c.result)
+    const block = [spawns[0].result, ...finals].map((t) => REPORT_BLOCK.exec(t ?? '')?.[1]).find(Boolean)
+    findings = JSON.parse(block ?? 'null')?.findings ?? []
+  } catch {}
+  if (!findings.length) return fail('the security reviewer reported no finding')
+  return ok(`security-review called; ${findings.length} finding(s)`)
 }
 
 export function noDestructiveGit(calls, checkout, { allowRepoScripts = false } = {}) {
@@ -259,6 +281,7 @@ export function evaluate(scenario, obs) {
   const run = {
     verifierPrompts: () => verifierPrompts(obs.calls),
     verifierIsolated: () => verifierIsolated(obs.calls),
+    securityReviewed: () => securityReviewed(obs.calls),
     noDestructiveGit: () => noDestructiveGit(obs.calls, obs.checkout, { allowRepoScripts: scenario.allowRepoScripts }),
     configFromDefaultBranch: () => configFromDefaultBranch(obs.calls),
     checksAsWritten: () => checksAsWritten(obs.calls, scenario.specChecks ?? []),

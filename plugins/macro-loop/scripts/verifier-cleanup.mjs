@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// The plugin's SubagentStop hook for macro-loop:verifier (#31), from hooks/hooks.json. Claude
-// Code gives a verifier a worktree, `.claude/worktrees/agent-<agent_id>` under the main
+// The plugin's SubagentStop hook for macro-loop:verifier and the security reviewer (#31, #197),
+// from hooks/hooks.json. Claude Code gives a verifier a worktree, `.claude/worktrees/agent-<agent_id>` under the main
 // checkout, on a branch, `worktree-agent-<agent_id>`, and can leave both behind: a verifier
 // checks out the PR's head, detached, and Claude Code keeps the branch of a worktree that ends
 // detached. So when a verifier stops, in the foreground or the background, this removes its
@@ -15,6 +15,7 @@
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { REVIEWERS } from './identifier-lines.mjs'
 
 const input = JSON.parse(readFileSync(0, 'utf8'))
 const WORKFLOW = /^wf_[\w-]+-\d+$/
@@ -33,7 +34,7 @@ function git(cwd, args) {
   return r.stdout.trim()
 }
 
-if (input.agent_type === 'macro-loop:verifier') {
+if (REVIEWERS.includes(input.agent_type)) {
   try {
     const id = input.agent_id
     const wf = workflowWorktree(input.cwd)

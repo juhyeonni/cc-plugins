@@ -108,3 +108,24 @@ test('an agent id that is not plain letters and digits saves nothing and is name
   assert.match(r.stderr, /"\.\.\/x"/)
   assert.equal(existsSync(r.reports), false)
 })
+
+test("#197 AC2: the security reviewer's stop saves its last message as <agent_id>.md", () => {
+  const r = hook({ agent_type: 'macro-loop:security-reviewer', last_assistant_message: 'the security report' })
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(readFileSync(join(r.reports, `${ID}.md`), 'utf8'), 'the security report')
+})
+
+test("#197: the security reviewer's SubagentHandback saves its message, and its later stop leaves it as it is", () => {
+  const first = handback({ agent_type: 'macro-loop:security-reviewer', tool_input: { message: 'the security report' } })
+  assert.equal(first.status, 0, first.stderr)
+  const stop = hook({ agent_type: 'macro-loop:security-reviewer', last_assistant_message: 'Report handed back.' }, first.reports)
+  assert.equal(stop.status, 0, stop.stderr)
+  assert.equal(readFileSync(join(first.reports, `${ID}.md`), 'utf8'), 'the security report')
+})
+
+test('#197: the security reviewer waits for a background sub-task in its own turn and never ends without a block', () => {
+  const text = readFileSync(join(ROOT, 'plugins/macro-loop/agents/security-reviewer.md'), 'utf8')
+  assert.match(text, /Never end your turn to wait for it: nothing wakes you\. Wait in this turn with a Bash call/)
+  assert.match(text, /until grep -q SubagentHandback <output_file>; do sleep 5; done; tail -c 8000 <output_file>/)
+  assert.match(text, /a result never comes, write the block with `couldNotRun` naming the reason/)
+})

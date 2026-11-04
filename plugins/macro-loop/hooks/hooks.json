@@ -1,5 +1,5 @@
 {
-  "description": "Holds verify's verifiers to four rules: a verifier starts with identifier lines only, and a prompt with any other line is refused (scripts/verifier-flags.mjs); for a PR whose author is not trusted, the spec verifier gets the same answer for the spec's commands and the tests (scripts/verifier-flags.mjs); a verifier runs commands only in its own worktree (scripts/verifier-worktree.mjs); a verifier's report is saved for verdict.mjs when it hands the report back or, failing that, when it stops (scripts/verifier-report.mjs); and when a verifier stops, its worktree and branch go, except a branch that holds a commit on no remote branch (scripts/verifier-cleanup.mjs). Every other call, and every other agent's stop, passes through unchanged.",
+  "description": "Holds verify's verifiers, and its security reviewer (agents/security-reviewer.md, with its own identifier lines), to four rules: a verifier starts with identifier lines only, and a prompt with any other line is refused (scripts/verifier-flags.mjs); for a PR whose author is not trusted, the spec verifier gets the same answer for the spec's commands and the tests (scripts/verifier-flags.mjs); a verifier runs commands only in its own worktree (scripts/verifier-worktree.mjs); a verifier's report is saved for verdict.mjs when it hands the report back or, failing that, when it stops (scripts/verifier-report.mjs); and when a verifier stops, its worktree and branch go, except a branch that holds a commit on no remote branch (scripts/verifier-cleanup.mjs). Every other call, and every other agent's stop, passes through unchanged.",
   "hooks": {
     "PreToolUse": [
       {
@@ -25,7 +25,7 @@
     ],
     "SubagentStop": [
       {
-        "matcher": "macro-loop:verifier",
+        "matcher": "macro-loop:verifier|macro-loop:security-reviewer",
         "hooks": [
           { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/verifier-report.mjs"] },
           { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/verifier-cleanup.mjs"] }
