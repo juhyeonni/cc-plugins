@@ -120,7 +120,7 @@ test('--pr: author, trust, head, base, last trusted verdict and round', () => {
   })
   const r = run(responses, ['--pr', '3'])
   assert.equal(r.status, 0, r.stderr)
-  assert.deepEqual(r.out.pr, { number: 3, author: 'AnpanManni', authorTrusted: false, head: 'abc123', base: 'main', closes: null, closesAll: [], lastVerdict: 13, lastVerdictResult: null, lastVerdictSha: null, round: 3 })
+  assert.deepEqual(r.out.pr, { number: 3, author: 'AnpanManni', authorTrusted: false, head: 'abc123', base: 'main', closes: null, closesAll: [], lastVerdict: 13, lastVerdictResult: null, lastVerdictSha: null, round: 3, answers: [], answerWarnings: [] })
   const listed = run({ ...responses, [CONFIG]: contents({ trusted: ['anpanmanni'] }) }, ['--pr', '3'])
   assert.equal(listed.out.pr.authorTrusted, true)
 })
@@ -182,6 +182,52 @@ test('--pr: no trusted verdict gives round 1 and no last verdict', () => {
     'api --paginate --slurp repos/{owner}/{repo}/issues/3/comments': { stdout: [[]] },
   }), ['--pr', '3'])
   assert.deepEqual([r.out.pr.authorTrusted, r.out.pr.lastVerdict, r.out.pr.round], [true, null, 1])
+})
+
+// Answers to verify findings (#196): PR comments whose first line is the answer marker.
+const answersOf = (comments) => run(base({
+  'api repos/{owner}/{repo}/pulls/3': { stdout: { user: { login: 'carol' }, head: { sha: 'abc123' }, base: { ref: 'main' } } },
+  'api --paginate --slurp repos/{owner}/{repo}/issues/3/comments': { stdout: [comments] },
+}), ['--pr', '3']).out.pr
+
+test('--pr: pr.answers holds one entry per answer line of a trusted answer comment', () => {
+  const pr = answersOf([comment(40, 'carol', '<!-- macro-loop:answer round=1 -->\n- AC2 wrong: the test it names already passes on main\n\n- S1 minor: a naming nit')])
+  assert.deepEqual(pr.answers, [
+    { round: 1, id: 'AC2', category: 'wrong', reason: 'the test it names already passes on main', comment: 40 },
+    { round: 1, id: 'S1', category: 'minor', reason: 'a naming nit', comment: 40 },
+  ])
+  assert.deepEqual(pr.answerWarnings, [])
+})
+
+test('--pr: an untrusted answer, or a marker not on the first line, adds nothing', () => {
+  const pr = answersOf([
+    comment(41, 'mallory', '<!-- macro-loop:answer round=1 -->\n- AC2 wrong: trust me'),
+    comment(42, 'carol', 'About the verdict:\n<!-- macro-loop:answer round=1 -->\n- F1 intended: on purpose'),
+  ])
+  assert.deepEqual([pr.answers, pr.answerWarnings], [[], []])
+})
+
+test('--pr: a line of another shape is left out and named in a warning; the valid lines stay', () => {
+  const pr = answersOf([comment(43, 'carol', '<!-- macro-loop:answer round=2 -->\n- AC1 bogus: unknown category\n- AC2 wrong:\n- AC3 wrong:   \nJust a note\n- F1 intended: the retry is by design')])
+  assert.deepEqual(pr.answers, [{ round: 2, id: 'F1', category: 'intended', reason: 'the retry is by design', comment: 43 }])
+  assert.equal(pr.answerWarnings.length, 4)
+  for (const line of ['- AC1 bogus: unknown category', '- AC2 wrong:', '- AC3 wrong:', 'Just a note']) assert.ok(pr.answerWarnings.some((w) => w.includes(line)), line)
+  assert.ok(pr.answerWarnings.every((w) => w.includes('43')))
+})
+
+test('--pr: fixed is not a category', () => {
+  const pr = answersOf([comment(44, 'carol', '<!-- macro-loop:answer round=1 -->\n- AC1 fixed: done in abc123')])
+  assert.deepEqual(pr.answers, [])
+  assert.match(pr.answerWarnings[0], /- AC1 fixed: done in abc123/)
+})
+
+test('--pr: the later answer to the same round and ID wins', () => {
+  const pr = answersOf([
+    comment(45, 'carol', '<!-- macro-loop:answer round=1 -->\n- AC2 wrong: first thought\n- S1 minor: nit'),
+    comment(46, 'juhyeonni', '<!-- macro-loop:answer round=1 -->\n- AC2 intended: on second look the spec wants it'),
+    comment(47, 'carol', '<!-- macro-loop:answer round=2 -->\n- AC2 minor: a new round is a new finding'),
+  ])
+  assert.deepEqual(pr.answers.map((a) => [a.round, a.id, a.category, a.comment]), [[1, 'AC2', 'intended', 46], [1, 'S1', 'minor', 45], [2, 'AC2', 'minor', 47]])
 })
 
 test('a failing gh call: non-zero exit, the error on stderr, nothing on stdout', () => {

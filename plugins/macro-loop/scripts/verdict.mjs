@@ -77,23 +77,27 @@ function byIssue(reports) {
   return [...issues.values()]
 }
 
+// Every finding has an ID unique within the verdict, so an answer can name it (#196): a
+// criterion keeps its AC ID, introduced failures are F1, F2…, broken standards S1, S2….
 function opening(issues, result, round, branch) {
-  const broken = issues.flatMap((i) => i.standards.data.standardsBroken)
-  const first = broken.length ? `Decide first: the Standards report says the diff breaks ${broken.join('; ')}.` : 'Nothing to decide first.'
+  const tag = (i) => (issues.length > 1 ? `#${i.number} ` : '')
+  const numbered = (prefix, list) => list.map(([i, text], k) => `- ${tag(i)}${prefix}${k + 1} ${text}`)
+  const broken = numbered('S', issues.flatMap((i) => i.standards.data.standardsBroken.map((b) => [i, b])))
+  const firstLine = broken.length ? 'Decide first: the Standards report says the diff breaks these documented standards:' : 'Nothing to decide first.'
+  const rest = broken.length ? ['', ...broken] : []
   if (result === 'PASS') {
     const manual = issues.some((i) => i.spec.data.manualChecks.length)
-    return `This PR can merge. ${manual ? 'Do the manual checks below, read' : 'Read'} this verdict, mark the draft "Ready for review", then merge. ${first}`
+    return [`This PR can merge. ${manual ? 'Do the manual checks below, read' : 'Read'} this verdict, mark the draft "Ready for review", then merge. ${firstLine}`, ...rest].join('\n')
   }
-  const tag = (i) => (issues.length > 1 ? `#${i.number} ` : '')
-  const items = issues.flatMap((i) => [
-    ...failed(i.spec.data).map((c) => `- ${tag(i)}${c.id} ${c.words}: ${c.result}`),
-    ...i.spec.data.introducedFailures.map((f) => `- ${tag(i)}Introduced failure: ${f}`),
-  ])
+  const items = [
+    ...issues.flatMap((i) => failed(i.spec.data).map((c) => `- ${tag(i)}${c.id} ${c.words}: ${c.result}`)),
+    ...numbered('F', issues.flatMap((i) => i.spec.data.introducedFailures.map((f) => [i, `Introduced failure: ${f}`]))),
+  ]
   const next =
     round < 3
       ? `Next: run \`/macro-loop:implement ${branch}\` to fix the Spec findings; it hands back to verify.`
       : `This was round ${round} of 3: two re-verifications have not converged, so a person decides what happens next.`
-  return ['This PR needs a fix:', '', ...items, '', `${next} ${first}`].join('\n')
+  return ['This PR needs a fix:', '', ...items, '', `${next} ${firstLine}`, ...rest].join('\n')
 }
 
 const judgedAgainst = (i) =>

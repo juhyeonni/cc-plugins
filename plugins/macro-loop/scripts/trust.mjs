@@ -2,7 +2,8 @@
 // Decides trust for the macro-loop skills the same way every time (#39): the config on
 // the default branch over the init template's defaults, the trusted logins, and, when
 // asked, an Issue's spec comment and a PR's author, last verdict (its id, result and the
-// head SHA it judged, null for a verdict written before the SHA was recorded) and round.
+// head SHA it judged, null for a verdict written before the SHA was recorded), round and the
+// answers to its findings.
 //
 //   node trust.mjs [--issue <n>] [--pr <n>]
 //
@@ -105,6 +106,30 @@ export function prState(p, comments, trusted) {
   }
 }
 
+const ANSWER_MARKER = /^<!-- macro-loop:answer round=(\d+) -->$/
+const ANSWER_LINE = /^- ((?:#\d+ )?[A-Z]+\d+) (wrong|intended|minor): (.*\S)\s*$/
+
+// Answers to verify findings (#196): a record only, never read by verdict.mjs. The later
+// answer to the same round and finding wins; a line of another shape is named in a warning.
+function answersOf(comments, trusted) {
+  const answers = new Map()
+  const warnings = []
+  for (const c of trustedMarked(comments, trusted, '<!-- macro-loop:answer ')) {
+    const [first, ...lines] = String(c.body).split(/\r?\n/)
+    const round = ANSWER_MARKER.exec(first.trim())?.[1]
+    if (!round) {
+      warnings.push(`comment ${c.id}: the marker is not \`<!-- macro-loop:answer round=N -->\``)
+      continue
+    }
+    for (const line of lines.filter((l) => l.trim())) {
+      const m = ANSWER_LINE.exec(line)
+      if (!m) warnings.push(`comment ${c.id}: "${line.trim()}" is not \`- <ID> <wrong|intended|minor>: <reason>\``)
+      else answers.set(`${round} ${m[1]}`, { round: Number(round), id: m[1], category: m[2], reason: m[3], comment: c.id })
+    }
+  }
+  return { answers: [...answers.values()], answerWarnings: warnings }
+}
+
 const comments = (n) => api(['--paginate', '--slurp', `repos/{owner}/{repo}/issues/${n}/comments`]).flat()
 
 function decide(argv) {
@@ -117,7 +142,8 @@ function decide(argv) {
   let issueNumber = issue
   if (pr) {
     const p = api([`repos/{owner}/{repo}/pulls/${pr}`])
-    out.pr = { number: Number(pr), ...prState(p, comments(pr), trusted) }
+    const prComments = comments(pr)
+    out.pr = { number: Number(pr), ...prState(p, prComments, trusted), ...answersOf(prComments, trusted) }
     issueNumber ||= out.pr.closes && String(out.pr.closes)
   }
   if (issueNumber) out.issue = { number: Number(issueNumber), spec: specOf(comments(issueNumber), trusted) }

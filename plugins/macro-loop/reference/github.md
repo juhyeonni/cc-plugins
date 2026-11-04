@@ -64,6 +64,17 @@ Skills find their own comments by a hidden HTML marker on the comment's first li
 | `<!-- macro-loop:spec -->` | Issue comment | `spec` |
 | `<!-- macro-loop:verify round=N sha=<head> -->` | PR comment | `verify` |
 | `<!-- macro-loop:missed pr=<N> -->` | Issue comment on a `missed-by-verify` Issue, naming the merged PR that caused the bug | `triage` |
+| `<!-- macro-loop:answer round=N -->` | PR comment | a person, or `implement` after approval |
+
+An answer records how a finding of round N's verdict was answered. Under the marker, each line is `- <ID> <wrong|intended|minor>: <reason>`, with the finding's ID from the verdict (`AC2`, `F1`, `S1`) and a reason that is never empty:
+
+```text
+<!-- macro-loop:answer round=2 -->
+- S1 intended: the spec's D2 asks for this retry loop
+- F1 wrong: the failing test also fails on the base branch
+```
+
+There is no `fixed`: the next round shows that. An answer never changes a verdict. `trust.mjs --pr` lists the trusted answers in `pr.answers`, each with `round`, `id`, `category`, `reason` and `comment` (the comment's id). A later answer to the same round and ID replaces an earlier one, and a line of any other shape is left out and named in `pr.answerWarnings`.
 
 When a marker counts is in **Trust and trust.mjs** in `core.md`: a comment that quotes a marker further down is not a spec or a verdict.
 

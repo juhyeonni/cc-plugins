@@ -69,7 +69,7 @@ test('NEEDS-FIX: an introduced failure alone fails the verdict; in round 3 a per
   const r = run(ok(spec({ introducedFailures: ['npm test: csv.test.js "quotes" fails only on the head'] })), ['--round', '3', '--head', HEAD, '--branch', '12-csv'])
   assert.equal(r.status, 0, r.stderr)
   assert.match(r.stdout, /^## Verify: NEEDS-FIX \(round 3 of 3\)$/m)
-  assert.match(r.stdout, /^- Introduced failure: npm test: csv\.test\.js "quotes" fails only on the head$/m)
+  assert.match(r.stdout, /^- F1 Introduced failure: npm test: csv\.test\.js "quotes" fails only on the head$/m)
   assert.match(r.stdout, /a person decides what happens next/)
 })
 
@@ -107,7 +107,24 @@ test('the opening paragraph names a broken documented standard instead of "Nothi
   const r = run(ok(spec(), standards({ standardsBroken: ['ADR 0001: src/api.js calls `gh pr view`, which uses GraphQL'] })))
   assert.equal(r.status, 0, r.stderr)
   assert.doesNotMatch(r.stdout, /Nothing to decide first/)
-  assert.match(r.stdout, /Decide first: the Standards report says the diff breaks ADR 0001: src\/api\.js calls `gh pr view`, which uses GraphQL\./)
+  assert.match(r.stdout, /Decide first: the Standards report says the diff breaks these documented standards:\n\n- S1 ADR 0001: src\/api\.js calls `gh pr view`, which uses GraphQL\n/)
+})
+
+test('every finding gets an ID in report order: AC IDs, then F1, F2…, then S1, S2…', () => {
+  const unmet = { id: 'AC2', words: 'empty input', result: 'unmet', judged: 'ran' }
+  const r = run(ok(
+    spec({ criteria: [met('AC1', 'CSV quoted fields'), unmet], introducedFailures: ['lint fails', 'a test fails'] }),
+    standards({ standardsBroken: ['ADR 0001: GraphQL', 'ADR 0008: no id check'] }),
+  ))
+  assert.equal(r.status, 0, r.stderr)
+  const items = r.stdout.split('\n').filter((l) => /^- (AC|F|S)\d/.test(l))
+  assert.deepEqual(items, ['- AC2 empty input: unmet', '- F1 Introduced failure: lint fails', '- F2 Introduced failure: a test fails', '- S1 ADR 0001: GraphQL', '- S2 ADR 0008: no id check'])
+})
+
+test('PASS with broken standards lists them as S1, S2…', () => {
+  const r = run(ok(spec(), standards({ standardsBroken: ['ADR 0001: GraphQL', 'ADR 0008: no id check'] })))
+  assert.match(r.stdout, /^## Verify: PASS/m)
+  assert.match(r.stdout, /^- S1 ADR 0001: GraphQL\n- S2 ADR 0008: no id check$/m)
 })
 
 test('manual checks come first in what to do, and are listed under the paragraph', () => {
