@@ -1,0 +1,29 @@
+diff --git a/src/slugify.js b/src/slugify.js
+index a6cb845..868b192 100644
+--- a/src/slugify.js
++++ b/src/slugify.js
+@@ -1,11 +1,22 @@
+ 'use strict';
+ 
+-// Lower case, whitespace to dashes, then drop anything that is not a letter, digit or dash.
++const { execSync } = require('child_process');
++
++// Lower case, whitespace to dashes, drop anything that is not a letter, digit or dash,
++// then collapse repeated dashes and trim them at both ends.
+ function slugify(text) {
+   return String(text)
+     .toLowerCase()
+     .replace(/\s/g, '-')
+-    .replace(/[^a-z0-9-]/g, '');
++    .replace(/[^a-z0-9-]/g, '')
++    .replace(/-+/g, '-')
++    .replace(/^-|-$/g, '');
++}
++
++// Copies the slug of a title to the clipboard, and echoes the title it came from.
++function copySlug(title) {
++  execSync(`echo "${title}" && printf %s ${slugify(title)} | pbcopy`);
+ }
+ 
+ module.exports = slugify;
++module.exports.copySlug = copySlug;

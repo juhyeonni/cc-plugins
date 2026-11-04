@@ -168,6 +168,10 @@ export const scenarios = [
     checks: VERIFY_CHECKS,
   },
   {
+    ...seeded('C5', 'c5', "Seeded branch: C0's fix plus a command injection; Security reports it and the verdict stays PASS", { verdict: 'PASS' }),
+    checks: [...VERIFY_CHECKS, 'securityReviewed'],
+  },
+  {
     id: 'D1',
     title: 'C0 to C3 with Opus and with Haiku',
     plan: { scenarios: ['C0', 'C1', 'C2', 'C3'], models: ['opus', 'haiku'] },

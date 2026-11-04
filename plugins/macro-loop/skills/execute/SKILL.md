@@ -46,11 +46,11 @@ Start the saved workflow `macro-loop:execute-run` once, with the Workflow tool's
 
 If the saved workflow is refused or not found, stop and say so with the error. Never run its script inline instead: a run that does not match the saved workflow is not the one the person approved.
 
-The run returns one entry per Issue, shaped as the workflow's header says. A stage with `ok: false` stopped that Issue, and its `reason` goes in the report. `verify` holds `{pr, head, spec, standards}`: the two verifiers' reports, or `null`.
+The run returns one entry per Issue, shaped as the workflow's header says. A stage with `ok: false` stopped that Issue, and its `reason` goes in the report. `verify` holds `{pr, head, spec, standards, security}`: the two verifiers' and the security reviewer's reports, or `null`.
 
 ## 4. Post the verdicts
 
-For each Issue that reached verify, read the round with `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --pr <pr>`, then decide and post its verdict as `verify` steps 6 and 7 do, with the `head` the run judged. The run gives reports, not agent ids, so in place of `--agent` write the run's `spec` and `standards` reports, as they came, each to its own file in a directory made with `mktemp -d`, and pass the files; the script then prints the comment, so redirect it to a file in that directory and post that file. Remove the directory afterwards. A `null` report counts as missing: post nothing for that Issue, and report it INCONCLUSIVE.
+For each Issue that reached verify, read the round with `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --pr <pr>`, then decide and post its verdict as `verify` steps 6 and 7 do, with the `head` the run judged. The run gives reports, not agent ids, so in place of `--agent` write the run's `spec`, `standards` and `security` reports, as they came, each to its own file in a directory made with `mktemp -d`, and pass the files; the script then prints the comment, so redirect it to a file in that directory and post that file. Remove the directory afterwards. A `null` report counts as missing: post nothing for that Issue, and report it INCONCLUSIVE.
 
 ## 5. Report
 
@@ -63,7 +63,7 @@ Write the results to a file in a directory made with `mktemp -d`, as a JSON list
 
 A stage that stopped is `{ "ok": false, "reason": "..." }`. Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/execute.mjs --report <file>` and show its table as it is.
 
-Then remove the verifiers' worktrees that are still there. For each worktree under `.claude/worktrees/wf_*` that `git worktree list --porcelain` shows detached at a head a verifier judged in step 4:
+Then remove the verifiers' and security reviewers' worktrees that are still there. For each worktree under `.claude/worktrees/wf_*` that `git worktree list --porcelain` shows detached at a head a verifier judged in step 4:
 
 1. Run `git worktree remove --force --force <path>`.
 2. Delete its branch `worktree-<name>` only when `git rev-list -n 1 refs/heads/worktree-<name> --not --remotes` prints nothing. Otherwise keep the branch and say why.

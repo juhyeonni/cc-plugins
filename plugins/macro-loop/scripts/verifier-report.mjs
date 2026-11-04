@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// The plugin's hook that saves a macro-loop:verifier's report (#176, #203), from
-// hooks/hooks.json, so the report reaches verdict.mjs (`--agent <id>`) without the verify
-// session copying it. It writes `<agent_id>.md` in the reports directory from one of two events:
+// The plugin's hook that saves a macro-loop:verifier's or the security reviewer's report (#176,
+// #203, #197), from hooks/hooks.json, so the report reaches verdict.mjs (`--agent <id>`) without
+// the verify session copying it. It writes `<agent_id>.md` in the reports directory from one of two events:
 // - PostToolUse on SubagentHandback: a background verifier hands its report back as the call's
 //   `tool_input.message`.
 // - SubagentStop: the stop's `last_assistant_message`, unless a hand-back already saved the
@@ -12,6 +12,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { REVIEWERS } from './identifier-lines.mjs'
 
 // Under the user's home, not the system temp folder: on Linux that is /tmp, shared by every
 // user, and verdict.mjs trusts what it finds here.
@@ -35,7 +36,7 @@ function report(input, path) {
 }
 
 function save(input) {
-  if (input.agent_type !== 'macro-loop:verifier') return
+  if (!REVIEWERS.includes(input.agent_type)) return
   const path = reportPath(input.agent_id)
   const text = report(input, path)
   if (text === null) return

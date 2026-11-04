@@ -11,6 +11,7 @@ import { loadSet, overBudget } from './budget.mjs'
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), '../../plugins/macro-loop')
 
 const BUDGETS = {
+  'agents/security-reviewer.md': 3000,
   'agents/verifier.md': 15500,
   'skills/execute/SKILL.md': 9500,
   'skills/goal/SKILL.md': 9000,
@@ -24,7 +25,7 @@ const BUDGETS = {
   'skills/status/SKILL.md': 6500,
   'skills/triage/SKILL.md': 14000,
   'skills/ui-placement/SKILL.md': 14000,
-  'skills/verify/SKILL.md': 13000,
+  'skills/verify/SKILL.md': 13500,
 }
 
 function fakePlugin(skillText) {

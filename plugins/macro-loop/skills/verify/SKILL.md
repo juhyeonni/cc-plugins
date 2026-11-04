@@ -1,18 +1,19 @@
 ---
 name: verify
-description: "Verify a pull request against its GitHub Issue's spec in a fresh context and post a PASS / NEEDS-FIX verdict on the PR. Judges two axes, Spec and Standards, in verifier subagents that get identifiers only; asks before running a spec's commands or an untrusted author's tests; stops after two re-verifications. Use when the user asks to verify a PR or a branch, or when implement hands over."
+description: "Verify a pull request against its GitHub Issue's spec in a fresh context and post a PASS / NEEDS-FIX verdict on the PR. Judges two axes, Spec and Standards, in verifier subagents that get identifiers only, and reports Claude Code's /security-review findings; asks before running a spec's commands or an untrusted author's tests; stops after two re-verifications. Use when the user asks to verify a PR or a branch, or when implement hands over."
 ---
 
 # Verify
 
 Judge the change against what its Issue asked for, in a context that did not write it, and post the verdict on the PR.
 
-Two axes, reported side by side:
+Two axes, reported side by side, and a security review reported above them:
 
 - **Spec:** does the diff do what the Issue's spec asks? This axis decides the verdict.
 - **Standards:** does the code follow this repo's documented standards? Reported, never a reason to fail.
+- **Security:** Claude Code's bundled `/security-review` on the diff, once per PR. Reported first, never a reason to fail.
 
-Each axis runs in its own `macro-loop:verifier` subagent (step 5).
+Each axis runs in its own `macro-loop:verifier` subagent, and the security review in a `macro-loop:security-reviewer` subagent (step 5).
 
 Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/core.md`. Trust, the Issue, the spec and the round come from one command, run in the repo's checkout: `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --pr <n>` when there is a PR, which finds the Issue from the PR's body itself, else `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --issue <n>`. **Trust and trust.mjs** in `core.md` says what it prints.
 
@@ -48,9 +49,9 @@ List the `check: cmd` commands of a trusted spec comment and note its `updated_a
 
 An approval of the same commands earlier in this session, such as `implement`'s, holds while `updated_at` is unchanged: say so. Read `updated_at` again just before step 5; if it changed, show the new list and ask.
 
-## 5. Identifiers only: start both verifiers
+## 5. Identifiers only: start the verifiers and the security reviewer
 
-Spawn both `macro-loop:verifier` subagents in one message, each Agent call with `isolation: "worktree"`: only that keeps one out of this checkout when agent teams are on. Each prompt is exactly these lines:
+Spawn both `macro-loop:verifier` subagents for each Issue, and one `macro-loop:security-reviewer` for the PR, in one message, each Agent call with `isolation: "worktree"`: only that keeps one out of this checkout when agent teams are on. Each prompt is exactly these lines:
 
 ```text
 Axis: spec
@@ -73,6 +74,12 @@ Head: <sha of the branch>
 Answers: none | <answers line>
 ```
 
+```text
+Axis: security
+Base: origin/<base>
+Head: <sha of the branch>
+```
+
 `Also closes` is the rest of `pr.closesAll`, or `none`. `Answers` is `pr.answersLine` from the trust command, the same for both axes: each answer comment in `pr.answers` as `<comment>@<sha>`, leaving out answers whose `sha` is `null`, since the verifier then cannot tell whether the code changed. Without a PR, `none`. Anything else goes to the user, never in a prompt: `verifier-flags.mjs` refuses other lines; start again with the lines alone.
 
 Never run a spec's checks yourself, or offer to. Never continue a verifier with `SendMessage`: its worktree is gone, and `verifier-worktree.mjs` refuses its commands.
@@ -81,7 +88,7 @@ Never run a spec's checks yourself, or offer to. Never continue a verifier with 
 
 A script decides the verdict and writes the comment from the data block each verifier's report ends with, so the session that wrote the change never writes what a person reads first.
 
-The hook `scripts/verifier-report.mjs` saves each verifier's report when it stops. Never write a report to a file yourself. Once every verifier has finished, run, in the repo's checkout and as a Bash call of its own with nothing added, one `--agent` per verifier: the agent id the Agent tool returned for it, spec and standards of every Issue:
+The hook `scripts/verifier-report.mjs` saves each verifier's and the security reviewer's report when it stops. Never write a report to a file yourself. Once every agent has finished, run, in the repo's checkout and as a Bash call of its own with nothing added, one `--agent` per agent: the id the Agent tool returned for it, spec and standards of every Issue, and the security reviewer:
 
 ```sh
 node ${CLAUDE_PLUGIN_ROOT}/scripts/verdict.mjs --round <N> --head <Head from step 5> --branch <branch> --agent <id> --agent <id>...
@@ -89,7 +96,7 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/verdict.mjs --round <N> --head <Head from ste
 
 It writes the comment to a file beside the saved reports and prints that file's path and the heading.
 
-It decides each Issue on its own: INCONCLUSIVE when a report or its block is missing or invalid, or `couldNotRun` is not empty, even when the diff seems to settle the criterion; NEEDS-FIX when a criterion is unmet or wrong or the diff introduces a failure; else PASS. The PR is NEEDS-FIX if any Issue is. A criterion judged from the diff because running was declined is not INCONCLUSIVE. Never decide the verdict yourself.
+It decides each Issue on its own: INCONCLUSIVE when a report or its block is missing or invalid, or `couldNotRun` is not empty, even when the diff seems to settle the criterion; NEEDS-FIX when a criterion is unmet or wrong or the diff introduces a failure; else PASS. The PR is NEEDS-FIX if any Issue is. A criterion judged from the diff because running was declined is not INCONCLUSIVE. Security findings never change the result, and a security review that could not run gives a verdict that says so. Never decide the verdict yourself.
 
 ## 7. Report the verdict
 

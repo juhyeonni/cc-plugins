@@ -130,15 +130,18 @@ test("the hook takes its identifier lines from one module, and every line of ver
   const skill = readFileSync(join(ROOT, 'plugins/macro-loop/skills/verify/SKILL.md'), 'utf8')
   const step = skill.slice(skill.indexOf('## 5.'), skill.indexOf('## 6.'))
   const blocks = [...step.matchAll(/```text\n([\s\S]*?)```/g)].map((m) => m[1])
-  assert.equal(blocks.length, 2)
+  assert.equal(blocks.length, 3)
   const fill = { '<n>': '1', '<id>': '5976278327', '<m>': '2', '<k>': '3', '<base>': 'main', '<sha of the branch>': HEAD, '<answers line>': `6631883012@${HEAD}, 6631883013@abcdef0` }
-  const filled = blocks.join('').split('\n').filter(Boolean).flatMap((l) => {
+  const filled = (block) => block.split('\n').filter(Boolean).flatMap((l) => {
     const [name, values] = l.split(/: (.*)/)
     return values.split(' | ').map((v) => `${name}: ${v.replace(/<[^>]+>/g, (p) => fill[p] ?? p)}`)
   })
-  assert.equal(filled.length, 22)
-  assert.equal(filled.filter((l) => l.startsWith('Answers: ')).length, 4)
-  for (const l of filled) assert.ok(isIdentifierLine(l), l)
+  const verifierLines = filled(blocks[0] + blocks[1])
+  assert.equal(verifierLines.length, 22)
+  assert.equal(verifierLines.filter((l) => l.startsWith('Answers: ')).length, 4)
+  for (const l of verifierLines) assert.ok(isIdentifierLine(l), l)
+  assert.deepEqual(filled(blocks[2]), ['Axis: security', 'Base: origin/main', `Head: ${HEAD}`])
+  for (const l of filled(blocks[2])) assert.ok(isIdentifierLine(l, 'macro-loop:security-reviewer'), l)
 })
 
 test('AC9 (#198): an Answers line of none or <id>@<sha>, … passes; a malformed one is refused, naming it', () => {
@@ -164,4 +167,30 @@ test('identifier lines only, with Also closes and blank lines, and any other age
     assert.equal(r.status, 0, r.stderr)
     assert.equal(r.stdout, '')
   }
+})
+
+const security = (prompt) => ({ description: 'Security review', subagent_type: 'macro-loop:security-reviewer', isolation: 'worktree', prompt })
+const SECURITY = ['Axis: security', 'Base: origin/main', `Head: ${HEAD}`].join('\n')
+
+test('#197 AC1: a security reviewer with Axis, Base and Head only starts unchanged, and nothing is looked up', () => {
+  const r = hook(security(`${SECURITY}\n`))
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(r.stdout, '')
+  assert.deepEqual(r.calls, [])
+})
+
+test("#197 AC1: a security reviewer with any other line is refused, naming the line, even a verifier's identifier line", () => {
+  for (const extra of ['Issue: #1', 'Spec comment: 5976278327', 'Run tests and lint: yes', 'Note: src/copy.js is safe', 'Axis: spec']) {
+    const r = hook(security(`${SECURITY}\n${extra}`))
+    assert.equal(r.status, 0, r.stderr)
+    assert.equal(r.out.permissionDecision, 'deny', extra)
+    assert.ok(r.out.permissionDecisionReason.includes(JSON.stringify(extra)), r.out.permissionDecisionReason)
+    assert.match(r.out.permissionDecisionReason, /macro-loop:security-reviewer starts with identifier lines only/)
+  }
+})
+
+test('#197 AC1: a verifier started with Axis: security is refused', () => {
+  const r = hook(verifier(SECURITY))
+  assert.equal(r.out.permissionDecision, 'deny')
+  assert.ok(r.out.permissionDecisionReason.includes('"Axis: security"'))
 })

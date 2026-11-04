@@ -6,8 +6,10 @@
 //
 //   node verdict.mjs --round <n> --head <sha> --branch <name> (--agent <id> | <report file>)...
 //
-// Give one spec and one standards report per Issue the PR closes: as `--agent <id>`, the
-// report verifier-report.mjs saved when that verifier stopped (#176), or as a file. From files
+// Give one spec and one standards report per Issue the PR closes, and one security report for
+// the PR (#197): as `--agent <id>`, the report verifier-report.mjs saved when that agent stopped
+// (#176), or as a file. Security findings are reported first and never change the result; a
+// security report whose `couldNotRun` is not empty still gives a verdict, saying it did not run. From files
 // it prints the comment to post; from `--agent` it writes the comment to
 // `verdict-<head>.md` in the reports directory and prints that path and the heading. A missing
 // or invalid block, a missing report, or a non-empty could-not-run list prints nothing on
@@ -43,6 +45,10 @@ function classed(f, what, bad) {
 
 function validate(d, bad) {
   if (!isObject(d)) bad('is not a JSON object')
+  if (d.axis === 'security') {
+    for (const k of ['findings', 'couldNotRun']) if (!strings(d[k])) bad(`needs \`${k}\`, a list of strings`)
+    return
+  }
   if (!Number.isInteger(d.issue) || d.issue < 1) bad('has no `issue` number')
   if (d.axis === 'standards') {
     if (!Array.isArray(d.standardsBroken)) bad('needs `standardsBroken`, a list')
@@ -52,7 +58,7 @@ function validate(d, bad) {
     }
     return
   }
-  if (d.axis !== 'spec') bad('needs `axis`, spec or standards')
+  if (d.axis !== 'spec') bad('needs `axis`, spec, standards or security')
   if (d.spec !== null && !Number.isInteger(d.spec)) bad('needs `spec`, the spec comment id or null')
   if (!Array.isArray(d.criteria)) bad('needs `criteria`, a list')
   const wrong = d.criteria.find((c) => !isCriterion(c))
@@ -109,14 +115,30 @@ const answeredNote = (f) => `already answered ([the answer](#issuecomment-${f.an
 const where = (f) => (f.alsoAt.length ? `also at ${f.alsoAt.join(', ')}` : 'no other place in the diff')
 const finding = (f, line) => (f.answered ? `${line}, ${answeredNote(f)}` : `${line}. Class: ${f.class}; ${where(f)}`)
 
-function opening(issues, result, round, branch) {
+// The one security report of the PR.
+function securityOf(reports) {
+  const found = reports.filter((r) => r.data.axis === 'security')
+  if (found.length === 0) throw new Error('no security report for the PR')
+  if (found.length > 1) throw new Error(`${found.length} security reports for one PR`)
+  return found[0]
+}
+
+// Security findings come first, then broken standards (#197).
+function opening(issues, security, result, round, branch) {
   const tag = (i) => (issues.length > 1 ? `#${i.number} ` : '')
   const numbered = (prefix, list) => list.map(([i, f], k) => ({ f, id: `- ${tag(i)}${prefix}${k + 1} ` }))
   const standards = numbered('S', issues.flatMap((i) => i.standards.data.standardsBroken.map((b) => [i, b])))
   const broken = standards.filter((s) => !s.f.answered).map((s) => s.id + s.f.standard)
   const settled = standards.filter((s) => s.f.answered).map((s) => `${s.id}${s.f.standard}, ${answeredNote(s.f)}`)
-  const firstLine = broken.length ? 'Decide first: the Standards report says the diff breaks these documented standards:' : 'Nothing to decide first.'
-  const rest = [...(broken.length ? ['', ...broken] : []), ...(settled.length ? ['', 'Standards findings already answered:', '', ...settled] : [])]
+  const groups = [
+    ['the Security report found these, reported only: they do not change the result', security.data.findings.map((f) => `- ${f}`)],
+    ['the Standards report says the diff breaks these documented standards', broken],
+  ].filter(([, list]) => list.length)
+  const firstLine = groups.length ? `Decide first: ${groups[0][0]}:` : 'Nothing to decide first.'
+  const rest = [
+    ...groups.flatMap(([head, list], k) => [...(k ? ['', head[0].toUpperCase() + head.slice(1) + ':'] : []), '', ...list]),
+    ...(settled.length ? ['', 'Standards findings already answered:', '', ...settled] : []),
+  ]
   if (result === 'PASS') {
     const manual = issues.some((i) => i.spec.data.manualChecks.length)
     return [`This PR can merge. ${manual ? 'Do the manual checks below, read' : 'Read'} this verdict, mark the draft "Ready for review", then merge. ${firstLine}`, ...rest].join('\n')
@@ -135,10 +157,21 @@ function opening(issues, result, round, branch) {
 const judgedAgainst = (i) =>
   `**Judged against:** ${i.spec.data.spec === null ? 'no spec; judged against the Issue body' : `the spec comment on #${i.number}`}`
 
+function securitySection({ data, prose }) {
+  const summary = data.couldNotRun.length
+    ? `Security did not run: ${data.couldNotRun.join('; ')}.`
+    : data.findings.length
+      ? 'Reported only: these findings do not change the result.'
+      : 'No findings.'
+  const list = data.findings.map((f) => `- ${f}`)
+  return ['### Security', '', summary, ...(list.length ? ['', ...list] : []), ...(prose ? ['', prose] : []), '']
+}
+
 const sections = (i) => [judgedAgainst(i), '', '### Spec', '', i.spec.prose, '', '### Standards', '', i.standards.prose]
 
 export function verdict({ round, head, branch, reports }) {
-  const issues = byIssue(reports)
+  const security = securityOf(reports)
+  const issues = byIssue(reports.filter((r) => r !== security))
   const result = issues.some((i) => resultOf(i.spec.data) === 'NEEDS-FIX') ? 'NEEDS-FIX' : 'PASS'
   const criteria = issues.flatMap((i) => i.spec.data.criteria)
   const count = (how) => criteria.filter((c) => c.judged === how).length
@@ -152,10 +185,11 @@ export function verdict({ round, head, branch, reports }) {
     `## Verify: ${result} (round ${round} of 3)`,
     `**Criteria:** ${count('ran')} ran, ${count('read')} read, ${count('manual')} manual`,
     '',
-    opening(issues, result, round, branch),
+    opening(issues, security, result, round, branch),
     '',
     ...(manual.length ? manual : ['No manual checks']),
     '',
+    ...securitySection(security),
     ...body,
   ].join('\n').trimEnd() + '\n'
 }
