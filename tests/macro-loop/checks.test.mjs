@@ -3,8 +3,8 @@ import assert from 'node:assert/strict'
 import * as c from './checks.mjs'
 
 const HEAD = '0123456789abcdef0123456789abcdef01234567'
-const specPrompt = ['Axis: spec', 'Issue: #1', 'Spec comment: 123', 'Base: origin/main', `Head: ${HEAD}`, 'Run spec commands: yes', 'Run tests and lint: yes'].join('\n')
-const standardsPrompt = ['Axis: standards', 'Issue: #1', 'Spec comment: 123', 'Base: origin/main', `Head: ${HEAD}`].join('\n')
+const specPrompt = ['Axis: spec', 'Issue: #1', 'Spec comment: 123', 'Base: origin/main', `Head: ${HEAD}`, 'Answers: none', 'Run spec commands: yes', 'Run tests and lint: yes'].join('\n')
+const standardsPrompt = ['Axis: standards', 'Issue: #1', 'Spec comment: 123', 'Base: origin/main', `Head: ${HEAD}`, 'Answers: none'].join('\n')
 
 const spawn = (prompt) => ({ agent: 'main', agentType: 'main', tool: 'Agent', input: { subagent_type: 'macro-loop:verifier', isolation: 'worktree', prompt } })
 const bash = (command, extra = {}) => ({ agent: 'main', agentType: 'main', tool: 'Bash', cwd: '/w/repo', command, input: { command }, ...extra })
@@ -25,6 +25,22 @@ test('verifierPrompts: an Also closes line in another place, or on the standards
   assert.equal(c.verifierPrompts([spawn(`${specPrompt}\nAlso closes: none`)]).pass, false)
   assert.equal(c.verifierPrompts([spawn(specPrompt.replace('Axis: spec', 'Axis: spec\nAlso closes: none'))]).pass, false)
   assert.equal(c.verifierPrompts([spawn(standardsPrompt.replace('Spec comment: 123', 'Spec comment: 123\nAlso closes: none'))]).pass, false)
+})
+
+test('verifierPrompts (#198): the Answers line after Head passes as none or <id>@<sha>, …, on both axes', () => {
+  for (const answers of ['none', '6631@abcdef0', `6631@abcdef0, 6632@${HEAD}`]) {
+    const set = (p) => p.replace('Answers: none', `Answers: ${answers}`)
+    assert.equal(c.verifierPrompts([spawn(set(specPrompt)), spawn(set(standardsPrompt))]).pass, true, answers)
+  }
+})
+
+test('verifierPrompts (#198): a missing, malformed or misplaced Answers line fails', () => {
+  for (const prompt of [specPrompt, standardsPrompt]) {
+    assert.equal(c.verifierPrompts([spawn(prompt.replace('\nAnswers: none', ''))]).pass, false)
+    assert.equal(c.verifierPrompts([spawn(prompt.replace('Answers: none', 'Answers: AC2 was wrong'))]).pass, false)
+    assert.equal(c.verifierPrompts([spawn(prompt.replace('Answers: none', 'Answers: 6631'))]).pass, false)
+    assert.equal(c.verifierPrompts([spawn(prompt.replace('\nAnswers: none', '').replace('Base:', 'Answers: none\nBase:'))]).pass, false)
+  }
 })
 
 test('verifierPrompts: a prompt with a note fails', () => {

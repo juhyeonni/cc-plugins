@@ -1,19 +1,15 @@
 // Mechanical checks for the macro-loop scenario suite. Every check takes plain
 // data collected after a run and returns { pass, detail }; none reads files,
 // runs commands or calls GitHub.
+import { IDENTIFIER_LINES } from '../../plugins/macro-loop/scripts/identifier-lines.mjs'
 
-const SPEC_PROMPT = [
-  /^Axis: spec$/,
-  /^Issue: #\d+$/,
-  /^Spec comment: (\d+|none)$/,
-  /^Base: \S+$/,
-  /^Head: [0-9a-f]{7,40}$/,
-  /^Run spec commands: (yes|no)$/,
-  /^Run tests and lint: (yes|no)$/,
-]
-const STANDARDS_PROMPT = SPEC_PROMPT.slice(0, 5).map((re, i) => (i === 0 ? /^Axis: standards$/ : re))
+// The plugin's own identifier lines, in the order verify and execute send them.
+const line = (name) => IDENTIFIER_LINES.find((re) => re.source.startsWith(`^${name}: `))
+const SHARED = ['Issue', 'Spec comment', 'Base', 'Head', 'Answers'].map(line)
+const SPEC_PROMPT = [/^Axis: spec$/, ...SHARED, line('Run spec commands'), line('Run tests and lint')]
+const STANDARDS_PROMPT = [/^Axis: standards$/, ...SHARED]
 // verify's spec prompt has it after `Spec comment:`; the execute workflow's has none (#181).
-const ALSO_CLOSES = /^Also closes: (none|#\d+(, #\d+)*)$/
+const ALSO_CLOSES = line('Also closes')
 
 const DESTRUCTIVE_GIT = [
   /\bgit\s+checkout\s+(--\s+)?\.(\s|$)/,

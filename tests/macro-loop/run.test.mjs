@@ -247,7 +247,7 @@ test('hashTree skips .git and .claude', () => {
 test('evaluate: a conforming C0 run passes every check', () => {
   const s = findScenario('C0')
   const HEAD = '0123456789abcdef0123456789abcdef01234567'
-  const prompt = ['Axis: spec', 'Issue: #1', 'Spec comment: 5976278327', 'Base: origin/main', `Head: ${HEAD}`, 'Run spec commands: yes', 'Run tests and lint: yes'].join('\n')
+  const prompt = ['Axis: spec', 'Issue: #1', 'Spec comment: 5976278327', 'Base: origin/main', `Head: ${HEAD}`, 'Answers: none', 'Run spec commands: yes', 'Run tests and lint: yes'].join('\n')
   const wt = '/w/repo/.claude/worktrees/agent-a1'
   const calls = [
     { agentType: 'main', tool: 'Bash', cwd: '/w/repo', command: `gh api 'repos/{owner}/{repo}/contents/.github/macro-loop.json' --jq '.content | @base64d | fromjson | tojson'` },
