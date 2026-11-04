@@ -31,6 +31,7 @@ The rest of this plugin names labels by their default strings.
 | Skipped | `skipped:grilling` | The spec was written without a grilling session |
 | Skipped | `skipped:spec` | Work continued without a spec |
 | Skipped | `skipped:ui-placement` | A UI Issue was built without a chosen placement |
+| Missed | `missed-by-verify` | A bug that a merged PR caused and its verify did not catch |
 
 An Issue has been triaged when it carries a priority label. An open Issue without one is triage work.
 

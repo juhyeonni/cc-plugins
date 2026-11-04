@@ -39,6 +39,7 @@ Summarise what is present and what is missing. Then take the sections in order, 
 | `wontfix` | `ffffff` |
 | `source:*` | `c5def5` |
 | `skipped:*` | `ededed` |
+| `missed-by-verify` | `5319e7` |
 
 When the config file renames a label, create the renamed label with the color of the default it replaces.
 
