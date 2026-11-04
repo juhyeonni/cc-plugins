@@ -122,3 +122,9 @@ test("#197: the security reviewer's SubagentHandback saves its message, and its 
   assert.equal(stop.status, 0, stop.stderr)
   assert.equal(readFileSync(join(first.reports, `${ID}.md`), 'utf8'), 'the security report')
 })
+
+test('#197: the security reviewer waits for its sub-tasks and never ends without a block', () => {
+  const text = readFileSync(join(ROOT, 'plugins/macro-loop/agents/security-reviewer.md'), 'utf8')
+  assert.match(text, /Agent tool and `run_in_background: false`, and do not end your turn until every sub-task has returned/)
+  assert.match(text, /do not end your turn saying you wait: write the block with `couldNotRun`/)
+})

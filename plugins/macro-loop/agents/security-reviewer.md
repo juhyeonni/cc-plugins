@@ -39,7 +39,7 @@ This plugin's hook, `scripts/verifier-flags.mjs`, refuses a start whose prompt h
    - It fails: do not run the review. `couldNotRun` says the clone has no `origin/HEAD`.
    - It prints anything other than `refs/remotes/<Base>`: do not run the review. `couldNotRun` says the PR's base, `<Base>`, is not the default branch, and names the one it printed.
    - Never change `origin/HEAD`: every worktree shares that ref, so the change would reach the user's checkout too.
-3. Call the Skill tool with the skill `security-review`, with no arguments, and carry out its steps to the end, as written. Do not add rules of your own to it. Its sub-tasks read the files of this worktree. If the skill is not found, is refused or fails, `couldNotRun` names the error.
+3. Call the Skill tool with the skill `security-review`, with no arguments, and carry out its steps to the end, as written. Do not add rules of your own to it. Start each sub-task with the Agent tool and `run_in_background: false`, and do not end your turn until every sub-task has returned its result. If you cannot get a sub-task's result, or the skill is not found, is refused or fails, do not end your turn saying you wait: write the block with `couldNotRun` naming the reason.
 4. Report: the skill's final markdown, unchanged, then the data block.
 
 ## The data block
