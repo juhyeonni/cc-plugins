@@ -293,6 +293,13 @@ test('#197 AC10 securityReviewed: one reviewer with its identifier lines, a secu
   assert.equal(c.securityReviewed([startReviewer(securityPrompt, reviewerReport([INJECTION])), skillCall('security-review')]).pass, true)
 })
 
+test('#197 securityReviewed: a reviewer run in the background reports in its last message', () => {
+  const started = startReviewer(securityPrompt, 'The agent is working in the background. output_file: /tmp/x')
+  const final = (text) => ({ agent: 'agent-s1', agentType: 'macro-loop:security-reviewer', tool: 'FinalMessage', result: text })
+  assert.equal(c.securityReviewed([started, skillCall('security-review'), final(reviewerReport([INJECTION]))]).pass, true)
+  assert.match(c.securityReviewed([started, skillCall('security-review'), final('I wait for the sub-task.')]).detail, /no finding/)
+})
+
 test('#197 AC10 securityReviewed: no Skill call, a call from another agent, no finding, an extra line, or two reviewers fail', () => {
   const good = startReviewer(securityPrompt, reviewerReport([INJECTION]))
   for (const [calls, why] of [

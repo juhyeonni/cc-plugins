@@ -220,10 +220,12 @@ test('loadCalls pairs tool calls with results across the session and its subagen
   writeFileSync(join(dir, 'S', 'subagents', 'agent-a1.jsonl'), [
     line({ type: 'assistant', cwd: '/w/repo/.claude/worktrees/agent-a1', message: { content: [{ type: 'tool_use', id: 't2', name: 'Bash', input: { command: 'npm test' } }] } }),
     line({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't2', content: 'Exit code 1', is_error: true }] } }),
+    line({ type: 'assistant', message: { content: [{ type: 'text', text: 'the last words' }] } }),
   ].join('\n'))
   writeFileSync(join(dir, 'S', 'subagents', 'agent-a1.meta.json'), line({ agentType: 'macro-loop:verifier' }))
   const calls = loadCalls(dir, 'S')
-  assert.equal(calls.length, 2)
+  assert.equal(calls.length, 3)
+  assert.deepEqual({ tool: calls[2].tool, agentType: calls[2].agentType, result: calls[2].result }, { tool: 'FinalMessage', agentType: 'macro-loop:verifier', result: 'the last words' })
   assert.equal(calls[0].tool, 'Agent')
   assert.equal(calls[0].result, 'report')
   assert.deepEqual(
