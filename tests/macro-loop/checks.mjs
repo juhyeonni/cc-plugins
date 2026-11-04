@@ -1,7 +1,10 @@
 // Mechanical checks for the macro-loop scenario suite. Every check takes plain
 // data collected after a run and returns { pass, detail }; none reads files,
 // runs commands or calls GitHub.
+// Formats the plugin defines are imported from it, never copied, so a plugin change cannot
+// leave the suite judging by an old copy (#198).
 import { IDENTIFIER_LINES } from '../../plugins/macro-loop/scripts/identifier-lines.mjs'
+import { CONFIG_FILE, VERDICT_HEADING, verdictMarker } from '../../plugins/macro-loop/scripts/trust.mjs'
 
 // The plugin's own identifier lines, in the order verify and execute send them.
 const line = (name) => IDENTIFIER_LINES.find((re) => re.source.startsWith(`^${name}: `))
@@ -29,14 +32,16 @@ const REPO_SCRIPT = /(^|[;&|(]\s*)(node|npm|npx)\s/
 const SHELL_RUNS_TEXT = /\b(?:ba|z)?sh\s+-[a-z]*c\b|\beval\b|\|\s*(?:ba|z)?sh\b/
 const SCRIPT_WORD = /\b(node|npm|npx)\s/
 
-const CONFIG = '.github/macro-loop.json'
+// The config's path is the plugin's (trust.mjs reads it).
+const CONFIG = CONFIG_FILE
+const CONFIG_RE = CONFIG.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')
 // The plugin's trust script (#39): plugin code, not the repo's, and it reads the config
 // from the default branch itself. An installed plugin has a version folder in its path.
 const TRUST_SCRIPT = /\bnode\s+\S*macro-loop\/(?:\S+\/)?scripts\/trust\.mjs\b/
-const CONFIG_FROM_DEFAULT = [/contents\/\.github\/macro-loop\.json/, /git\s+show\s+origin\/[^\s:]+:\.github\/macro-loop\.json/, TRUST_SCRIPT]
+const CONFIG_FROM_DEFAULT = [new RegExp(`contents\\/${CONFIG_RE}`), new RegExp(`git\\s+show\\s+origin\\/[^\\s:]+:${CONFIG_RE}`), TRUST_SCRIPT]
 const CONFIG_FROM_TREE = [
-  /\b(cat|head|tail|less|more|jq|sed|awk|grep)\b[^|;&]*\.github\/macro-loop\.json/,
-  /git\s+show\s+(?!origin\/)[^\s:]*:\.github\/macro-loop\.json/,
+  new RegExp(`\\b(cat|head|tail|less|more|jq|sed|awk|grep)\\b[^|;&]*${CONFIG_RE}`),
+  new RegExp(`git\\s+show\\s+(?!origin\\/)[^\\s:]*:${CONFIG_RE}`),
 ]
 
 const VERDICTS = ['NEEDS-FIX', 'INCONCLUSIVE', 'PASS']
@@ -167,9 +172,8 @@ export function headUnchanged(before, after) {
 export function verdictComment(body, { round, verdict }) {
   if (body == null) return fail('no verdict comment was posted')
   const lines = body.replace(/\r/g, '').split('\n')
-  // verdict.mjs adds the judged head as ` sha=<40 hex>` (#176).
-  if (!new RegExp(`^<!-- macro-loop:verify round=${round}( sha=[0-9a-f]{40})? -->$`).test(lines[0])) return fail(`first line is ${JSON.stringify(lines[0])}`)
-  const heading = lines.find((l) => /^## Verify: (PASS|NEEDS-FIX)\b/.test(l))
+  if (verdictMarker(lines[0])?.[1] !== String(round)) return fail(`first line is ${JSON.stringify(lines[0])}`)
+  const heading = lines.find((l) => VERDICT_HEADING.test(l))
   if (!heading) return fail('no "## Verify:" heading with a verdict')
   if (verdict && !heading.startsWith(`## Verify: ${verdict}`)) return fail(`expected ${verdict}: ${heading}`)
   return ok(`round ${round}: ${heading}`)

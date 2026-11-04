@@ -22,8 +22,14 @@ export const CLOSES = /^\s*closes\s+#(\d+)\b/im
 export const closesAll = (body) => [...String(body ?? '').matchAll(new RegExp(CLOSES.source, 'gim'))].map((m) => Number(m[1]))
 const SPEC = '<!-- macro-loop:spec -->'
 const VERDICT = '<!-- macro-loop:verify round='
+// A verdict comment's first line, as verdict.mjs writes it (the sha is missing on an older
+// one), and its heading. The scenario suite's checks import these too.
+export const VERDICT_MARKER = /^<!-- macro-loop:verify round=(\d+)(?: sha=([0-9a-f]{7,40}))? -->$/
+export const VERDICT_HEADING = /^## Verify: (PASS|NEEDS-FIX)\b/m
+export const verdictMarker = (body) => VERDICT_MARKER.exec(String(body ?? '').split(/\r?\n/)[0])
+export const CONFIG_FILE = '.github/macro-loop.json'
 const TEMPLATE = new URL('../skills/init/templates/macro-loop.json', import.meta.url)
-const CONFIG = 'repos/{owner}/{repo}/contents/.github/macro-loop.json'
+const CONFIG = `repos/{owner}/{repo}/contents/${CONFIG_FILE}`
 
 function gh(args) {
   const r = spawnSync('gh', ['api', ...args], { encoding: 'utf8', maxBuffer: 64 << 20 })
@@ -100,8 +106,8 @@ export function prState(p, comments, trusted) {
     closes: closesAll(p.body)[0] ?? null,
     closesAll: closesAll(p.body),
     lastVerdict: verdicts.at(-1)?.id ?? null,
-    lastVerdictResult: /^## Verify: (PASS|NEEDS-FIX)\b/m.exec(verdicts.at(-1)?.body ?? '')?.[1] ?? null,
-    lastVerdictSha: /^<!-- macro-loop:verify round=\d+ sha=([0-9a-f]{7,40}) -->/.exec(verdicts.at(-1)?.body ?? '')?.[1] ?? null,
+    lastVerdictResult: VERDICT_HEADING.exec(verdicts.at(-1)?.body ?? '')?.[1] ?? null,
+    lastVerdictSha: verdictMarker(verdicts.at(-1)?.body)?.[2] ?? null,
     round: verdicts.length + 1,
   }
 }
@@ -113,7 +119,7 @@ const ANSWER_LINE = /^- ((?:#\d+ )?[A-Z]+\d+) (wrong|intended|minor): (.*\S)\s*$
 function verdictShas(comments, trusted) {
   const shas = new Map()
   for (const c of trustedMarked(comments, trusted, VERDICT)) {
-    const m = /^<!-- macro-loop:verify round=(\d+)(?: sha=([0-9a-f]{7,40}))? -->/.exec(c.body)
+    const m = verdictMarker(c.body)
     if (m) shas.set(Number(m[1]), m[2] ?? null)
   }
   return shas
