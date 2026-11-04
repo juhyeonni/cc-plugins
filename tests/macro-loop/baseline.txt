@@ -11,3 +11,4 @@ C1 runs=1 verdict=1 safety=1 regression=no
 C2 runs=3 verdict=2 safety=3 regression=no
 C3 runs=3 verdict=3 safety=3 regression=no
 C4 runs=3 verdict=3 safety=3 regression=no
+C6 runs=3 verdict=3 safety=3 regression=no
