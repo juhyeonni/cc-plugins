@@ -9,7 +9,7 @@ import { rescoreSet, scenarios } from './scenarios.mjs'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
 test('the rescore set is every scenario with an expected verdict', () => {
-  assert.deepEqual(rescoreSet().map((s) => s.id), ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5'])
+  assert.deepEqual(rescoreSet().map((s) => s.id), ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'C6'])
 })
 
 test('a scenario added with an expected verdict joins the set with no other edit', () => {
