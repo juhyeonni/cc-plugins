@@ -4,6 +4,7 @@
 //   node tests/macro-loop/run.mjs --dry-run <ID> [--model opus]
 //   node tests/macro-loop/run.mjs --seed
 //   node tests/macro-loop/run.mjs <ID> [--model opus|haiku|sonnet] [--runs 3]
+//   node tests/macro-loop/run.mjs --rescore
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -13,10 +14,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { aggregate, evaluate, formatReport } from './checks.mjs'
 import { findProjectDir, loadCalls, loadUsage } from './transcript.mjs'
-import { CANARIES, SANDBOX, findScenario, scenarios } from './scenarios.mjs'
+import { BASELINE, formatBaseline, isVerifierPath, parseBaseline, rescore } from './rescore.mjs'
+import { CANARIES, SANDBOX, findScenario, rescoreSet, scenarios } from './scenarios.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const PLUGIN_DIR = resolve(here, '../../plugins/macro-loop')
+const ROOT = resolve(here, '../..')
+const PLUGIN_DIR = join(ROOT, 'plugins/macro-loop')
 const SEEDS_DIR = join(here, 'seeds')
 const RESULTS_DIR = join(here, 'results')
 const WORK_ROOT = join(tmpdir(), 'macro-loop-suite')
@@ -334,19 +337,48 @@ function seedSandbox() {
   rmSync(work, { recursive: true, force: true })
 }
 
+// Rescores on Opus against the committed baseline and rewrites it (#200). The baseline
+// names HEAD as the measured commit, so the verifier's files must be committed.
+async function rescoreBaseline() {
+  const dirty = git(ROOT, 'status', '--porcelain').split('\n').filter(Boolean).map((l) => l.slice(3)).filter(isVerifierPath)
+  if (dirty.length > 0) throw new Error(`commit these first, the baseline names HEAD: ${dirty.join(', ')}`)
+  const commit = git(ROOT, 'rev-parse', 'HEAD')
+  const file = join(ROOT, BASELINE)
+  const { rows } = parseBaseline(existsSync(file) ? readFileSync(file, 'utf8') : '')
+  const outDir = join(RESULTS_DIR, `${new Date().toISOString().replace(/[:.]/g, '-')}-rescore`)
+  mkdirSync(outDir, { recursive: true })
+  const done = new Map()
+  const play = async (scenario, times) => {
+    const runs = []
+    for (let i = 0; i < times; i++) {
+      const n = (done.get(scenario.id) ?? 0) + 1
+      done.set(scenario.id, n)
+      const r = await runOnce(scenario, 'opus', n, outDir)
+      console.log(`${r.scenario} opus run ${n}: verdict ${r.verdict ?? 'none'}; safety ${Object.values(r.safety).every((c) => c.pass) ? 'ok' : 'FAIL'}`)
+      runs.push(r)
+    }
+    return runs
+  }
+  writeFileSync(file, formatBaseline(commit, await rescore(rescoreSet(), rows, play)))
+  console.log(`\n${readFileSync(file, 'utf8')}`)
+}
+
 export async function main(argv) {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
-    options: { list: { type: 'boolean' }, 'dry-run': { type: 'string' }, seed: { type: 'boolean' }, model: { type: 'string' }, runs: { type: 'string' } },
+    options: { list: { type: 'boolean' }, 'dry-run': { type: 'string' }, seed: { type: 'boolean' }, rescore: { type: 'boolean' }, model: { type: 'string' }, runs: { type: 'string' } },
   })
   const models = values.model ? [values.model] : undefined
   if (values.list) return console.log(scenarios.map((s) => `${s.id}  ${s.title}`).join('\n'))
   if (values['dry-run']) return console.log(dryRun(findScenario(values['dry-run']), models ?? MODELS))
-  if (!values.seed && positionals.length !== 1) throw new Error('usage: run.mjs --list | --dry-run <ID> | --seed | <ID> [--model m] [--runs n]')
+  if (!values.seed && !values.rescore && positionals.length !== 1) {
+    throw new Error('usage: run.mjs --list | --dry-run <ID> | --seed | --rescore | <ID> [--model m] [--runs n]')
+  }
   const unlock = lock()
   try {
     if (values.seed) return seedSandbox()
+    if (values.rescore) return await rescoreBaseline()
     const results = await runScenario(positionals[0], models, Number(values.runs ?? 3))
     console.log(`\n${formatReport(aggregate(results))}`)
   } finally {

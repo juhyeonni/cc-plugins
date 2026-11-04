@@ -1,6 +1,8 @@
 name: CI
 
-on: pull_request
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
 
 jobs:
   test:
@@ -17,3 +19,18 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
           HEAD_REF: ${{ github.head_ref }}
+
+  suite-rescore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/check-suite-rescore.mjs "origin/$BASE_REF" "$HEAD_SHA"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}

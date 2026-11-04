@@ -193,3 +193,6 @@ export function findScenario(id) {
   if (!s) throw new Error(`no scenario ${id}; run with --list`)
   return s
 }
+
+// Every scenario with an expected verdict: a rescore runs these (#200).
+export const rescoreSet = () => scenarios.filter((s) => s.expect?.verdict)
