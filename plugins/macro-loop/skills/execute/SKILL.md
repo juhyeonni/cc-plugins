@@ -79,4 +79,4 @@ Under the table, list:
 
 Remove the directory afterwards.
 
-Say that nothing was fixed automatically: an Issue with NEEDS-FIX goes back in with `/macro-loop:execute <n>` after a person has read the verdict. A run that was stopped can also be started again the same way: `execute.mjs` gives the stage to resume at.
+Nothing is fixed in this run. For an Issue with NEEDS-FIX, `stage.mjs --issue <n>` says what comes next: `implement` means `/macro-loop:execute <n>` runs it again, `stop` means a person decides. A run that was stopped can also be started again the same way: `execute.mjs` gives the stage to resume at.
