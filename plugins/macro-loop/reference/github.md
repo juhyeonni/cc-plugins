@@ -66,6 +66,7 @@ Skills find their own comments by a hidden HTML marker on the comment's first li
 | `<!-- macro-loop:missed pr=<N> -->` | Issue comment on a `missed-by-verify` Issue, naming the merged PR that caused the bug | `triage` |
 | `<!-- macro-loop:answer round=N -->` | PR comment | a person, or `implement` after approval |
 | `<!-- macro-loop:queue id=<child>.<n> -->` | Comment on a `goal`'s tracking Issue (see **Question queue**) | `grilling` and `spec`, when run unattended |
+| `<!-- macro-loop:queue-answer id=<child>.<n> -->` | Comment on a `goal`'s tracking Issue | `goal`, from the person's reply |
 
 An answer records how a finding of round N's verdict was answered. Under the marker, each line is `- <ID> <wrong|intended|minor>: <reason>`, with the finding's ID from the verdict (`AC2`, `F1`, `S1`) and a reason that is never empty:
 
@@ -113,6 +114,8 @@ Blocks: <what waits, and what does not>
 `choice` is a decision between options, `diagnostic` a fact only a person has, `ambiguity` a request that reads two ways, `access` a credential or a permission, `approval` a go-ahead.
 
 To write one: run `scripts/trust.mjs --issue <t>`. `<n>` is the next free number for that child among the ids in `issue.queue`, which lists each trusted item's `id`, `comment`, `child` and `type`; `issue.queueWarnings` names the items it left out. Post the comment (see **Comments**; it counts as posted when the POST printed its id), then hold the child: add `needs-decision` and remove `ready-for-agent` (see **Labels**). The recommended default is not authorized: nothing is built on it until the person answers.
+
+The person's answer is a comment of its own: `<!-- macro-loop:queue-answer id=<child>.<n> -->`, then the reply in the person's words. Never write the recommended default as an answer. Each item in `issue.queue` has `answer`, the id of its newest trusted answer comment, or `null`; an answer with no item, or with another marker shape, is named in `issue.queueWarnings`. A child is held while an item of its own has `answer: null`; once all are answered, put `ready-for-agent` back and remove `needs-decision` (see **Labels**).
 
 ## Pull requests
 

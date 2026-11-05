@@ -4,8 +4,8 @@
 // asked, an Issue's spec comment and a PR's author, last verdict (its id, result and the
 // head SHA it judged, null for a verdict written before the SHA was recorded), round and the
 // answers to its findings, each with the head its round judged, and the verifiers' Answers line.
-// On a tracking Issue it also lists the trusted queue items (`issue.queue`) and names the
-// ones it left out (`issue.queueWarnings`).
+// On a tracking Issue it also lists the trusted queue items with the id of their answer
+// (`issue.queue`) and names the ones it left out (`issue.queueWarnings`).
 //
 //   node trust.mjs [--issue <n>] [--pr <n>]
 //
@@ -158,10 +158,8 @@ const QUEUE_MARKER = /^<!-- macro-loop:queue id=(\d+)\.(\d+) -->$/
 export const QUEUE_TYPES = ['choice', 'diagnostic', 'ambiguity', 'access', 'approval']
 const QUEUE_LINES = ['Child', 'Type', 'Question', 'Recommended', 'Blocks']
 
-// The questions a goal run holds for the person (#218), on its tracking Issue: one comment
-// per item, `<!-- macro-loop:queue id=<child>.<n> -->` first, then a line each for Child
-// (`#<n>`), Type, Question, Recommended and Blocks. An item that is not valid, or whose id
-// an earlier item already has, is left out and named in a warning.
+const QUEUE_ANSWER_MARKER = /^<!-- macro-loop:queue-answer id=(\d+\.\d+) -->$/
+
 // What is wrong with one queue comment, or null. `taken` holds the ids earlier items have.
 function queueProblem(marker, fields, taken) {
   if (!marker) return 'the marker is not `<!-- macro-loop:queue id=<child>.<n> -->`'
@@ -173,6 +171,12 @@ function queueProblem(marker, fields, taken) {
   return null
 }
 
+// The questions a goal run holds for the person (#218), on its tracking Issue: one comment
+// per item, `<!-- macro-loop:queue id=<child>.<n> -->` first, then a line each for Child
+// (`#<n>`), Type, Question, Recommended and Blocks. An item that is not valid, or whose id
+// an earlier item already has, is left out and named in a warning. The person's answer (#219)
+// is a comment starting `<!-- macro-loop:queue-answer id=<id> -->`: an item's `answer` is the
+// newest one's comment id, or null. An answer with no item, or a bad marker, is named in a warning.
 export function queueOf(comments, trusted) {
   const queue = []
   const warnings = []
@@ -186,7 +190,13 @@ export function queueOf(comments, trusted) {
     }
     const problem = queueProblem(marker, fields, new Set(queue.map((q) => q.id)))
     if (problem) warnings.push(`comment ${c.id}: ${problem}`)
-    else queue.push({ id: `${marker[1]}.${marker[2]}`, comment: c.id, child: Number(marker[1]), type: fields.Type })
+    else queue.push({ id: `${marker[1]}.${marker[2]}`, comment: c.id, child: Number(marker[1]), type: fields.Type, answer: null })
+  }
+  for (const c of trustedMarked(comments, trusted, '<!-- macro-loop:queue-answer ')) {
+    const id = QUEUE_ANSWER_MARKER.exec(String(c.body).split(/\r?\n/)[0].trim())?.[1]
+    const item = queue.find((q) => q.id === id)
+    if (item) item.answer = c.id
+    else warnings.push(`comment ${c.id}: ${id ? `the answer is for ${id}, which has no queue item` : 'the marker is not `<!-- macro-loop:queue-answer id=<child>.<n> -->`'}`)
   }
   return { queue, queueWarnings: warnings }
 }

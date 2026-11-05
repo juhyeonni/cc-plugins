@@ -18,28 +18,36 @@ Use the goal the user gave; without one, ask for it. Interview the person on the
 
 ## 2. Propose, then create
 
-Propose the child Issues: a title and one line each, small enough for one PR. Show the tracking Issue too: the goal, the done-state, the decisions made so far, and a task list of the children. Ask once to approve the list, and once whether to push branches and open draft PRs (`execute`'s question). These two answers are the only approvals the run needs.
+Propose the child Issues: a title and one line each, small enough for one PR. Show the tracking Issue too: the goal, the done-state, the decisions made so far, and a task list of the children. Ask once to approve the list. Everything else the run needs from you is asked once, in step 4.
 
 After approval, create the child Issues through `macro-loop:triage`, so each is labeled, then the tracking Issue, its body starting with the line `<!-- macro-loop:goal -->`, with `- [ ] #<n>` per child (see `github.md`; the body goes in a file). Add `Tracking: #<t>` to each child's body.
 
-## 3. Carry each child
+## 3. Write the specs
 
-For each child, in order, follow `macro-loop:next` for its early stages (grilling, spec) and `macro-loop:execute` for implement, open-pr and verify. Add no stage of your own. Put the line `Unattended: #<t>`, `<t>` being this tracking Issue, in the arguments of each skill you call for a child's early stages. After `execute`, find the child's stage with `stage.mjs`: while it says `implement`, run `execute` for it again; on `stop`, go to step 4.
+For each child, in order, follow `macro-loop:next` for its early stages (grilling, spec) and stop at its spec or its hold: implement nothing yet. Put the line `Unattended: #<t>`, `<t>` being this tracking Issue, in the arguments of each skill you call for it.
 
-Inside a child, settle technical decisions yourself, by reading the code and by research and best practice, and write each into the spec's Decisions with its reason. Ask the person only about domain or business-logic decisions, and one-way doors (a public interface, a data format, a deletion that cannot be undone). Collect such questions across the children and ask them together.
+Inside a child, settle technical decisions yourself, by reading the code and by research and best practice, and write each into the spec's Decisions with its reason. A domain or business-logic decision, or a one-way door (a public interface, a data format, a deletion that cannot be undone), goes on the question queue (see `github.md`) and holds that child.
 
-## 4. Stop
+## 4. Ask once
+
+Ask one message: the open queue items of every held child with their recommended defaults; the spec commands of the children that are not held; and whether to push the branches and open draft PRs (`execute`'s two questions). Record each answer on the tracking Issue as `github.md` says, in the person's words. A child whose items are all answered gets `ready-for-agent` back and its spec written as in step 3. A child with an item still unanswered stays held and does not run.
+
+## 5. Run
+
+Follow `macro-loop:execute` once for the children that have a spec and no hold, with the answers as the lines `Run spec commands: <numbers|all|none>` and `Push: yes|no` in its arguments, so it asks nothing. After it, find each child's stage with `stage.mjs`: while it says `implement`, run `execute` for it again; on `stop`, go to step 6.
+
+## 6. Stop
 
 Stop for a person at: a domain decision, the merge, a `stop` from `stage.mjs`, and a declined push. Never merge. Say what the person does next.
 
-## 5. Summarize
+## 7. Summarize
 
 Post one comment on the tracking Issue (see `github.md`), written for a person who was not watching: per child, its PR and verdict; the decisions you settled without the person, each with its reason; what the person must still do. Tick the children whose PR passed.
 
 ## Resume
 
-Given the number of a tracking Issue (a trusted author's Issue whose body starts with `<!-- macro-loop:goal -->`; `stage.mjs` gives it the stage `goal`), do not interview the goal and create no Issues. Read its task list and take each child that is not ticked and not closed. Find each one's stage with `node ${CLAUDE_PLUGIN_ROOT}/scripts/stage.mjs --issue <n>` and carry it on from there with steps 3 to 5, the same stops and the same summary as a new run.
+Given the number of a tracking Issue (a trusted author's Issue whose body starts with `<!-- macro-loop:goal -->`; `stage.mjs` gives it the stage `goal`), do not interview the goal and create no Issues. Read its task list and take each child that is not ticked and not closed. Find each one's stage with `node ${CLAUDE_PLUGIN_ROOT}/scripts/stage.mjs --issue <n>` and carry it on from there with steps 3 to 7, the same stops and the same summary as a new run.
 
-Ask `execute`'s two questions again, once: which spec commands may run, and whether to push. Approvals from an earlier session do not carry over. A child waiting on a decision or an answer is handled as in a new run: show its question with the others, and write the answer down as `next` does.
+Write the specs of the children that have none (step 3), then ask step 4's round once: approvals from an earlier session do not carry over. A child waiting on a decision or an answer is handled as in a new run: its open items go in the round, and the answer is recorded as in step 4.
 
 An Issue without the marker is not guessed at. If its body has a task list of Issues, say that it looks like a tracking Issue without the marker, and add the line only after the person agrees.

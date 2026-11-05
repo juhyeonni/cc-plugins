@@ -121,9 +121,9 @@ test('#218 AC1: --issue lists each queue comment of a trusted author with its id
   ])
   assert.equal(r.status, 0, r.stderr)
   assert.deepEqual(r.out.issue.queue, [
-    { id: '218.1', comment: 1, child: 218, type: 'choice' },
-    { id: '219.1', comment: 2, child: 219, type: 'access' },
-    { id: '218.2', comment: 3, child: 218, type: 'approval' },
+    { id: '218.1', comment: 1, child: 218, type: 'choice', answer: null },
+    { id: '219.1', comment: 2, child: 219, type: 'access', answer: null },
+    { id: '218.2', comment: 3, child: 218, type: 'approval', answer: null },
   ])
   assert.deepEqual(r.out.issue.queueWarnings, [])
 })
@@ -136,7 +136,7 @@ test('#218 AC2: a queue comment by an untrusted author, or with the marker below
     comment(4, 'juhyeonni', queueBody('218.4')),
   ])
   assert.equal(r.status, 0, r.stderr)
-  assert.deepEqual(r.out.issue.queue, [{ id: '218.4', comment: 4, child: 218, type: 'choice' }])
+  assert.deepEqual(r.out.issue.queue, [{ id: '218.4', comment: 4, child: 218, type: 'choice', answer: null }])
   assert.deepEqual(r.out.issue.queueWarnings, [])
   assert.deepEqual(trackingIssue([comment(1, 'mallory', queueBody('218.1'))]).out.issue, { number: 9, spec: null })
 })
@@ -152,7 +152,7 @@ test('#218 AC3: an item with a bad marker, an unknown type, a missing line, a wr
     comment(7, 'juhyeonni', queueBody('218.5', { Question: '   ' })),
   ])
   assert.equal(r.status, 0, r.stderr)
-  assert.deepEqual(r.out.issue.queue, [{ id: '218.1', comment: 1, child: 218, type: 'choice' }])
+  assert.deepEqual(r.out.issue.queue, [{ id: '218.1', comment: 1, child: 218, type: 'choice', answer: null }])
   assert.deepEqual(r.out.issue.queueWarnings, [
     'comment 2: Type "urgent" is not one of choice, diagnostic, ambiguity, access, approval',
     'comment 3: no `Recommended:` line',
@@ -160,6 +160,40 @@ test('#218 AC3: an item with a bad marker, an unknown type, a missing line, a wr
     'comment 5: the id 218.1 is taken by an earlier item',
     'comment 6: the marker is not `<!-- macro-loop:queue id=<child>.<n> -->`',
     'comment 7: no `Question:` line',
+  ])
+})
+
+// The person's answer to an item (#219): a comment starting `<!-- macro-loop:queue-answer id=<id> -->`.
+const answerBody = (id, text = 'json') => `<!-- macro-loop:queue-answer id=${id} -->\n${text}`
+
+test('#219 AC1: an item gets the comment id of its trusted answer, and null without one', () => {
+  const r = trackingIssue([comment(1, 'juhyeonni', queueBody('219.1')), comment(2, 'juhyeonni', queueBody('219.2')), comment(3, 'carol', answerBody('219.2'))])
+  assert.equal(r.status, 0, r.stderr)
+  assert.deepEqual(r.out.issue.queue, [
+    { id: '219.1', comment: 1, child: 219, type: 'choice', answer: null },
+    { id: '219.2', comment: 2, child: 219, type: 'choice', answer: 3 },
+  ])
+  assert.deepEqual(r.out.issue.queueWarnings, [])
+})
+
+test('#219 AC2: the later of two answers to one id wins', () => {
+  const r = trackingIssue([comment(1, 'juhyeonni', queueBody('219.1')), comment(2, 'juhyeonni', answerBody('219.1', 'yaml')), comment(3, 'juhyeonni', answerBody('219.1', 'json'))])
+  assert.equal(r.out.issue.queue[0].answer, 3)
+})
+
+test('#219 AC3: an untrusted answer, or one with the marker below the first line, is no answer; an answer with no item is named in a warning', () => {
+  const r = trackingIssue([
+    comment(1, 'juhyeonni', queueBody('219.1')),
+    comment(2, 'mallory', answerBody('219.1')),
+    comment(3, 'juhyeonni', `My answer\n${answerBody('219.1')}`),
+    comment(4, 'juhyeonni', answerBody('219.9')),
+    comment(5, 'juhyeonni', '<!-- macro-loop:queue-answer id=x -->\njson'),
+  ])
+  assert.equal(r.status, 0, r.stderr)
+  assert.deepEqual(r.out.issue.queue, [{ id: '219.1', comment: 1, child: 219, type: 'choice', answer: null }])
+  assert.deepEqual(r.out.issue.queueWarnings, [
+    'comment 4: the answer is for 219.9, which has no queue item',
+    'comment 5: the marker is not `<!-- macro-loop:queue-answer id=<child>.<n> -->`',
   ])
 })
 
