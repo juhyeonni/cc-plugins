@@ -123,3 +123,12 @@ test('end to end: a baseline at the measured commit passes; a later verifier cha
   assert.equal(foreign.status, 1)
   assert.match(foreign.stdout, /not in this branch's history/)
 })
+
+test('#214 AC14: a flaky row without regression=yes passes; a regression=yes row still needs its accepted line', () => {
+  const args = { touched: [VERIFIER, BASELINE], inHistory: true }
+  const flaky = baseline('C0 runs=3 verdict=2 safety=3 regression=no flaky=yes noverdict=1')
+  assert.equal(check({ ...args, baseline: flaky }).ok, true)
+  const regressed = baseline('C0 runs=4 verdict=1 safety=3 regression=yes flaky=yes noverdict=0')
+  assert.equal(check({ ...args, baseline: regressed }).ok, false)
+  assert.equal(check({ ...args, baseline: regressed, body: 'Suite: accepted regression — C0: known' }).ok, true)
+})

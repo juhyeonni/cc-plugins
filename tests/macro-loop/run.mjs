@@ -4,7 +4,7 @@
 //   node tests/macro-loop/run.mjs --dry-run <ID> [--model opus]
 //   node tests/macro-loop/run.mjs --seed
 //   node tests/macro-loop/run.mjs <ID> [--model opus|haiku|sonnet] [--runs 3]
-//   node tests/macro-loop/run.mjs --rescore
+//   node tests/macro-loop/run.mjs --rescore [--resume <results dir>]
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { aggregate, evaluate, formatReport } from './checks.mjs'
 import { findProjectDir, loadCalls, loadUsage } from './transcript.mjs'
-import { BASELINE, formatBaseline, isVerifierPath, parseBaseline, rescore } from './rescore.mjs'
+import { BASELINE, isVerifierPath, loadRows, parseBaseline, rescoreToFile, retrying, saveRow } from './rescore.mjs'
 import { CANARIES, SANDBOX, findScenario, rescoreSet, scenarios } from './scenarios.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -290,9 +290,9 @@ async function runOnce(scenario, model, n, outDir) {
     canaries: Object.fromEntries((scenario.canaries ?? []).map((p) => [p, existsSync(p)])),
     tips: scenario.workBranch && { before: before.tip, after: after.tip, ancestor: isAncestor(repo, before.tip, after.tip) },
   }
-  const { safety, verdict, cites } = evaluate(scenario, obs)
+  const { safety, verdict, cites, noVerdict } = evaluate(scenario, obs)
   const usage = loadUsage(transcripts, sessionId)
-  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts, turns, usage, comment, safety, verdict, cites, expected: scenario.expect }
+  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts, turns, usage, comment, safety, verdict, cites, noVerdict, expected: scenario.expect }
   writeFileSync(join(outDir, `${scenario.id}-${model}-${n}.json`), JSON.stringify(result, null, 2))
   rmSync(work, { recursive: true, force: true })
   return result
@@ -340,27 +340,34 @@ function seedSandbox() {
 
 // Rescores on Opus against the committed baseline and rewrites it (#200). The baseline
 // names HEAD as the measured commit, so the verifier's files must be committed.
-async function rescoreBaseline() {
+async function rescoreBaseline(resumeDir) {
   const dirty = git(ROOT, 'status', '--porcelain').split('\n').filter(Boolean).map((l) => l.slice(3)).filter(isVerifierPath)
   if (dirty.length > 0) throw new Error(`commit these first, the baseline names HEAD: ${dirty.join(', ')}`)
   const commit = git(ROOT, 'rev-parse', 'HEAD')
   const file = join(ROOT, BASELINE)
   const { rows } = parseBaseline(existsSync(file) ? readFileSync(file, 'utf8') : '')
-  const outDir = join(RESULTS_DIR, `${new Date().toISOString().replace(/[:.]/g, '-')}-rescore`)
+  const outDir = resumeDir ? resolve(resumeDir) : join(RESULTS_DIR, `${new Date().toISOString().replace(/[:.]/g, '-')}-rescore`)
   mkdirSync(outDir, { recursive: true })
   const done = new Map()
+  // A failed session is tried again from a fresh clone; only the attempt that finished counts.
+  const attempt = async (scenario, n) => {
+    const r = await runOnce(scenario, 'opus', n, outDir)
+    if (r.turns.some((t) => t.isError)) throw new Error(`${scenario.id} run ${n}: the session ended in an error`)
+    return r
+  }
   const play = async (scenario, times) => {
     const runs = []
     for (let i = 0; i < times; i++) {
       const n = (done.get(scenario.id) ?? 0) + 1
       done.set(scenario.id, n)
-      const r = await runOnce(scenario, 'opus', n, outDir)
+      const r = await retrying(() => attempt(scenario, n))
       console.log(`${r.scenario} opus run ${n}: verdict ${r.verdict ?? 'none'}; safety ${Object.values(r.safety).every((c) => c.pass) ? 'ok' : 'FAIL'}${r.cites == null ? '' : `; "Decide first" cites ${scenario.expect.cites}: ${r.cites ? 'yes' : 'no'}`}`)
       runs.push(r)
     }
     return runs
   }
-  writeFileSync(file, formatBaseline(commit, await rescore(rescoreSet(), rows, play)))
+  const saved = loadRows(outDir)
+  await rescoreToFile(file, commit, rescoreSet(), rows, play, { saved, onRow: (row) => saveRow(outDir, row) })
   console.log(`\n${readFileSync(file, 'utf8')}`)
 }
 
@@ -368,7 +375,7 @@ export async function main(argv) {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
-    options: { list: { type: 'boolean' }, 'dry-run': { type: 'string' }, seed: { type: 'boolean' }, rescore: { type: 'boolean' }, model: { type: 'string' }, runs: { type: 'string' } },
+    options: { list: { type: 'boolean' }, 'dry-run': { type: 'string' }, seed: { type: 'boolean' }, rescore: { type: 'boolean' }, resume: { type: 'string' }, model: { type: 'string' }, runs: { type: 'string' } },
   })
   const models = values.model ? [values.model] : undefined
   if (values.list) return console.log(scenarios.map((s) => `${s.id}  ${s.title}`).join('\n'))
@@ -379,7 +386,7 @@ export async function main(argv) {
   const unlock = lock()
   try {
     if (values.seed) return seedSandbox()
-    if (values.rescore) return await rescoreBaseline()
+    if (values.rescore) return await rescoreBaseline(values.resume)
     const results = await runScenario(positionals[0], models, Number(values.runs ?? 3))
     console.log(`\n${formatReport(aggregate(results))}`)
   } finally {

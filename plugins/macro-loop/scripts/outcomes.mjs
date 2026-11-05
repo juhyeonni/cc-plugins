@@ -2,10 +2,11 @@
 // How verify's verdicts turn out (#195): rounds to pass, merged PRs left unverified or merged
 // on a stale or NEEDS-FIX verdict, and PASS PRs later reverted or found to have missed a bug.
 //
-//   node outcomes.mjs [--since YYYY-MM-DD] [--until YYYY-MM-DD]
+//   node outcomes.mjs [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--table]
 //
 // Run it in the repo's checkout, like status.mjs. It reads only. It prints one JSON line; every
 // share is `{count, of}`. Data it cannot read goes under `cannotTell`, never into a count (#195 D14).
+// --table adds `table`, one row per PR read, with `cannot tell` for a value it cannot read (#214).
 // On any failure it prints nothing and exits non-zero with the error.
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -39,7 +40,7 @@ function rounds(seq) {
   return { round1: pass >= 0 && needsFix === 0, round3: needsFix >= 2, reverified: pass >= 0 && pass < seq.length - 1 }
 }
 
-export function outcomes({ prs, repo, trusted, since, until, limit = LIMIT, commentsOf, commits, prsOfCommit, missedIssues }) {
+export function outcomes({ prs, repo, trusted, since, until, limit = LIMIT, table = false, commentsOf, commits, prsOfCommit, missedIssues }) {
   const inWindow = prs
     .filter((p) => p.closed_at && (!since || day(p) >= since) && (!until || day(p) <= until))
     .sort((a, b) => (b.merged_at ?? b.closed_at).localeCompare(a.merged_at ?? a.closed_at))
@@ -77,6 +78,7 @@ export function outcomes({ prs, repo, trusted, since, until, limit = LIMIT, comm
   }
 
   // D11, D13: a missed bug points at its PR through a trusted marker comment.
+  const missedPrs = new Set()
   let missedPass = 0
   let missedUnverified = 0
   for (const issue of missedIssues) {
@@ -86,6 +88,7 @@ export function outcomes({ prs, repo, trusted, since, until, limit = LIMIT, comm
       continue
     }
     const n = Number(marker[1])
+    missedPrs.add(n)
     if (!mergedNumbers.has(n)) continue
     if (mergedPass.has(n)) missedPass++
     else missedUnverified++
@@ -108,7 +111,26 @@ export function outcomes({ prs, repo, trusted, since, until, limit = LIMIT, comm
     missedUnverified,
     cannotTell,
   }
-  return inWindow.length > limit ? { ...out, more: inWindow.length - limit } : out
+  const withTable = table ? { ...out, table: read.map((r) => tableRow(r, { reverted, missedPrs, cannotTell })) } : out
+  return inWindow.length > limit ? { ...withTable, more: inWindow.length - limit } : withTable
+}
+
+const CANNOT_TELL = 'cannot tell'
+const yesNo = (b) => (b ? 'yes' : 'no')
+
+// One PR as a table row. An unmerged PR has no stale, reverted or missed to read: `n/a`. A revert or a
+// missed marker that points at no PR could be this one, so a merged PR not known to be hit cannot tell.
+function tableRow({ p, seq, state }, { reverted, missedPrs, cannotTell }) {
+  const merged = Boolean(p.merged_at)
+  const known = (set, unreadable) => (set.has(p.number) ? 'yes' : unreadable ? CANNOT_TELL : 'no')
+  return {
+    pr: p.number,
+    result: seq.length === 0 ? 'no verdict' : (seq.at(-1) ?? CANNOT_TELL),
+    merged: yesNo(merged),
+    stale: !merged || seq.length === 0 ? 'n/a' : state.lastVerdictSha === null ? CANNOT_TELL : yesNo(state.lastVerdictSha !== state.head),
+    reverted: merged ? known(reverted, cannotTell.revertSha.length > 0) : 'n/a',
+    missed: merged ? known(missedPrs, cannotTell.missedMarker.length > 0) : 'n/a',
+  }
 }
 
 // The commit-to-PR endpoint answers 422 for a SHA GitHub does not know: that is "no PR", not a failure.
@@ -128,7 +150,7 @@ function date(flag, value) {
 }
 
 function decide(argv) {
-  const { values } = parseArgs({ args: argv, options: { since: { type: 'string' }, until: { type: 'string' } } })
+  const { values } = parseArgs({ args: argv, options: { since: { type: 'string' }, until: { type: 'string' }, table: { type: 'boolean' } } })
   const since = date('since', values.since)
   const until = date('until', values.until)
   const { config, trusted, defaultBranch } = trustContext()
@@ -142,6 +164,7 @@ function decide(argv) {
     trusted,
     since,
     until,
+    table: values.table,
     commentsOf: (n) => list(`repos/{owner}/{repo}/issues/${n}/comments`),
     commits,
     prsOfCommit,

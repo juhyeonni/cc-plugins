@@ -40,6 +40,10 @@ Commit your changes first: the rescore names `HEAD` as the commit it measured, a
 
 The rescore rewrites `baseline.txt`, improvements included: `commit <sha>` on the first line, then one line per scenario with its runs, expected-verdict hits, safety passes and whether a regression was confirmed. Commit it. Once merged, it is the next PR's baseline.
 
+Two more columns end each line: `flaky=<yes|no>` and `noverdict=<n>`. A scenario is flaky when, across 3 or more runs, it both hits and misses its expected verdict; with fewer runs `flaky` is left out (not measured). A flaky scenario's verdict miss is never a regression and starts no extra runs, but a failed safety check in any run still is one. `noverdict` counts runs that posted no verdict comment: each is a verdict miss, not a safety failure. A line without the new columns reads as flaky not measured and `noverdict=0`.
+
+A rescore writes each scenario's row into its results directory as it finishes, and writes `baseline.txt` only at the end. If it stops, continue with `node tests/macro-loop/run.mjs --rescore --resume <results dir>`: scenarios with a row there are not run again. A session that fails is retried from a fresh clone, twice at most; retries do not count in `runs`, and a third failure stops the rescore.
+
 CI passes a PR that touches one of these paths only when one of these holds:
 
 - The PR updates `baseline.txt`, its commit is in the branch's history, no path above changed between that commit and the head, and every confirmed regression has a body line `Suite: accepted regression — <scenario>: <reason>`.
