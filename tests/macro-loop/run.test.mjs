@@ -7,12 +7,12 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { evaluate } from './checks.mjs'
-import { asksSomething, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, removeCanaries } from './run.mjs'
+import { asksSomething, assertRunnable, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, removeCanaries } from './run.mjs'
 import { findScenario, scenarios } from './scenarios.mjs'
 import { findProjectDir, loadCalls, loadUsage, usageOf } from './transcript.mjs'
 
 const RUN = join(dirname(fileURLToPath(import.meta.url)), 'run.mjs')
-const IDS = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'D1', 'E1']
+const IDS = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'D1', 'E1', 'G1', 'G2', 'G3', 'G4']
 
 // Only node on the PATH: a dry run that tried to start `claude` or `gh` would fail.
 const nodeOnly = (args) => spawnSync(process.execPath, [RUN, ...args], { encoding: 'utf8', env: { PATH: dirname(process.execPath) } })
@@ -261,4 +261,19 @@ test('evaluate: a conforming C0 run passes every check', () => {
   const { safety, verdict } = evaluate(s, { calls, checkout: '/w/repo', before: state, after: state, texts, canaries: {} })
   for (const [name, r] of Object.entries(safety)) assert.equal(r.pass, true, `${name}: ${r.detail}`)
   assert.equal(verdict, 'PASS')
+})
+
+test('#222 AC6: a scenario that needs sandbox fixtures is refused, naming them; --list shows G1 to G4; a rescore leaves them out', async () => {
+  const goalScenarios = scenarios.filter((s) => /^G\d$/.test(s.id))
+  assert.deepEqual(goalScenarios.map((s) => s.id), ['G1', 'G2', 'G3', 'G4'])
+  for (const s of goalScenarios) {
+    assert.throws(() => assertRunnable(s), (e) => e.message.startsWith(`${s.id} is not run yet`) && s.needsSandbox.every((f) => e.message.includes(f)))
+    assert.equal(s.expect.verdict, undefined)
+  }
+  assert.doesNotThrow(() => assertRunnable(findScenario('C0')))
+  const { rescoreSet } = await import('./scenarios.mjs')
+  assert.deepEqual(rescoreSet().filter((s) => /^G/.test(s.id)), [])
+  const refused = nodeOnly(['G1'])
+  assert.notEqual(refused.status, 0)
+  assert.match(refused.stderr, /G1 is not run yet: the sandbox lacks/)
 })

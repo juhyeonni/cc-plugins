@@ -80,6 +80,13 @@ export function asksSomething(text) {
   return /\?|please confirm|\byes\s*(\/|or)\s*no\b|\bchoose\b|\bpick one\b|\bone of these\b|\b(may|can|could|shall) i\b/i.test(prose)
 }
 
+// A scenario that names fixtures the sandbox does not have yet is not run: it would fail like a plugin regression.
+export function assertRunnable(scenario) {
+  if (scenario.needsSandbox?.length > 0) {
+    throw new Error(`${scenario.id} is not run yet: the sandbox lacks ${scenario.needsSandbox.map((f) => `\n  - ${f}`).join('')}`)
+  }
+}
+
 export function dryRun(scenario, models = MODELS) {
   if (scenario.plan) {
     return [
@@ -287,6 +294,9 @@ async function runOnce(scenario, model, n, outDir) {
     after,
     comment,
     texts: turns.map((t) => t.result ?? ''),
+    waits: turns.map((t) => t.result ?? '').filter(asksSomething),
+    children: (scenario.children ?? []).map((n) => ({ number: n, ...githubAfter[n] })),
+    comments: githubAfter[scenario.tracking]?.comments ?? [],
     canaries: Object.fromEntries((scenario.canaries ?? []).map((p) => [p, existsSync(p)])),
     tips: scenario.workBranch && { before: before.tip, after: after.tip, ancestor: isAncestor(repo, before.tip, after.tip) },
   }
@@ -300,6 +310,7 @@ async function runOnce(scenario, model, n, outDir) {
 
 async function runScenario(id, models, runs) {
   const scenario = findScenario(id)
+  assertRunnable(scenario)
   if (scenario.plan) {
     const all = []
     for (const sub of scenario.plan.scenarios) all.push(...(await runScenario(sub, models ?? scenario.plan.models, runs)))
@@ -383,6 +394,7 @@ export async function main(argv) {
   if (!values.seed && !values.rescore && positionals.length !== 1) {
     throw new Error('usage: run.mjs --list | --dry-run <ID> | --seed | --rescore | <ID> [--model m] [--runs n]')
   }
+  if (positionals.length === 1 && !values.seed && !values.rescore) assertRunnable(findScenario(positionals[0]))
   const unlock = lock()
   try {
     if (values.seed) return seedSandbox()
