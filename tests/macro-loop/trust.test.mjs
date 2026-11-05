@@ -106,6 +106,60 @@ test('--issue: no trusted spec comment gives null', () => {
   assert.deepEqual(r.out.issue, { number: 7, spec: null })
 })
 
+// Questions a goal run holds for the person (#218): queue comments on the tracking Issue.
+const queueBody = (id, over = {}) => {
+  const f = { Child: `#${id.split('.')[0]}`, Type: 'choice', Question: 'Which data format?', Recommended: 'json, the repo already reads it', Blocks: 'this child waits; the others go on', ...over }
+  return [`<!-- macro-loop:queue id=${id} -->`, ...Object.entries(f).filter(([, v]) => v !== null).map(([k, v]) => `${k}: ${v}`)].join('\n')
+}
+const trackingIssue = (comments) => run(base({ 'api --paginate --slurp repos/{owner}/{repo}/issues/9/comments': { stdout: [comments] } }), ['--issue', '9'])
+
+test('#218 AC1: --issue lists each queue comment of a trusted author with its id, comment, child and type', () => {
+  const r = trackingIssue([
+    comment(1, 'JUHYEONNI', queueBody('218.1')),
+    comment(2, 'carol', queueBody('219.1', { Type: 'access' })),
+    comment(3, 'juhyeonni', queueBody('218.2', { Type: 'approval' })),
+  ])
+  assert.equal(r.status, 0, r.stderr)
+  assert.deepEqual(r.out.issue.queue, [
+    { id: '218.1', comment: 1, child: 218, type: 'choice' },
+    { id: '219.1', comment: 2, child: 219, type: 'access' },
+    { id: '218.2', comment: 3, child: 218, type: 'approval' },
+  ])
+  assert.deepEqual(r.out.issue.queueWarnings, [])
+})
+
+test('#218 AC2: a queue comment by an untrusted author, or with the marker below the first line, is not listed', () => {
+  const r = trackingIssue([
+    comment(1, 'mallory', queueBody('218.1')),
+    comment(2, 'juhyeonni', `See this\n${queueBody('218.2')}`),
+    comment(3, 'juhyeonni', `A note quoting <!-- macro-loop:queue id=218.3 --> in the middle`),
+  ])
+  assert.equal(r.status, 0, r.stderr)
+  assert.deepEqual(r.out.issue, { number: 9, spec: null })
+})
+
+test('#218 AC3: an item with a bad marker, an unknown type, a missing line, a wrong child or a taken id is named in a warning', () => {
+  const r = trackingIssue([
+    comment(1, 'juhyeonni', queueBody('218.1')),
+    comment(2, 'juhyeonni', queueBody('218.2', { Type: 'urgent' })),
+    comment(3, 'juhyeonni', queueBody('218.3', { Recommended: null })),
+    comment(4, 'juhyeonni', queueBody('218.4', { Child: '#219' })),
+    comment(5, 'juhyeonni', queueBody('218.1', { Question: 'Again?' })),
+    comment(6, 'juhyeonni', '<!-- macro-loop:queue id=x -->\nChild: #218'),
+    comment(7, 'juhyeonni', queueBody('218.5', { Question: '   ' })),
+  ])
+  assert.equal(r.status, 0, r.stderr)
+  assert.deepEqual(r.out.issue.queue, [{ id: '218.1', comment: 1, child: 218, type: 'choice' }])
+  assert.deepEqual(r.out.issue.queueWarnings, [
+    'comment 2: Type "urgent" is not one of choice, diagnostic, ambiguity, access, approval',
+    'comment 3: no `Recommended:` line',
+    'comment 4: Child "#219" is not #218, the child in the id',
+    'comment 5: the id 218.1 is taken by an earlier item',
+    'comment 6: the marker is not `<!-- macro-loop:queue id=<child>.<n> -->`',
+    'comment 7: no `Question:` line',
+  ])
+})
+
 test('--pr: author, trust, head, base, last trusted verdict and round', () => {
   const pr = { user: { login: 'AnpanManni' }, head: { sha: 'abc123' }, base: { ref: 'main' } }
   const pages = [[

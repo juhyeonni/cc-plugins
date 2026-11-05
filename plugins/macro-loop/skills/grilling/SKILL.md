@@ -51,4 +51,6 @@ When research ran in the session, ask once at the end whether to leave the findi
 
 While grilling, the working tree is read-only, and code that must run goes to a sub-agent in a worktree: follow **Working tree before implement** in `${CLAUDE_PLUGIN_ROOT}/reference/workflow.md`.
 
+When the arguments carry `Unattended: #<t>`, no one can answer: ask nothing, run no round and wait for no confirmation. Settle each researchable question by research, take its recommendation where research only narrows it, and write each as a decision with its reason and source; offer no findings for posting. A question that is the person's, a `ui-placement` choice included, goes on tracking Issue `<t>` as a queue item (**Question queue** in `github.md`), which holds this child; keep working the rest of the tree.
+
 Read GitHub as **GitHub** in `${CLAUDE_PLUGIN_ROOT}/reference/core.md` says.

@@ -44,7 +44,7 @@ When the Issue is small (see **Short route** in `workflow.md`), take the short r
 
 ## Questions belong to the skills
 
-A skill asks its own questions: command approval, a `skipped:*` warning, a push, a branch it will not switch. Pass each one to the user as the skill asked it. Never answer for the user, and never add a `skipped:*` label yourself. If the user does not answer, or a skill stops to ask, stop. `implement`'s rules about branches and uncommitted changes apply: do not work around them.
+When your arguments carry an `Unattended: #<t>` line, put it in the arguments of every skill you call. A skill asks its own questions: command approval, a `skipped:*` warning, a push, a branch it will not switch. Pass each one to the user as the skill asked it. Never answer for the user, and never add a `skipped:*` label yourself. If the user does not answer, or a skill stops to ask, stop. `implement`'s rules about branches and uncommitted changes apply: do not work around them.
 
 ## A person answered
 

@@ -13,6 +13,8 @@ Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/core.md`. Wr
 
 Trust and the existing spec come from one command, run in the repo's checkout: `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --issue <n>`. **Trust and trust.mjs** in `core.md` says what it prints.
 
+When the arguments carry `Unattended: #<t>`, no one can answer, so ask nothing. A question this skill would put to the person, such as an ADR conflict or an open decision, goes on tracking Issue `<t>` as a queue item (**Question queue** in `github.md`), which holds the child. Publish no spec for a child with an item of its own in `issue.queue` of `trust.mjs --issue <t>`. For any other child, publish the draft without asking to confirm it, and record `skipped:triage` or `skipped:grilling` as a label without asking.
+
 ## Process
 
 ### 1. Find the Issue
