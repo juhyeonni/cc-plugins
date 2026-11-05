@@ -6,6 +6,8 @@ Status: Accepted
 
 Why: the session that wrote the change wrote the part of the verdict a person reads first. Stripping an extra line from a verifier's prompt would erase the sign that a note was added (ADR-0004), and a script that cannot read its input fails closed, as `trust.mjs` does (ADR-0009).
 
-How the reports reach it: `scripts/verifier-report.mjs`, a SubagentStop hook, saves each verifier's last message when it stops, and `verify` passes the script the verifiers' agent ids, so the session never copies a report (#176).
+How the reports reach it: `scripts/verifier-report.mjs`, a SubagentStop hook, saves each verifier's last message when it stops, and `verify` passes the script the verifiers' agent ids, so the session never copies a report (#176). A reviewer run in a background subagent hands its report back through SubagentHandback, which the same hook saves (#204).
 
-Source: #164 D1, D2, D3 and D4 (https://github.com/juhyeonni/cc-plugins/issues/164#issuecomment-6595450265)
+One exception: the security report (#197) never changes the verdict. When its `couldNotRun` is not empty the verdict is still posted and says "Security did not run: <reason>", rather than INCONCLUSIVE; a missing or invalid security report still posts nothing. The report is advice for a person (ADR-0018), and an unavailable external tool should not block a spec and standards verdict.
+
+Source: #164 D1, D2, D3 and D4 (https://github.com/juhyeonni/cc-plugins/issues/164#issuecomment-6595450265), #197 S1 (https://github.com/juhyeonni/cc-plugins/pull/209)
