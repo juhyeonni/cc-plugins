@@ -1,0 +1,63 @@
+diff --git a/lib/slugify.js b/lib/slugify.js
+new file mode 100644
+index 0000000..28e3066
+--- /dev/null
++++ b/lib/slugify.js
+@@ -0,0 +1,14 @@
++'use strict';
++
++// Lower case, whitespace to dashes, drop anything that is not a letter, digit or dash,
++// then collapse repeated dashes and trim them at both ends.
++function slugify(text) {
++  return String(text)
++    .toLowerCase()
++    .replace(/\s/g, '-')
++    .replace(/[^a-z0-9-]/g, '')
++    .replace(/-+/g, '-')
++    .replace(/^-|-$/g, '');
++}
++
++module.exports = slugify;
+diff --git a/package.json b/package.json
+index b08351d..e57c8ad 100644
+--- a/package.json
++++ b/package.json
+@@ -3,7 +3,7 @@
+   "version": "0.1.0",
+   "private": true,
+   "description": "Turn a title into a URL slug",
+-  "main": "src/slugify.js",
++  "main": "lib/slugify.js",
+   "scripts": {
+     "test": "node --test"
+   },
+diff --git a/src/slugify.js b/src/slugify.js
+deleted file mode 100644
+index a6cb845..0000000
+--- a/src/slugify.js
++++ /dev/null
+@@ -1,11 +0,0 @@
+-'use strict';
+-
+-// Lower case, whitespace to dashes, then drop anything that is not a letter, digit or dash.
+-function slugify(text) {
+-  return String(text)
+-    .toLowerCase()
+-    .replace(/\s/g, '-')
+-    .replace(/[^a-z0-9-]/g, '');
+-}
+-
+-module.exports = slugify;
+diff --git a/test/slugify.test.js b/test/slugify.test.js
+index 967d582..fec4844 100644
+--- a/test/slugify.test.js
++++ b/test/slugify.test.js
+@@ -2,7 +2,7 @@
+ 
+ const test = require('node:test');
+ const assert = require('node:assert');
+-const slugify = require('../src/slugify');
++const slugify = require('../lib/slugify');
+ 
+ test('lower-cases and joins words with dashes', () => {
+   assert.strictEqual(slugify('Hello World'), 'hello-world');

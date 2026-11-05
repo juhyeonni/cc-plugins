@@ -167,6 +167,12 @@ export const scenarios = [
     expect: { verdict: 'NEEDS-FIX' },
     checks: VERIFY_CHECKS,
   },
+  // #1's checks require ./src/slugify, so moving it fails AC1 and AC2. The README citation is measured apart from the verdict (#199).
+  seeded('C5', 'c5', "Seeded branch: #1's fix, with the module moved to lib/, so the README's `require('./src/slugify')` no longer holds", {
+    verdict: 'NEEDS-FIX',
+    measured: true,
+    cites: 'README.md',
+  }),
   {
     ...seeded('C6', 'c6', "Seeded branch: C0's fix plus a command injection; Security reports it and the verdict stays PASS", { verdict: 'PASS' }),
     checks: [...VERIFY_CHECKS, 'securityReviewed'],

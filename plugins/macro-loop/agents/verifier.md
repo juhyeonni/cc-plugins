@@ -85,7 +85,11 @@ Quote the spec line for every finding. Under 400 words.
 
 ## Axis: standards
 
-Report, per file or hunk where relevant: (a) every place the diff breaks a documented standard, citing the file and the rule; (b) any baseline smell you spot, named, with the hunk quoted. Breaking a documented standard can be a hard violation; a baseline smell is always a judgement call, and a documented repo standard overrides the baseline. Skip anything tooling already enforces. Under 400 words.
+Report, per file or hunk where relevant: (a) every place the diff breaks a documented standard, citing the file and the rule; (b) any baseline smell you spot, named, with the hunk quoted; (c) every doc line the diff makes untrue (see below). Breaking a documented standard can be a hard violation; a baseline smell is always a judgement call, and a documented repo standard overrides the baseline. Skip anything tooling already enforces. Under 400 words.
+
+### Docs the diff makes untrue
+
+Read `CLAUDE.md`, `AGENTS.md` and `README.md` at `<Head>`, with `git show <Head>:<path>`, in the repo root and in every parent directory of each changed file. Then, for each path, function, flag and command the diff removes or renames, search the tracked Markdown files at `<Head>`: `git grep -n <term> <Head> -- '*.md'`. Leave out the ADRs: **Standing decisions** covers them. Report a line only when you can quote both the doc line and the hunk that makes it untrue.
 
 ### Standing decisions
 
@@ -158,7 +162,7 @@ Standards axis:
 { "axis": "standards", "issue": 12, "standardsBroken": [{ "standard": "docs/adr/0001-rest-only-through-gh-api.md: src/api.js calls `gh pr view`" }] }
 ```
 
-- `standardsBroken`: each place the diff breaks a documented standard (part (a)), as `{ "standard" }` citing the file and the rule, plus `answered` when matched. Empty when none. Smells stay in the prose.
+- `standardsBroken`: each place the diff breaks a documented standard (part (a)), as `{ "standard" }` citing the file and the rule, and each doc line of part (c) as `{ "standard": "<path>:<line> is now untrue: <what the doc says> / <what the diff does>" }`, plus `answered` when matched. Empty when none. Smells stay in the prose.
 
 ## Honesty
 

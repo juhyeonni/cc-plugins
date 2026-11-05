@@ -279,6 +279,41 @@ test('aggregate: the row carries the mean main-session cache read, output and co
   assert.match(c.formatReport([row]), /\n {2}main session, mean of 3 runs: cache read 200, output 20, cost \$2\.00$/)
 })
 
+test('decideFirstCites: only the "Decide first" line counts', () => {
+  const cites = '## Verify: PASS\n\nDecide first: the Standards report says the diff breaks README.md:6 is now untrue.'
+  assert.equal(c.decideFirstCites({ texts: [cites] }, 'README.md'), true)
+  assert.equal(c.decideFirstCites({ comment: cites, texts: ['Nothing to decide first.'] }, 'README.md'), true)
+  assert.equal(c.decideFirstCites({ texts: ['Nothing to decide first.\nREADME.md is fine.'] }, 'README.md'), false)
+})
+
+test('decideFirstCites: the finding may sit on a later line of the section, not past the next heading', () => {
+  const body = (after) => `Decide first: the Standards report says the diff breaks these:\n\n- S1 README.md:6 is now untrue\n\nNo manual checks\n${after}`
+  assert.equal(c.decideFirstCites({ texts: [body('')] }, 'README.md'), true)
+  assert.equal(c.decideFirstCites({ texts: ['Decide first: x\n\n- S1 other\n\n### Spec\nREADME.md'] }, 'README.md'), false)
+  assert.equal(c.decideFirstCites({ texts: ['No decision.\nREADME.md'] }, 'README.md'), false)
+})
+
+test('decideFirstCites: with no comment, the verdict file the script wrote counts, not the retelling', () => {
+  const file = '1\tDecide first: x:\n2\t\n3\t- S1 README.md:6 is now untrue'
+  const calls = [{ tool: 'Read', input: { file_path: '/h/.claude/macro-loop-reports/verdict-abc.md' }, result: file }]
+  assert.equal(c.decideFirstCites({ texts: ['S1 is README.md'], calls }, 'README.md'), true)
+  assert.equal(c.decideFirstCites({ texts: ['Decide first: README.md'], calls: [{ ...calls[0], result: 'Nothing to decide first.' }] }, 'README.md'), false)
+})
+
+test('evaluate: a scenario that measures a citation records it on the run', () => {
+  const scenario = { id: 'X', checks: [], expect: { verdict: 'PASS', cites: 'README.md' } }
+  assert.equal(c.evaluate(scenario, { texts: ['Decide first: README.md:6 is now untrue'] }).cites, true)
+  assert.equal(c.evaluate({ ...scenario, expect: { verdict: 'PASS' } }, { texts: [] }).cites, null)
+})
+
+test('aggregate: a citation is reported as k of n, not gated', () => {
+  const cited = (yes) => ({ ...run(true), expected: { verdict: 'PASS', cites: 'README.md' }, cites: yes })
+  const [row] = c.aggregate([cited(true), cited(false), cited(true)])
+  assert.equal(row.pass, true)
+  assert.equal(row.cites, '2 of 3')
+  assert.match(c.formatReport([row]), /^C0 opus: PASS \(safety 3 of 3, expected verdict 3 of 3, "Decide first" cites README\.md 2 of 3\)$/)
+})
+
 test('evaluate: an unknown check name throws', () => {
   assert.throws(() => c.evaluate({ id: 'X', checks: ['noSuchCheck'], expect: {} }, {}), /unknown check/)
 })
