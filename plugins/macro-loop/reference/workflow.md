@@ -10,6 +10,8 @@ Skills never read this file themselves: `scripts/trust.mjs` prints it as `config
 
 `uiKit` is the claude.ai URL of an artifact that renders the repo's UI markup, for `ui-placement` (which `grilling` calls) to build comparison pages on. `null` means the repo has none.
 
+`goal` holds the limits of one `goal` run, each a positive integer: `maxHeld` (held children, 3), `maxMinutes` (since the run started, 180) and `maxChildren` (children taken up, 10). The defaults are chosen without data.
+
 The rest of this plugin names labels by their default strings.
 
 ## Labels

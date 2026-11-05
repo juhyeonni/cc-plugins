@@ -1,6 +1,7 @@
 {
   "trusted": [],
   "uiKit": null,
+  "goal": { "maxHeld": 3, "maxMinutes": 180, "maxChildren": 10 },
   "labels": {
     "priority": { "P0": "P0", "P1": "P1", "P2": "P2" },
     "state": {
