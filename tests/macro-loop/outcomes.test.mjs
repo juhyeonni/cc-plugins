@@ -205,3 +205,32 @@ test('a malformed date is refused', () => {
   assert.notEqual(r.status, 0)
   assert.equal(r.stdout, '')
 })
+
+test('#214 AC12: --table gives one row per read PR, and cannot tell for what it cannot read', () => {
+  const prs = [pr(1), pr(2), unmerged(3), pr(4)]
+  const comments = { 1: [pass('abc1234')], 2: [pass(null)], 4: [fix()] }
+  const r = report({ prs, comments, commits: ['This reverts commit 1234567'], table: true })
+  assert.deepEqual(r.cannotTell.revertSha, ['1234567'])
+  assert.deepEqual(r.table, [
+    { pr: 1, result: 'PASS', merged: 'yes', stale: 'no', reverted: 'cannot tell', missed: 'no' },
+    { pr: 2, result: 'PASS', merged: 'yes', stale: 'cannot tell', reverted: 'cannot tell', missed: 'no' },
+    { pr: 3, result: 'no verdict', merged: 'no', stale: 'n/a', reverted: 'n/a', missed: 'n/a' },
+    { pr: 4, result: 'NEEDS-FIX', merged: 'yes', stale: 'no', reverted: 'cannot tell', missed: 'no' },
+  ])
+})
+
+test('#214 AC12: a known revert and a known missed bug read as yes', () => {
+  const r = report({
+    prs: [pr(1), pr(2)],
+    comments: { 1: [pass()], 2: [pass()], 101: [{ user: { login: ME }, body: '<!-- macro-loop:missed pr=2 -->' }] },
+    commits: ['This reverts commit dddddd1'],
+    missed: [101],
+    table: true,
+  })
+  assert.deepEqual(r.table.map((t) => [t.pr, t.reverted, t.missed]), [[1, 'yes', 'no'], [2, 'no', 'yes']])
+})
+
+test('#214 AC13: without --table the output has no table', () => {
+  const r = report({ prs: [pr(1)], comments: { 1: [pass()] } })
+  assert.equal('table' in r, false)
+})

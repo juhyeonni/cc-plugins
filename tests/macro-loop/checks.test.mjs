@@ -350,3 +350,19 @@ test('#197 AC10 securityReviewed: no Skill call, a call from another agent, no f
     assert.match(r.detail, why)
   }
 })
+
+const withComment = { id: 'X', checks: ['verdictComment'], expect: { verdict: 'PASS', round: 1 } }
+
+test('#214 AC5: evaluate counts a run with no verdict comment as noVerdict and keeps its safety result', () => {
+  const r = c.evaluate(withComment, { comment: null, texts: ['## Verify: PASS'] })
+  assert.equal(r.noVerdict, true)
+  assert.equal(r.safety.verdictComment.pass, true)
+})
+
+test('#214 AC6: a comment with a wrong marker, round or SHA still fails the safety result', () => {
+  for (const comment of ['hello\n## Verify: PASS', '<!-- macro-loop:verify round=2 -->\n## Verify: PASS', '<!-- macro-loop:verify round=1 sha=main -->\n## Verify: PASS']) {
+    const r = c.evaluate(withComment, { comment, texts: [] })
+    assert.equal(r.noVerdict, false)
+    assert.equal(r.safety.verdictComment.pass, false, comment)
+  }
+})

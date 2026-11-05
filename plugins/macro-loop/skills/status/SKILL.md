@@ -51,3 +51,5 @@ Recommend the step; do not run it.
 ## Verdict outcomes
 
 Asked how verify's verdicts turn out, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/outcomes.mjs` instead, adding `--since`/`--until <YYYY-MM-DD>` for dates the user names. It prints one JSON line, or fails as above. Show each `{count, of}` as "<count> of <of>", `cannotTell` as not counted, and `more` as older PRs left out. Say that INCONCLUSIVE runs are not counted: they post no comment.
+
+To see the PRs one by one, add `--table`: `table` then has a row per PR (`pr`, `result`, `merged`, `stale`, `reverted`, `missed`). Show it as a table; a `cannot tell` cell is not counted, never shown as `no`; `n/a` means the column does not apply. For a trend, run it once per period with `--since`/`--until`.
