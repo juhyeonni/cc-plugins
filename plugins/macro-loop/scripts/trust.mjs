@@ -4,6 +4,8 @@
 // asked, an Issue's spec comment and a PR's author, last verdict (its id, result and the
 // head SHA it judged, null for a verdict written before the SHA was recorded), round and the
 // answers to its findings, each with the head its round judged, and the verifiers' Answers line.
+// On a tracking Issue it also lists the trusted queue items (`issue.queue`) and names the
+// ones it left out (`issue.queueWarnings`).
 //
 //   node trust.mjs [--issue <n>] [--pr <n>]
 //
@@ -152,6 +154,43 @@ export function answersOf(comments, trusted) {
   return { answers: list, answerWarnings: warnings, answersLine: answersLine(list) }
 }
 
+const QUEUE_MARKER = /^<!-- macro-loop:queue id=(\d+)\.(\d+) -->$/
+export const QUEUE_TYPES = ['choice', 'diagnostic', 'ambiguity', 'access', 'approval']
+const QUEUE_LINES = ['Child', 'Type', 'Question', 'Recommended', 'Blocks']
+
+// The questions a goal run holds for the person (#218), on its tracking Issue: one comment
+// per item, `<!-- macro-loop:queue id=<child>.<n> -->` first, then a line each for Child
+// (`#<n>`), Type, Question, Recommended and Blocks. An item that is not valid, or whose id
+// an earlier item already has, is left out and named in a warning.
+// What is wrong with one queue comment, or null. `taken` holds the ids earlier items have.
+function queueProblem(marker, fields, taken) {
+  if (!marker) return 'the marker is not `<!-- macro-loop:queue id=<child>.<n> -->`'
+  const missing = QUEUE_LINES.find((f) => !fields[f])
+  if (missing) return `no \`${missing}:\` line`
+  if (!QUEUE_TYPES.includes(fields.Type)) return `Type "${fields.Type}" is not one of ${QUEUE_TYPES.join(', ')}`
+  if (fields.Child !== `#${marker[1]}`) return `Child "${fields.Child}" is not #${marker[1]}, the child in the id`
+  if (taken.has(`${marker[1]}.${marker[2]}`)) return `the id ${marker[1]}.${marker[2]} is taken by an earlier item`
+  return null
+}
+
+export function queueOf(comments, trusted) {
+  const queue = []
+  const warnings = []
+  for (const c of trustedMarked(comments, trusted, '<!-- macro-loop:queue ')) {
+    const [first, ...lines] = String(c.body).split(/\r?\n/)
+    const marker = QUEUE_MARKER.exec(first.trim())
+    const fields = {}
+    for (const l of lines) {
+      const m = /^(\w+):\s*(\S.*?)\s*$/.exec(l)
+      if (m) fields[m[1]] ??= m[2]
+    }
+    const problem = queueProblem(marker, fields, new Set(queue.map((q) => q.id)))
+    if (problem) warnings.push(`comment ${c.id}: ${problem}`)
+    else queue.push({ id: `${marker[1]}.${marker[2]}`, comment: c.id, child: Number(marker[1]), type: fields.Type })
+  }
+  return { queue, queueWarnings: warnings }
+}
+
 const comments = (n) => api(['--paginate', '--slurp', `repos/{owner}/{repo}/issues/${n}/comments`]).flat()
 
 function decide(argv) {
@@ -168,7 +207,13 @@ function decide(argv) {
     out.pr = { number: Number(pr), ...prState(p, prComments, trusted), ...answersOf(prComments, trusted) }
     issueNumber ||= out.pr.closes && String(out.pr.closes)
   }
-  if (issueNumber) out.issue = { number: Number(issueNumber), spec: specOf(comments(issueNumber), trusted) }
+  if (issueNumber) {
+    const issueComments = comments(issueNumber)
+    const queue = queueOf(issueComments, trusted)
+    // The queue keys appear only on an Issue that has queue comments: a tracking Issue.
+    const held = queue.queue.length || queue.queueWarnings.length ? queue : {}
+    out.issue = { number: Number(issueNumber), spec: specOf(issueComments, trusted), ...held }
+  }
   return out
 }
 

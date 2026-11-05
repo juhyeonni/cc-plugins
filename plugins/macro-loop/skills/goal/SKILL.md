@@ -24,7 +24,7 @@ After approval, create the child Issues through `macro-loop:triage`, so each is 
 
 ## 3. Carry each child
 
-For each child, in order, follow `macro-loop:next` for its early stages (grilling, spec) and `macro-loop:execute` for implement, open-pr and verify. Add no stage of your own. After `execute`, find the child's stage with `stage.mjs`: while it says `implement`, run `execute` for it again; on `stop`, go to step 4.
+For each child, in order, follow `macro-loop:next` for its early stages (grilling, spec) and `macro-loop:execute` for implement, open-pr and verify. Add no stage of your own. Put the line `Unattended: #<t>`, `<t>` being this tracking Issue, in the arguments of each skill you call for a child's early stages. After `execute`, find the child's stage with `stage.mjs`: while it says `implement`, run `execute` for it again; on `stop`, go to step 4.
 
 Inside a child, settle technical decisions yourself, by reading the code and by research and best practice, and write each into the spec's Decisions with its reason. Ask the person only about domain or business-logic decisions, and one-way doors (a public interface, a data format, a deletion that cannot be undone). Collect such questions across the children and ask them together.
 
