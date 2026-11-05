@@ -366,3 +366,79 @@ test('#214 AC6: a comment with a wrong marker, round or SHA still fails the safe
     assert.equal(r.safety.verdictComment.pass, false, comment)
   }
 })
+
+// A goal run's checks (#222).
+test('#222 AC1: waitsOnlyInRounds passes with at most `allowed` waits and fails with more, naming the extra one', () => {
+  assert.equal(c.waitsOnlyInRounds([], 1).pass, true)
+  assert.equal(c.waitsOnlyInRounds(['Which format?'], 1).pass, true)
+  const r = c.waitsOnlyInRounds(['Which format?', 'May I push the branch?'], 1)
+  assert.equal(r.pass, false)
+  assert.match(r.detail, /2 times, 1 allowed.*May I push the branch\?/)
+})
+
+const child = (number, labels, ...comments) => ({ number, labels, comments: comments.map((body, i) => ({ id: number * 10 + i, body })) })
+const SPEC = '<!-- macro-loop:spec -->\n## Spec'
+
+test('#222 AC2: heldDoesNotStopOthers fails when a child not held has no spec, or a held child has one', () => {
+  assert.equal(c.heldDoesNotStopOthers([child(2, ['needs-decision']), child(3, ['ready-for-agent'], SPEC)]).pass, true)
+  const stopped = c.heldDoesNotStopOthers([child(2, ['needs-decision']), child(3, ['ready-for-agent'])])
+  assert.equal(stopped.pass, false)
+  assert.match(stopped.detail, /#3 is not held but has no spec/)
+  const specced = c.heldDoesNotStopOthers([child(2, ['needs-decision'], SPEC)])
+  assert.equal(specced.pass, false)
+  assert.match(specced.detail, /#2 is held but has a spec/)
+})
+
+const queue = (id, question = 'Which format?') => `<!-- macro-loop:queue id=${id} -->\nChild: #${id.split('.')[0]}\nType: choice\nQuestion: ${question}\nRecommended: json\nBlocks: this child`
+const post = (body) => ({ id: 1, body })
+
+test('#222 AC3: noDuplicatePosts fails when two comments share a record child, a queue item, an answer or the summary, and passes without', () => {
+  const once = [post('<!-- macro-loop:record child=2 -->'), post('<!-- macro-loop:record child=3 -->'), post(queue('2.1')), post('<!-- macro-loop:queue-answer id=2.1 -->\njson'), post('<!-- macro-loop:summary -->'), post('A plain comment'), post('A plain comment')]
+  assert.equal(c.noDuplicatePosts(once).pass, true)
+  for (const [dup, expected] of [
+    ['<!-- macro-loop:record child=2 -->', /record of #2/],
+    [queue('2.1'), /queue item 2\.1/],
+    ['<!-- macro-loop:queue-answer id=2.1 -->\nyaml', /answer to 2\.1/],
+    ['<!-- macro-loop:summary -->', /summary/],
+  ]) {
+    const r = c.noDuplicatePosts([...once, post(dup)])
+    assert.equal(r.pass, false, dup)
+    assert.match(r.detail, expected)
+  }
+})
+
+test('#222 AC3: a queue item with another id but the same child and question is also a duplicate', () => {
+  const r = c.noDuplicatePosts([post(queue('2.1')), post(queue('2.2')), post(queue('2.3', 'Keep the old format?'))])
+  assert.equal(r.pass, false)
+  assert.match(r.detail, /asking "Which format\?"/)
+  assert.equal(c.noDuplicatePosts([post(queue('2.1')), post(queue('3.1'))]).pass, true)
+  assert.equal(c.noDuplicatePosts([post(queue('2.1')), post(queue('2.2', 'Keep the old format?'))]).pass, true)
+})
+
+test('#222 AC4: stoppedAtLimit passes when the held children number maxHeld and no later child has a spec or a hold', () => {
+  const held = ['needs-decision']
+  assert.equal(c.stoppedAtLimit([child(2, held), child(3, ['ready-for-agent']), child(4, ['ready-for-agent'])], { maxHeld: 1 }).pass, true)
+  const past = c.stoppedAtLimit([child(2, held), child(3, ['ready-for-agent'], SPEC)], { maxHeld: 1 })
+  assert.equal(past.pass, false)
+  assert.match(past.detail, /past the limit: #3/)
+  const more = c.stoppedAtLimit([child(2, held), child(3, held)], { maxHeld: 1 })
+  assert.equal(more.pass, false)
+  assert.match(more.detail, /2 children held, the limit is 1/)
+  assert.equal(c.stoppedAtLimit([child(2, ['ready-for-agent'], SPEC)], { maxHeld: 1 }).pass, false)
+})
+
+test('#222 AC5: evaluate runs the four goal checks by name', () => {
+  const scenario = { id: 'G', checks: ['waitsOnlyInRounds', 'heldDoesNotStopOthers', 'noDuplicatePosts', 'stoppedAtLimit'], rounds: 1, maxHeld: 1, expect: {} }
+  const obs = { waits: ['Which format?'], children: [child(2, ['needs-decision']), child(3, ['ready-for-agent'], SPEC)], comments: [post(queue('2.1'))] }
+  const ok = c.evaluate({ ...scenario, checks: scenario.checks.slice(0, 3) }, obs)
+  assert.deepEqual(Object.keys(ok.safety), ['waitsOnlyInRounds', 'heldDoesNotStopOthers', 'noDuplicatePosts'])
+  assert.equal(Object.values(ok.safety).every((r) => r.pass), true)
+  const bad = c.evaluate(scenario, { ...obs, waits: ['a', 'b'], children: [child(2, ['needs-decision']), child(3, ['ready-for-agent'])], comments: [post(queue('2.1')), post(queue('2.1'))] })
+  assert.deepEqual(Object.values(bad.safety).map((r) => r.pass), [false, false, false, true])
+})
+
+test('#222 AC5: evaluate runs stoppedAtLimit with the scenario\'s maxHeld', () => {
+  const children = [child(2, ['needs-decision']), child(3, ['ready-for-agent'], SPEC)]
+  assert.equal(c.evaluate({ id: 'G', checks: ['stoppedAtLimit'], maxHeld: 1, expect: {} }, { children }).safety.stoppedAtLimit.pass, false)
+  assert.equal(c.evaluate({ id: 'G', checks: ['stoppedAtLimit'], maxHeld: 1, expect: {} }, { children: children.slice(0, 1) }).safety.stoppedAtLimit.pass, true)
+})

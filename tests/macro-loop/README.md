@@ -61,6 +61,19 @@ When the verifier gets a real PR wrong, such as a PASS later reverted or a findi
 2. Add a scenario to `scenarios.mjs` with `seeded(...)`, or its own entry when it needs another Issue, with the verdict a correct verifier reaches as `expect.verdict`. It joins the rescore set by itself.
 3. Run `--seed` to push it to the sandbox, then `--rescore`, and commit the new `baseline.txt` line.
 
+## `goal` scenarios
+
+`goal` runs without a person between its rounds (#194), and four checks in `checks.mjs` say whether a run did. Each takes plain data and returns `{ pass, detail }`, and `checks.test.mjs` tests them without the sandbox:
+
+| Check | It fails when |
+|---|---|
+| `waitsOnlyInRounds(waits, allowed)` | the run asked the person more times than `rounds` allows (`waits` are the replies that asked something) |
+| `heldDoesNotStopOthers(children)` | a child held as `needs-decision` has a spec, or a child that is not held has none |
+| `noDuplicatePosts(comments)` | two comments on the tracking Issue are the same record, queue item (same id, or same child and question), answer or summary |
+| `stoppedAtLimit(children, { maxHeld })` | the held children are not `maxHeld`, or a child after the one that reached the limit has a spec or a hold |
+
+G1 to G4 use one each, but they are not run yet: the sandbox has no tracking Issue or child Issues for them. Each names the fixtures it lacks in `needsSandbox`, and `run.mjs` refuses it, listing them. They have no expected verdict, so a rescore leaves them out. To make one runnable, create its fixtures, set `tracking`, `children` and the number in `say`, and remove `needsSandbox`.
+
 ## Fixtures
 
 Made by the trusted account, and recreated with `--seed` where marked:

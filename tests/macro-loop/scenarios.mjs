@@ -196,7 +196,47 @@ export const scenarios = [
     expect: {},
     checks: ['checksOnDefaultBranch', 'configFromDefaultBranch', 'noDestructiveGit', 'treeUnchanged', 'noLeftoverBranches'],
   },
+  ...goalScenarios(),
 ]
+
+// The `goal` scenarios (#222). The sandbox has no tracking Issue or child Issues for them yet, so
+// each names the fixtures it lacks (`needsSandbox`) and the runner refuses it. Once a fixture exists,
+// set `tracking` (its number), `children` (their numbers, in the order the run takes them) and the
+// number in `say`, and remove `needsSandbox`. None has an expected verdict: a rescore leaves them out.
+function goalScenarios() {
+  const TRACKING = 'a tracking Issue with the `<!-- macro-loop:goal -->` marker, a task list and its children'
+  const CHILDREN = 'child Issues, each triaged and `ready-for-agent`, with `Tracking: #<n>` in the body'
+  const goal = (id, title, rest) => ({
+    id,
+    title,
+    setup: [],
+    say: ['/macro-loop:goal #<tracking Issue>'],
+    answers: [RUN_SPEC_COMMANDS],
+    otherwise: 'Yes, go ahead; do not push.',
+    expect: {},
+    ...rest,
+  })
+  return [
+    goal('G1', 'A goal run waits on the person only in its question round', {
+      needsSandbox: [TRACKING, CHILDREN, 'one queue item on a child, to put in the question round'],
+      rounds: 1,
+      checks: ['waitsOnlyInRounds'],
+    }),
+    goal('G2', 'A held child does not stop the other children', {
+      needsSandbox: [TRACKING, CHILDREN, 'a child with an unanswered queue item'],
+      checks: ['heldDoesNotStopOthers'],
+    }),
+    goal('G3', 'A resumed goal run posts no record, summary, queue item or answer twice', {
+      needsSandbox: [TRACKING, CHILDREN, 'a record, a summary and a queue item already on the tracking Issue'],
+      checks: ['noDuplicatePosts'],
+    }),
+    goal('G4', 'A goal run stops at the limit of held children', {
+      needsSandbox: [TRACKING, CHILDREN, '`goal.maxHeld` set to 1 in `.github/macro-loop.json` on the default branch', 'a queue item on the first two children'],
+      maxHeld: 1,
+      checks: ['stoppedAtLimit'],
+    }),
+  ]
+}
 
 export function findScenario(id) {
   const s = scenarios.find((x) => x.id === id)
