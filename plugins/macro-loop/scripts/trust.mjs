@@ -5,7 +5,8 @@
 // head SHA it judged, null for a verdict written before the SHA was recorded), round and the
 // answers to its findings, each with the head its round judged, and the verifiers' Answers line.
 // On a tracking Issue it also lists the trusted queue items with the id of their answer
-// (`issue.queue`) and names the ones it left out (`issue.queueWarnings`).
+// (`issue.queue`) and names the ones it left out (`issue.queueWarnings`), each child's record
+// (`issue.records`, `issue.recordWarnings`) and the summary comment's id (`issue.summary`).
 //
 //   node trust.mjs [--issue <n>] [--pr <n>]
 //
@@ -190,7 +191,7 @@ export function queueOf(comments, trusted) {
     }
     const problem = queueProblem(marker, fields, new Set(queue.map((q) => q.id)))
     if (problem) warnings.push(`comment ${c.id}: ${problem}`)
-    else queue.push({ id: `${marker[1]}.${marker[2]}`, comment: c.id, child: Number(marker[1]), type: fields.Type, answer: null })
+    else queue.push({ id: `${marker[1]}.${marker[2]}`, comment: c.id, child: Number(marker[1]), type: fields.Type, question: fields.Question, answer: null })
   }
   for (const c of trustedMarked(comments, trusted, '<!-- macro-loop:queue-answer ')) {
     const id = QUEUE_ANSWER_MARKER.exec(String(c.body).split(/\r?\n/)[0].trim())?.[1]
@@ -200,6 +201,25 @@ export function queueOf(comments, trusted) {
   }
   return { queue, queueWarnings: warnings }
 }
+
+const RECORD_MARKER = /^<!-- macro-loop:record child=(\d+) -->$/
+
+// A goal run's record of each child on its tracking Issue (#220): one comment per child,
+// `<!-- macro-loop:record child=<n> -->` first. The newest trusted one of a child is its record;
+// a record with another marker shape is named in a warning.
+export function recordsOf(comments, trusted) {
+  const records = new Map()
+  const warnings = []
+  for (const c of trustedMarked(comments, trusted, '<!-- macro-loop:record ')) {
+    const child = RECORD_MARKER.exec(String(c.body).split(/\r?\n/)[0].trim())?.[1]
+    if (child) records.set(Number(child), c.id)
+    else warnings.push(`comment ${c.id}: the marker is not \`<!-- macro-loop:record child=<n> -->\``)
+  }
+  return { records: [...records].map(([child, comment]) => ({ child, comment })), recordWarnings: warnings }
+}
+
+// The goal run's summary comment: the newest trusted one, so a resume edits it and posts no second.
+export const summaryOf = (comments, trusted) => trustedMarked(comments, trusted, '<!-- macro-loop:summary -->').at(-1)?.id ?? null
 
 const comments = (n) => api(['--paginate', '--slurp', `repos/{owner}/{repo}/issues/${n}/comments`]).flat()
 
@@ -220,9 +240,16 @@ function decide(argv) {
   if (issueNumber) {
     const issueComments = comments(issueNumber)
     const queue = queueOf(issueComments, trusted)
-    // The queue keys appear only on an Issue that has queue comments: a tracking Issue.
-    const held = queue.queue.length || queue.queueWarnings.length ? queue : {}
-    out.issue = { number: Number(issueNumber), spec: specOf(issueComments, trusted), ...held }
+    const records = recordsOf(issueComments, trusted)
+    const summary = summaryOf(issueComments, trusted)
+    // The queue, record and summary keys appear only on an Issue that has such comments: a tracking Issue.
+    out.issue = {
+      number: Number(issueNumber),
+      spec: specOf(issueComments, trusted),
+      ...(queue.queue.length || queue.queueWarnings.length ? queue : {}),
+      ...(records.records.length || records.recordWarnings.length ? records : {}),
+      ...(summary ? { summary } : {}),
+    }
   }
   return out
 }

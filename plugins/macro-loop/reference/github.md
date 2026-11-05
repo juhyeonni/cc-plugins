@@ -67,6 +67,8 @@ Skills find their own comments by a hidden HTML marker on the comment's first li
 | `<!-- macro-loop:answer round=N -->` | PR comment | a person, or `implement` after approval |
 | `<!-- macro-loop:queue id=<child>.<n> -->` | Comment on a `goal`'s tracking Issue (see **Question queue**) | `grilling` and `spec`, when run unattended |
 | `<!-- macro-loop:queue-answer id=<child>.<n> -->` | Comment on a `goal`'s tracking Issue | `goal`, from the person's reply |
+| `<!-- macro-loop:record child=<n> -->` | Comment on a `goal`'s tracking Issue (see **Record and summary**) | `goal` |
+| `<!-- macro-loop:summary -->` | Comment on a `goal`'s tracking Issue | `goal` |
 
 An answer records how a finding of round N's verdict was answered. Under the marker, each line is `- <ID> <wrong|intended|minor>: <reason>`, with the finding's ID from the verdict (`AC2`, `F1`, `S1`) and a reason that is never empty:
 
@@ -116,6 +118,25 @@ Blocks: <what waits, and what does not>
 To write one: run `scripts/trust.mjs --issue <t>`. `<n>` is the next free number for that child among the ids in `issue.queue`, which lists each trusted item's `id`, `comment`, `child` and `type`; `issue.queueWarnings` names the items it left out. Post the comment (see **Comments**; it counts as posted when the POST printed its id), then hold the child: add `needs-decision` and remove `ready-for-agent` (see **Labels**). The recommended default is not authorized: nothing is built on it until the person answers.
 
 The person's answer is a comment of its own: `<!-- macro-loop:queue-answer id=<child>.<n> -->`, then the reply in the person's words. Never write the recommended default as an answer. Each item in `issue.queue` has `answer`, the id of its newest trusted answer comment, or `null`; an answer with no item, or with another marker shape, is named in `issue.queueWarnings`. A child is held while an item of its own has `answer: null`; once all are answered, put `ready-for-agent` back and remove `needs-decision` (see **Labels**).
+
+## Record and summary
+
+A `goal` run keeps what it did on its tracking Issue as it goes, so a run that dies leaves it behind. Each child has one record comment:
+
+```text
+<!-- macro-loop:record child=<n> -->
+Child: #<n>
+Stage: held | spec | pr | verdict
+PR: <number, or none>
+Verdict: <PASS | NEEDS-FIX round N, or none>
+Held: <queue ids that hold it, or none>
+Decisions settled without the person:
+- <decision> · <reason> · <source>
+```
+
+Write it when the child is held, when its spec is written, and when it ends (the PR opened, the verdict), and edit it in place after the first post (see **Comments**). The final summary starts with `<!-- macro-loop:summary -->`; edit it in place on a resume.
+
+`scripts/trust.mjs --issue <t>` lists each child's newest trusted record as `issue.records` (`child`, `comment`), the newest trusted summary as `issue.summary`, and names a record with another marker shape in `issue.recordWarnings`; the keys appear only when such comments exist. Look up before you post a record (by child), the summary, a queue item (by child and the same `Question:` line, `issue.queue[].question`) or an answer (by id): edit or reuse what is there, and post a second one never. A POST counts as posted only when it printed the comment's id, so after a POST that printed none, look up again before repeating it.
 
 ## Pull requests
 

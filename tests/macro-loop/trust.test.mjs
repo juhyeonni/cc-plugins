@@ -107,8 +107,9 @@ test('--issue: no trusted spec comment gives null', () => {
 })
 
 // Questions a goal run holds for the person (#218): queue comments on the tracking Issue.
+const Q = 'Which data format?'
 const queueBody = (id, over = {}) => {
-  const f = { Child: `#${id.split('.')[0]}`, Type: 'choice', Question: 'Which data format?', Recommended: 'json, the repo already reads it', Blocks: 'this child waits; the others go on', ...over }
+  const f = { Child: `#${id.split('.')[0]}`, Type: 'choice', Question: Q, Recommended: 'json, the repo already reads it', Blocks: 'this child waits; the others go on', ...over }
   return [`<!-- macro-loop:queue id=${id} -->`, ...Object.entries(f).filter(([, v]) => v !== null).map(([k, v]) => `${k}: ${v}`)].join('\n')
 }
 const trackingIssue = (comments) => run(base({ 'api --paginate --slurp repos/{owner}/{repo}/issues/9/comments': { stdout: [comments] } }), ['--issue', '9'])
@@ -121,9 +122,9 @@ test('#218 AC1: --issue lists each queue comment of a trusted author with its id
   ])
   assert.equal(r.status, 0, r.stderr)
   assert.deepEqual(r.out.issue.queue, [
-    { id: '218.1', comment: 1, child: 218, type: 'choice', answer: null },
-    { id: '219.1', comment: 2, child: 219, type: 'access', answer: null },
-    { id: '218.2', comment: 3, child: 218, type: 'approval', answer: null },
+    { id: '218.1', comment: 1, child: 218, type: 'choice', question: Q, answer: null },
+    { id: '219.1', comment: 2, child: 219, type: 'access', question: Q, answer: null },
+    { id: '218.2', comment: 3, child: 218, type: 'approval', question: Q, answer: null },
   ])
   assert.deepEqual(r.out.issue.queueWarnings, [])
 })
@@ -136,7 +137,7 @@ test('#218 AC2: a queue comment by an untrusted author, or with the marker below
     comment(4, 'juhyeonni', queueBody('218.4')),
   ])
   assert.equal(r.status, 0, r.stderr)
-  assert.deepEqual(r.out.issue.queue, [{ id: '218.4', comment: 4, child: 218, type: 'choice', answer: null }])
+  assert.deepEqual(r.out.issue.queue, [{ id: '218.4', comment: 4, child: 218, type: 'choice', question: Q, answer: null }])
   assert.deepEqual(r.out.issue.queueWarnings, [])
   assert.deepEqual(trackingIssue([comment(1, 'mallory', queueBody('218.1'))]).out.issue, { number: 9, spec: null })
 })
@@ -152,7 +153,7 @@ test('#218 AC3: an item with a bad marker, an unknown type, a missing line, a wr
     comment(7, 'juhyeonni', queueBody('218.5', { Question: '   ' })),
   ])
   assert.equal(r.status, 0, r.stderr)
-  assert.deepEqual(r.out.issue.queue, [{ id: '218.1', comment: 1, child: 218, type: 'choice', answer: null }])
+  assert.deepEqual(r.out.issue.queue, [{ id: '218.1', comment: 1, child: 218, type: 'choice', question: Q, answer: null }])
   assert.deepEqual(r.out.issue.queueWarnings, [
     'comment 2: Type "urgent" is not one of choice, diagnostic, ambiguity, access, approval',
     'comment 3: no `Recommended:` line',
@@ -170,8 +171,8 @@ test('#219 AC1: an item gets the comment id of its trusted answer, and null with
   const r = trackingIssue([comment(1, 'juhyeonni', queueBody('219.1')), comment(2, 'juhyeonni', queueBody('219.2')), comment(3, 'carol', answerBody('219.2'))])
   assert.equal(r.status, 0, r.stderr)
   assert.deepEqual(r.out.issue.queue, [
-    { id: '219.1', comment: 1, child: 219, type: 'choice', answer: null },
-    { id: '219.2', comment: 2, child: 219, type: 'choice', answer: 3 },
+    { id: '219.1', comment: 1, child: 219, type: 'choice', question: Q, answer: null },
+    { id: '219.2', comment: 2, child: 219, type: 'choice', question: Q, answer: 3 },
   ])
   assert.deepEqual(r.out.issue.queueWarnings, [])
 })
@@ -190,11 +191,49 @@ test('#219 AC3: an untrusted answer, or one with the marker below the first line
     comment(5, 'juhyeonni', '<!-- macro-loop:queue-answer id=x -->\njson'),
   ])
   assert.equal(r.status, 0, r.stderr)
-  assert.deepEqual(r.out.issue.queue, [{ id: '219.1', comment: 1, child: 219, type: 'choice', answer: null }])
+  assert.deepEqual(r.out.issue.queue, [{ id: '219.1', comment: 1, child: 219, type: 'choice', question: Q, answer: null }])
   assert.deepEqual(r.out.issue.queueWarnings, [
     'comment 4: the answer is for 219.9, which has no queue item',
     'comment 5: the marker is not `<!-- macro-loop:queue-answer id=<child>.<n> -->`',
   ])
+})
+
+// A goal run's record of each child and its summary (#220), on the tracking Issue.
+const recordBody = (child, stage = 'spec') => `<!-- macro-loop:record child=${child} -->\nChild: #${child}\nStage: ${stage}`
+
+test('#220 AC1: --issue lists, per child, the id of the newest trusted record', () => {
+  const r = trackingIssue([
+    comment(1, 'juhyeonni', recordBody(219, 'held')),
+    comment(2, 'carol', recordBody(220)),
+    comment(3, 'JUHYEONNI', recordBody(219, 'pr')),
+  ])
+  assert.equal(r.status, 0, r.stderr)
+  assert.deepEqual(r.out.issue.records, [{ child: 219, comment: 3 }, { child: 220, comment: 2 }])
+  assert.deepEqual(r.out.issue.recordWarnings, [])
+})
+
+test('#220 AC2: a record by an untrusted author, or with the marker below the first line, is not listed; a bad marker is named in a warning', () => {
+  const r = trackingIssue([
+    comment(1, 'mallory', recordBody(219)),
+    comment(2, 'juhyeonni', `A note\n${recordBody(219)}`),
+    comment(3, 'juhyeonni', recordBody(220)),
+    comment(4, 'juhyeonni', '<!-- macro-loop:record child=x -->\nStage: spec'),
+  ])
+  assert.equal(r.status, 0, r.stderr)
+  assert.deepEqual(r.out.issue.records, [{ child: 220, comment: 3 }])
+  assert.deepEqual(r.out.issue.recordWarnings, ['comment 4: the marker is not `<!-- macro-loop:record child=<n> -->`'])
+})
+
+test('#220 AC3: --issue gives the newest trusted summary comment, and no summary key without one', () => {
+  const summary = (text) => `<!-- macro-loop:summary -->\n${text}`
+  const r = trackingIssue([comment(1, 'juhyeonni', summary('first')), comment(2, 'mallory', summary('fake')), comment(3, 'carol', summary('second')), comment(4, 'juhyeonni', `See ${summary('quoted')}`)])
+  assert.equal(r.out.issue.summary, 3)
+  assert.deepEqual(trackingIssue([comment(1, 'mallory', summary('fake'))]).out.issue, { number: 9, spec: null })
+})
+
+test('#220 AC4: each queue item carries its question', () => {
+  const r = trackingIssue([comment(1, 'juhyeonni', queueBody('220.1', { Question: 'Keep the old format?' }))])
+  assert.equal(r.out.issue.queue[0].question, 'Keep the old format?')
 })
 
 test('--pr: author, trust, head, base, last trusted verdict and round', () => {

@@ -28,6 +28,8 @@ For each child, in order, follow `macro-loop:next` for its early stages (grillin
 
 Inside a child, settle technical decisions yourself, by reading the code and by research and best practice, and write each into the spec's Decisions with its reason. A domain or business-logic decision, or a one-way door (a public interface, a data format, a deletion that cannot be undone), goes on the question queue (see `github.md`) and holds that child.
 
+Keep each child's record on the tracking Issue (**Record and summary** in `github.md`): write it when the child is held, when its spec is written, and when it ends. Look up before you post a record, a queue item, an answer or the summary: a resume posts nothing twice.
+
 ## 4. Ask once
 
 Ask one message: the open queue items of every held child with their recommended defaults; the spec commands of the children that are not held; and whether to push the branches and open draft PRs (`execute`'s two questions). Record each answer on the tracking Issue as `github.md` says, in the person's words. A child whose items are all answered gets `ready-for-agent` back and its spec written as in step 3. A child with an item still unanswered stays held and does not run.
@@ -42,7 +44,7 @@ Stop for a person at: a domain decision, the merge, a `stop` from `stage.mjs`, a
 
 ## 7. Summarize
 
-Post one comment on the tracking Issue (see `github.md`), written for a person who was not watching: per child, its PR and verdict; the decisions you settled without the person, each with its reason; what the person must still do. Tick the children whose PR passed.
+Post one comment on the tracking Issue under its marker, or edit it in place when one exists (see `github.md`), written for a person who was not watching: per child, its PR and verdict; the decisions you settled without the person, each with its reason; what the person must still do. Tick the children whose PR passed.
 
 ## Resume
 
