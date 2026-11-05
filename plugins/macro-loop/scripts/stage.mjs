@@ -22,14 +22,17 @@ const CHILD = /^\s*[-*]\s+\[([ xX])\]\s+#\d+/gm
 const row = (stage, why, gate = false) => ({ stage, why, gate })
 const lower = (login) => String(login ?? '').toLowerCase()
 
+// The round and the head end every PR row's `why`, so `next` sees a new line when either moves (#192).
+// This is the only place the NEEDS-FIX rule lives (#193): implement below the cap, stop at it.
 // A verdict without a recorded SHA counts as current, so a PR verified before the SHA was
 // written is not verified again.
 function stageOfPr(pr) {
   const current = pr.sha === null || pr.sha === pr.head
-  if (pr.verdicts >= 3 && pr.result === 'NEEDS-FIX') return row('stop', `${pr.verdicts} verdicts and the newest is NEEDS-FIX`, true)
-  if (pr.verdicts > 0 && current && pr.result === 'PASS') return row('merge', 'the verdict for the current head is PASS', true)
-  if (pr.verdicts > 0 && current && pr.result === 'NEEDS-FIX') return row('implement', 'the verdict for the current head is NEEDS-FIX')
-  return row('verify', 'no verdict for the current head')
+  const at = ` (round ${pr.verdicts + 1}, head ${String(pr.head).slice(0, 7)})`
+  if (pr.verdicts >= 3 && pr.result === 'NEEDS-FIX') return row('stop', `${pr.verdicts} verdicts and the newest is NEEDS-FIX${at}`, true)
+  if (pr.verdicts > 0 && current && pr.result === 'PASS') return row('merge', `the verdict for the current head is PASS${at}`, true)
+  if (pr.verdicts > 0 && current && pr.result === 'NEEDS-FIX') return row('implement', `the verdict for the current head is NEEDS-FIX${at}`)
+  return row('verify', `no verdict for the current head${at}`)
 }
 
 // signals: { closed, states: ['ready'|'needsInfo'|'needsDecision'|'wontfix'], priority, proxy, spec,

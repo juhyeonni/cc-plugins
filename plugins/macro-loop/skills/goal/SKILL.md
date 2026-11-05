@@ -24,13 +24,13 @@ After approval, create the child Issues through `macro-loop:triage`, so each is 
 
 ## 3. Carry each child
 
-For each child, in order, follow `macro-loop:next` for its early stages (grilling, spec) and `macro-loop:execute` for implement, open-pr and verify. Add no stage of your own.
+For each child, in order, follow `macro-loop:next` for its early stages (grilling, spec) and `macro-loop:execute` for implement, open-pr and verify. Add no stage of your own. After `execute`, find the child's stage with `stage.mjs`: while it says `implement`, run `execute` for it again; on `stop`, go to step 4.
 
 Inside a child, settle technical decisions yourself, by reading the code and by research and best practice, and write each into the spec's Decisions with its reason. Ask the person only about domain or business-logic decisions, and one-way doors (a public interface, a data format, a deletion that cannot be undone). Collect such questions across the children and ask them together.
 
 ## 4. Stop
 
-Stop for a person at: a domain decision, the merge, a third NEEDS-FIX verdict on one PR, and a declined push. Never merge, and never fix a NEEDS-FIX automatically beyond `next`'s own rules. Say what the person does next.
+Stop for a person at: a domain decision, the merge, a `stop` from `stage.mjs`, and a declined push. Never merge. Say what the person does next.
 
 ## 5. Summarize
 

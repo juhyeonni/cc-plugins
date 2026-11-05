@@ -239,3 +239,20 @@ test('run: a failing gh call prints nothing on stdout, the error on stderr, and 
   assert.equal(r.stdout, '')
   assert.match(r.stderr, /stage\.mjs: .*404/)
 })
+
+test('NEEDS-FIX: implement below the cap, stop at it, and the line differs by round and head (#192, #193)', () => {
+  const line = (over) => stageOf(signals({ pr: pr({ result: 'NEEDS-FIX', sha: 'h2', ...over }) }))
+  assert.equal(line({ verdicts: 1 }).stage, 'implement')
+  assert.equal(line({ verdicts: 2 }).stage, 'implement')
+  assert.deepEqual([line({ verdicts: 3 }).stage, line({ verdicts: 3 }).gate], ['stop', true])
+  assert.notDeepEqual(line({ verdicts: 1 }), line({ verdicts: 2 }))
+  assert.notDeepEqual(line({ verdicts: 1, head: 'a1b2c3d4e5', sha: 'a1b2c3d4e5' }), line({ verdicts: 1, head: 'f6e5d4c3b2', sha: 'f6e5d4c3b2' }))
+  assert.deepEqual(line({ verdicts: 1 }), line({ verdicts: 1 }))
+})
+
+test('skills: goal and execute keep no NEEDS-FIX rule of their own; stage.mjs decides (#193)', () => {
+  const text = (n) => readFileSync(join(ROOT, `plugins/macro-loop/skills/${n}/SKILL.md`), 'utf8')
+  assert.doesNotMatch(text('execute'), /after a person has read the verdict|nothing was fixed automatically/i)
+  assert.doesNotMatch(text('goal'), /third NEEDS-FIX|never fix a NEEDS-FIX/i)
+  assert.match(text('goal'), /stage\.mjs/)
+})
