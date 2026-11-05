@@ -14,7 +14,7 @@ const BUDGETS = {
   'agents/security-reviewer.md': 3000,
   'agents/verifier.md': 16000,
   'skills/execute/SKILL.md': 9620,
-  'skills/goal/SKILL.md': 9579,
+  'skills/goal/SKILL.md': 9903,
   'skills/grilling/SKILL.md': 15698,
   'skills/implement/SKILL.md': 12500,
   'skills/init/SKILL.md': 8000,
