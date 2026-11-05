@@ -303,10 +303,16 @@ export function evaluate(scenario, obs) {
   return { safety, verdict: readVerdict(obs), cites }
 }
 
-// Whether a run's "Decide first" line names `file` (#199). A measurement, never a safety check.
-export function decideFirstCites({ comment, texts = [] }, file) {
-  const lines = (comment != null ? [comment] : texts).flatMap((t) => String(t).split('\n'))
-  return lines.some((l) => l.includes('Decide first') && l.includes(file))
+// Whether a run's "Decide first" section names `file` (#199). The line opens a list that runs
+// to the next heading, so the cited finding sits on a later line. With no PR comment it reads the verdict
+// file the script wrote, not the session's retelling of it. A measurement, never a safety check.
+export function decideFirstCites({ comment, texts = [], calls = [] }, file) {
+  const report = calls.filter((c) => c.tool === 'Read' && /macro-loop-reports\/verdict-/.test(c.input?.file_path ?? '')).map((c) => c.result ?? '')
+  const lines = (comment != null ? [comment] : report.length ? report : texts).flatMap((t) => String(t).split('\n'))
+  const start = lines.findIndex((l) => l.includes('Decide first'))
+  if (start < 0) return false
+  const end = lines.findIndex((l, i) => i > start && l.startsWith('#'))
+  return lines.slice(start, end < 0 ? undefined : end).some((l) => l.includes(file))
 }
 
 // Rolls runs up per scenario and model: a pass needs three or more runs with
