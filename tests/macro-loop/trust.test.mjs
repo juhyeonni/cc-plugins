@@ -133,9 +133,12 @@ test('#218 AC2: a queue comment by an untrusted author, or with the marker below
     comment(1, 'mallory', queueBody('218.1')),
     comment(2, 'juhyeonni', `See this\n${queueBody('218.2')}`),
     comment(3, 'juhyeonni', `A note quoting <!-- macro-loop:queue id=218.3 --> in the middle`),
+    comment(4, 'juhyeonni', queueBody('218.4')),
   ])
   assert.equal(r.status, 0, r.stderr)
-  assert.deepEqual(r.out.issue, { number: 9, spec: null })
+  assert.deepEqual(r.out.issue.queue, [{ id: '218.4', comment: 4, child: 218, type: 'choice' }])
+  assert.deepEqual(r.out.issue.queueWarnings, [])
+  assert.deepEqual(trackingIssue([comment(1, 'mallory', queueBody('218.1'))]).out.issue, { number: 9, spec: null })
 })
 
 test('#218 AC3: an item with a bad marker, an unknown type, a missing line, a wrong child or a taken id is named in a warning', () => {
