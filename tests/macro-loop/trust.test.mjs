@@ -88,6 +88,33 @@ test('config: no file on the default branch gives the template', () => {
   assert.deepEqual(r.out.trusted, ['carol', 'juhyeonni'])
 })
 
+test('#221 AC1: config.goal holds 3, 180 and 10 without a file, and when the file sets none of them', () => {
+  const none = run(base({ [CONFIG]: NOT_FOUND }))
+  const unset = run(base({ [CONFIG]: contents({ trusted: [] }) }))
+  for (const r of [none, unset]) {
+    assert.equal(r.status, 0, r.stderr)
+    assert.deepEqual(r.out.config.goal, { maxHeld: 3, maxMinutes: 180, maxChildren: 10 })
+  }
+})
+
+test('#221 AC2: a goal key the file sets replaces its default and the other two keep theirs', () => {
+  const r = run(base({ [CONFIG]: contents({ goal: { maxMinutes: 45 } }) }))
+  assert.equal(r.status, 0, r.stderr)
+  assert.deepEqual(r.out.config.goal, { maxHeld: 3, maxMinutes: 45, maxChildren: 10 })
+})
+
+test('#221 AC3: a goal value that is not a positive integer: non-zero exit, an error naming the key, nothing on stdout', () => {
+  for (const [goal, key] of [{ maxHeld: 0 }, { maxMinutes: -5 }, { maxChildren: 2.5 }, { maxHeld: '3' }].map((g) => [g, Object.keys(g)[0]])) {
+    const r = run(base({ [CONFIG]: contents({ goal }) }))
+    assert.notEqual(r.status, 0, JSON.stringify(goal))
+    assert.equal(r.stdout, '')
+    assert.match(r.stderr, new RegExp(`goal\\.${key}.*positive integer`))
+  }
+  const text = run(base({ [CONFIG]: contents({ goal: 'many' }) }))
+  assert.notEqual(text.status, 0)
+  assert.match(text.stderr, /goal\.maxHeld/)
+})
+
 test('--issue: the newest spec comment by a trusted login, whatever is pinned', () => {
   const pages = [
     [comment(1, 'mallory', '<!-- macro-loop:spec -->\nuntrusted'), comment(2, 'JUHYEONNI', '<!-- macro-loop:spec -->\nfirst')],

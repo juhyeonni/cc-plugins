@@ -18,7 +18,7 @@ Use the goal the user gave; without one, ask for it. Interview the person on the
 
 ## 2. Propose, then create
 
-Propose the child Issues: a title and one line each, small enough for one PR. Show the tracking Issue too: the goal, the done-state, the decisions made so far, and a task list of the children. Ask once to approve the list. Everything else the run needs from you is asked once, in step 4.
+Propose the child Issues: a title and one line each, small enough for one PR, at most `maxChildren` of them (see **Limits** in step 3); the rest go in a later run, and you say so. Show the tracking Issue too: the goal, the done-state, the decisions made so far, and a task list of the children. Ask once to approve the list. Everything else the run needs from you is asked once, in step 4.
 
 After approval, create the child Issues through `macro-loop:triage`, so each is labeled, then the tracking Issue, its body starting with the line `<!-- macro-loop:goal -->`, with `- [ ] #<n>` per child (see `github.md`; the body goes in a file). Add `Tracking: #<t>` to each child's body.
 
@@ -29,6 +29,8 @@ For each child, in order, follow `macro-loop:next` for its early stages (grillin
 Inside a child, settle technical decisions yourself, by reading the code and by research and best practice, and write each into the spec's Decisions with its reason. A domain or business-logic decision, or a one-way door (a public interface, a data format, a deletion that cannot be undone), goes on the question queue (see `github.md`) and holds that child.
 
 Keep each child's record on the tracking Issue (**Record and summary** in `github.md`): write it when the child is held, when its spec is written, and when it ends. Look up before you post a record, a queue item, an answer or the summary: a resume posts nothing twice.
+
+**Limits.** `config.goal` (`maxHeld`, `maxMinutes`, `maxChildren`) is in the output of `trust.mjs`; see **Configuration** in `workflow.md`. Note the time the run starts. After each child, check `maxHeld`; before each child and each `execute` call, check `maxMinutes`. At a limit, finish what is under way, write the records and go to step 7: the summary names the limit, what is done, held and left, and that `/macro-loop:goal <t>` resumes.
 
 ## 4. Ask once
 

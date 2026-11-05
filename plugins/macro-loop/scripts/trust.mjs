@@ -79,11 +79,18 @@ function number(flag, value) {
   return value
 }
 
+// The limits of one goal run (#221), set under `goal` in the config.
+const GOAL_LIMITS = ['maxHeld', 'maxMinutes', 'maxChildren']
+
 // What is the same for every Issue and PR in a run: stage.mjs builds it once and passes it on.
 export function trustContext() {
   const file = readConfig()
   const config = merge(JSON.parse(readFileSync(TEMPLATE, 'utf8')), file ?? {})
   if (!Array.isArray(config.trusted)) throw new Error('`trusted` in .github/macro-loop.json must be a list of logins')
+  for (const key of GOAL_LIMITS) {
+    const v = config.goal?.[key]
+    if (!Number.isInteger(v) || v < 1) throw new Error(`\`goal.${key}\` in .github/macro-loop.json must be a positive integer`)
+  }
   const me = api(['user']).login
   const repo = api(['repos/{owner}/{repo}'])
   // Who is trusted (reference/github.md): you, plus the list, or without one the owner when a person owns the repo.
