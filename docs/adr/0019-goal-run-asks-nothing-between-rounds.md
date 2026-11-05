@@ -1,6 +1,6 @@
 # A goal run asks the person nothing between its rounds
 
-Status: Proposed
+Status: Accepted
 
 Inside `goal`, `grilling` and `spec` ask the person nothing. A technical decision is settled by reading the code and by research, and goes into the spec's Decisions with its reason and source. A domain decision, or a one-way door, is written to the question queue on the tracking Issue, and only the child it blocks is held as `needs-decision`. The person answers the queue in the one question round.
 
