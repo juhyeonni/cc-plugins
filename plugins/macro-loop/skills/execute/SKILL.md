@@ -23,6 +23,8 @@ An Issue that starts at `verify` whose PR is past verify's cap (`verify` step 2)
 
 ## 2. Ask everything now
 
+When the arguments carry both a `Run spec commands:` line (Issue numbers, `all` or `none`) and a `Push:` line (`yes` or `no`), take them as the two answers and ask nothing; `goal` has asked already.
+
 Ask one message with these questions:
 
 1. **Spec commands.** List each Issue's `commands`. Ask which Issues may run them: all, some by number, or none. An Issue without approval runs none, and its verifier judges those criteria from the diff.
