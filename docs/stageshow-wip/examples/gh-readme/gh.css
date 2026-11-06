@@ -1,0 +1,317 @@
+/* GitHub's light theme, from computed styles on github.com, at about 0.78x. */
+.gh {
+  & .ss-stage {
+    --gutter: 32px;
+    --gh-fg: #1f2328;
+    --gh-muted: #59636e;
+    --gh-line: #d1d9e0;
+    --gh-line-soft: rgba(209, 217, 224, 0.7);
+    --gh-subtle: #f6f8fa;
+    --gh-link: #0969da;
+    --gh-success: #1a7f37;
+    --gh-font: 'Mona Sans VF', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    border-radius: 14px;
+    background: var(--ss-well);
+  }
+
+  /* Corner bleed: in a gutter from top and left, off the right and bottom */
+  .gh-browser {
+    position: absolute;
+    top: var(--gutter);
+    left: var(--gutter);
+    width: 800px;
+    height: 460px;
+    box-shadow: var(--ss-shadow-hero);
+  }
+
+  .gh-page {
+    display: flex;
+    gap: 24px;
+    height: 100%;
+    padding: 20px 24px 0;
+    background: #fff;
+    font-family: var(--gh-font);
+    color: var(--gh-fg);
+  }
+
+  .gh-readme {
+    flex: none;
+    width: 480px;
+    border: 1px solid var(--gh-line);
+    border-bottom: 0;
+    border-radius: 6px 6px 0 0;
+  }
+
+  .gh-readme-head {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 38px;
+    padding: 0 12px 0 8px;
+    border-bottom: 1px solid var(--gh-line);
+  }
+
+  .gh-tab {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 100%;
+    padding: 0 8px;
+    font-size: 11.5px;
+    color: var(--gh-muted);
+  }
+
+  .gh-tab[data-active] {
+    font-weight: 600;
+    color: var(--gh-fg);
+  }
+
+  .gh-tab[data-active]::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    border-radius: 2px;
+    background: #fd8c73;
+  }
+
+  .gh-tab svg { color: var(--gh-muted); }
+
+  .gh-tab-end {
+    margin-left: auto;
+    color: var(--gh-muted);
+  }
+
+  .gh-md {
+    padding: 4px 24px 0;
+  }
+
+  .gh-h2 {
+    margin: 16px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--gh-line-soft);
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.25;
+  }
+
+  .gh-p {
+    margin-bottom: 12px;
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+
+  .gh-pre {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 6px 6px 6px 14px;
+    border-radius: 6px;
+    background: var(--gh-subtle);
+
+    & code {
+      font-family: var(--ss-mono);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+  }
+
+  .gh-copy {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    color: var(--gh-muted);
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+
+  .gh-copy[data-hover] { background: rgba(129, 139, 152, 0.15); }
+  .gh-copy[data-pressed] { background: rgba(129, 139, 152, 0.25); }
+  .gh-copy[data-copied] { color: var(--gh-success); }
+
+  .gh-code {
+    padding: 2px 5px;
+    border-radius: 5px;
+    background: rgba(129, 139, 152, 0.12);
+    font-family: var(--ss-mono);
+    font-size: 10.5px;
+    white-space: nowrap;
+  }
+
+  .gh-table {
+    border: 1px solid var(--gh-line);
+    border-radius: 0;
+    font-size: 12px;
+  }
+
+  .gh-tr {
+    display: grid;
+    grid-template-columns: 84px 48px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    padding: 11px 12px;
+    border-top: 1px solid var(--gh-line);
+
+    &:nth-child(odd) { background: var(--gh-subtle); }
+    &:first-child { border-top: 0; background: #fff; }
+  }
+
+  .gh-th {
+    font-weight: 600;
+  }
+
+  .gh-about-section {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--gh-line);
+  }
+
+  .gh-about-section .gh-about-title { margin-bottom: 6px; }
+
+  .gh-about-note {
+    font-size: 11px;
+    color: var(--gh-muted);
+  }
+
+  .gh-counter {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 0 6px;
+    border-radius: 10px;
+    background: rgba(129, 139, 152, 0.12);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 18px;
+  }
+
+  .gh-link {
+    color: var(--gh-link);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .gh-about {
+    flex: none;
+    width: 176px;
+    padding-top: 2px;
+  }
+
+  .gh-about-title {
+    margin-bottom: 10px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .gh-about-desc {
+    margin-bottom: 14px;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .gh-about-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 9px;
+    font-size: 11.5px;
+    color: var(--gh-muted);
+  }
+
+  /* Tooltip as GitHub draws it */
+  .gh-tip {
+    border-radius: 6px;
+    background: #25292e;
+    color: #fff;
+    font-family: var(--gh-font);
+    font-size: 11px;
+    transform: translate(calc(-100% - 2px), -50%);
+  }
+
+  .gh-tip[data-show] { transform: translate(calc(-100% - 6px), -50%); }
+
+  /* ---- Claude Code ---- */
+
+  .gh-term {
+    position: absolute;
+    top: var(--gutter);
+    right: var(--gutter);
+    z-index: 60;
+    width: 330px;
+    height: 276px;
+    background: #faf9f7;
+    border-radius: 10px;
+    box-shadow: var(--ss-shadow-float);
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+    will-change: transform;
+    transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .gh-term[data-show='true'] {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  .gh-term-body {
+    padding: 12px 14px;
+    overflow: hidden;
+    font-family: var(--ss-mono);
+    font-size: 10px;
+    line-height: 1.6;
+    color: rgba(0, 0, 0, 0.72);
+  }
+
+  .gh-welcome {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin-bottom: 8px;
+  }
+
+  .gh-line { white-space: pre-wrap; }
+  .gh-cmd { color: rgba(0, 0, 0, 0.5); }
+  .gh-out b { font-weight: 600; color: rgba(0, 0, 0, 0.85); }
+  .gh-ok { color: #2e7d32; }
+  .gh-dim { color: rgba(0, 0, 0, 0.42); }
+
+  .gh-input {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 5px 8px;
+    border: 1px solid rgba(0, 0, 0, 0.22);
+    border-radius: 6px;
+    white-space: pre;
+  }
+
+  .gh-sigil { color: rgba(0, 0, 0, 0.45); }
+
+  .gh-caret { color: rgba(0, 0, 0, 0.4); }
+
+  /* Compact: the README column alone, edge to edge; Claude Code over its lower part */
+  & .ss-stage[data-layout='compact'] { --gutter: 16px; }
+  & .ss-stage[data-layout='compact'] .gh-browser { width: 400px; height: 420px; }
+  & .ss-stage[data-layout='compact'] .gh-page { padding: 0; }
+  & .ss-stage[data-layout='compact'] .gh-readme { width: 342px; border: 0; border-radius: 0; }
+  & .ss-stage[data-layout='compact'] .gh-readme-head { padding-left: 4px; }
+  & .ss-stage[data-layout='compact'] .gh-tab-end { display: none; }
+  & .ss-stage[data-layout='compact'] .gh-md { padding: 0 12px; }
+  & .ss-stage[data-layout='compact'] .gh-pre { gap: 6px; padding-left: 10px; }
+  & .ss-stage[data-layout='compact'] .gh-pre code { font-size: 10px; }
+  & .ss-stage[data-layout='compact'] .gh-after { display: none; }
+  & .ss-stage[data-layout='compact'] .gh-tr { grid-template-columns: minmax(0, 1fr); }
+  & .ss-stage[data-layout='compact'] .gh-tr > :not(:last-child) { display: none; }
+  & .ss-stage[data-layout='compact'] .gh-term { top: 80px; left: 32px; right: 16px; width: auto; height: 260px; }
+  & .ss-stage[data-layout='compact'] .gh-welcome { margin-bottom: 4px; }
+}

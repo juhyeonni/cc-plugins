@@ -1,0 +1,457 @@
+.mlt {
+  & .ss-stage {
+    --gutter: 56px;
+    --gh-fg: #1f2328;
+    --gh-muted: #59636e;
+    --gh-line: #d1d9e0;
+    --gh-subtle: #f6f8fa;
+    --gh-link: #0969da;
+    --gh-success: #1a7f37;
+    --gh-font: 'Mona Sans VF', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+    --run: #5769f7;
+    --you: #b7791f;
+    overflow: hidden;
+    border-radius: 14px;
+    background: var(--ss-well);
+  }
+
+  /* ---- The stage rail ---- */
+
+  .mlt-rail {
+    position: absolute;
+    top: 16px;
+    left: var(--gutter);
+    right: var(--gutter);
+    display: flex;
+    align-items: center;
+    font-family: var(--gh-font);
+  }
+
+  .mlt-step {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 8px;
+
+    &:first-child { flex: none; }
+  }
+
+  .mlt-wire {
+    flex: 1;
+    height: 1px;
+    background: var(--ss-line);
+    transition: background-color 0.3s ease;
+
+    &[data-lit] { background: var(--ss-text-faint); }
+  }
+
+  .mlt-node {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 10px 0 7px;
+    border-radius: 13px;
+    background: var(--ss-surface);
+    box-shadow: inset 0 0 0 1px var(--ss-line);
+    transition: box-shadow 0.25s ease, background-color 0.25s ease;
+  }
+
+  .mlt-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ss-text-faint);
+    transition: color 0.25s ease;
+  }
+
+  .mlt-step[data-state='active'] .mlt-node { box-shadow: inset 0 0 0 1.5px var(--run); }
+  .mlt-step[data-state='active'] .mlt-name { color: var(--run); }
+  .mlt-step[data-you][data-state='active'] .mlt-node { box-shadow: inset 0 0 0 1.5px var(--you); }
+  .mlt-step[data-you][data-state='active'] .mlt-name { color: var(--you); }
+  .mlt-step[data-state='done'] .mlt-name { color: var(--ss-text); }
+
+  /* ---- GitHub ---- */
+
+  .mlt-browser {
+    position: absolute;
+    top: var(--gutter);
+    left: var(--gutter);
+    width: 700px;
+    height: 580px;
+    box-shadow: var(--ss-shadow-hero);
+  }
+
+  .mlt-pages {
+    display: grid;
+    height: 100%;
+    background: #fff;
+    font-family: var(--gh-font);
+    color: var(--gh-fg);
+  }
+
+  .gh-pg {
+    grid-area: 1 / 1;
+    padding: 20px 24px 0;
+    opacity: 1;
+    transform: none;
+    will-change: transform;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  .mlt-pages[data-page='issue'] .gh-pg[data-name='pr'],
+  .mlt-pages[data-page='pr'] .gh-pg[data-name='issue'] {
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+  }
+
+  .gh-title {
+    font-size: 20px;
+    font-weight: 400;
+    line-height: 1.3;
+  }
+
+  .gh-num { color: var(--gh-muted); font-weight: 300; }
+
+  .gh-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    margin-top: 8px;
+    padding: 0 10px 0 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #fff;
+
+    &[data-tone='open'] { background: var(--gh-success); }
+    &[data-tone='draft'] { margin-top: 0; background: #59636e; }
+  }
+
+  .gh-pr-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--gh-muted);
+
+    & b { color: var(--gh-fg); font-weight: 600; }
+    & code {
+      padding: 1px 5px;
+      border-radius: 5px;
+      background: #ddf4ff;
+      color: var(--gh-link);
+      font-family: var(--ss-mono);
+      font-size: 10.5px;
+    }
+  }
+
+  .gh-timeline {
+    width: 452px;
+    margin-top: 16px;
+  }
+
+  /* Each item brings its own space, so a closed one takes none */
+  .gh-item { padding-top: 14px; }
+  .gh-stack { display: flex; flex-direction: column; gap: 14px; }
+
+  .gh-box {
+    overflow: hidden;
+    border: 1px solid var(--gh-line);
+    border-radius: 6px;
+    background: #fff;
+  }
+
+  .gh-box-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--gh-line);
+    background: var(--gh-subtle);
+    font-size: 12px;
+    color: var(--gh-muted);
+
+    & b { color: var(--gh-fg); font-weight: 600; }
+  }
+
+  .gh-box-body {
+    padding: 12px 14px;
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+
+  .gh-event {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding-left: 12px;
+    font-size: 12px;
+    line-height: 22px;
+    color: var(--gh-muted);
+
+    & b { color: var(--gh-fg); font-weight: 600; }
+  }
+
+  .gh-event-icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-top: -1px;
+    border-radius: 50%;
+    background: #eff2f5;
+    color: var(--gh-muted);
+  }
+
+  .gh-event-text {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 5px;
+  }
+
+  .gh-label {
+    padding: 0 7px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 18px;
+
+    &[data-l='p1'] { background: #fbca04; color: #1f2328; }
+    &[data-l='ready'] { background: #0e8a16; color: #fff; }
+    &[data-l='source'] { background: #c5def5; color: #1f2328; }
+  }
+
+  .gh-pr-ref {
+    display: flex;
+    flex-basis: 100%;
+    align-items: center;
+    gap: 6px;
+    color: var(--gh-fg);
+    font-weight: 600;
+  }
+
+  .gh-draft {
+    padding: 0 7px;
+    border: 1px solid var(--gh-line);
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+    color: var(--gh-muted);
+  }
+
+  .gh-pinned { border-color: #9cd7ff; }
+
+  .gh-pin-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 14px;
+    background: #ddf4ff;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gh-link);
+  }
+
+  .gh-spec {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .gh-spec-h,
+  .gh-verdict-h {
+    margin-bottom: 4px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .gh-spec-sub,
+  .gh-verdict-sub {
+    margin-top: 6px;
+    font-weight: 600;
+  }
+
+  .gh-task {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .gh-box-check {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    border: 1px solid #818b98;
+    border-radius: 3px;
+  }
+
+  .gh-verdict {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .gh-verdict-h {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .gh-pass { color: var(--gh-success); }
+
+  .gh-merge {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .gh-merge-icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: #59636e;
+    color: #fff;
+  }
+
+  .gh-merge-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 12px;
+    line-height: 1.3;
+
+    & span { color: var(--gh-muted); }
+  }
+
+  /* ---- Claude Code ---- */
+
+  .mlt-term {
+    position: absolute;
+    top: 80px;
+    right: var(--gutter);
+    height: 444px;
+    z-index: 10;
+    width: 372px;
+    background: #faf9f7;
+    border-radius: 10px;
+    box-shadow: var(--ss-shadow-float);
+  }
+
+  .mlt-term-body {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 12px 14px 14px;
+    font-family: var(--ss-mono);
+    font-size: 10.5px;
+    line-height: 1.6;
+    color: rgba(0, 0, 0, 0.75);
+  }
+
+  /* A terminal: older lines leave by the top as new ones arrive */
+  .mlt-history { flex: none; }
+
+  .mlt-welcome {
+    flex: none;
+    display: block;
+    width: 100%;
+    height: auto;
+    margin-bottom: 0;
+  }
+
+  .gh-composer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 22px;
+  }
+
+  .gh-composer-title { font-size: 13px; font-weight: 600; }
+
+  .gh-composer-box {
+    height: 64px;
+    padding: 8px 10px;
+    border: 1px solid var(--gh-line);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--gh-muted);
+  }
+
+  .gh-composer-actions { display: flex; justify-content: flex-end; }
+
+  .mlt-line {
+    white-space: pre-wrap;
+
+    &[data-kind='cmd'] { margin-top: 4px; color: rgba(0, 0, 0, 0.5); }
+    &[data-kind='you'] { color: rgba(0, 0, 0, 0.5); }
+    &[data-kind='dim'] { color: rgba(0, 0, 0, 0.42); }
+  }
+
+  .mlt-band {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+    white-space: pre;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    color: var(--run);
+
+    &[data-on] { opacity: 1; }
+    &[data-you] { color: var(--you); }
+  }
+
+  .mlt-band-sym { width: 1ch; transition: color 0.2s ease; }
+  .mlt-band-issue { color: var(--gh-link); text-decoration: underline; text-underline-offset: 2px; }
+  .mlt-band-track { letter-spacing: 1px; }
+  .mlt-band-track [data-cell='ahead'] { opacity: 0.45; }
+  .mlt-band-todo { min-width: 12ch; }
+  .mlt-band-stage { min-width: 9ch; color: rgba(0, 0, 0, 0.45); }
+
+  .mlt-input {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border: 1px solid rgba(0, 0, 0, 0.22);
+    border-radius: 6px;
+    white-space: pre;
+  }
+
+  .mlt-sigil { color: rgba(0, 0, 0, 0.45); }
+  .mlt-caret { color: rgba(0, 0, 0, 0.4); }
+
+  /* ---- Compact: dots for the rail, Claude Code whole, the Issue under it ---- */
+
+  & .ss-stage[data-layout='compact'] { --gutter: 16px; }
+  & .ss-stage[data-layout='compact'] .mlt-rail { top: auto; bottom: 14px; }
+  & .ss-stage[data-layout='compact'] .mlt-node { padding: 0 2px; background: transparent; box-shadow: none; }
+  & .ss-stage[data-layout='compact'] .mlt-step { gap: 2px; }
+  & .ss-stage[data-layout='compact'] .mlt-step:not([data-state='active']) .mlt-name { display: none; }
+  & .ss-stage[data-layout='compact'] .mlt-term { top: 168px; left: 16px; right: 16px; width: auto; height: 336px; }
+  & .ss-stage[data-layout='compact'] .mlt-term-body { font-size: 10px; }
+  & .ss-stage[data-layout='compact'] .mlt-welcome { display: none; }
+  & .ss-stage[data-layout='compact'] .mlt-browser { top: 16px; left: 16px; width: 400px; height: 340px; }
+  & .ss-stage[data-layout='compact'] .gh-pg { padding: 14px 14px 0; }
+  & .ss-stage[data-layout='compact'] .gh-title { font-size: 16px; }
+  & .ss-stage[data-layout='compact'] .gh-pr-meta > span:last-child { display: none; }
+  & .ss-stage[data-layout='compact'] .gh-timeline { width: 300px; }
+  & .ss-stage[data-layout='compact'] .gh-pg[data-name='issue'] .gh-timeline > .gh-box:first-child,
+  & .ss-stage[data-layout='compact'] .gh-composer,
+  & .ss-stage[data-layout='compact'] .gh-merge,
+  & .ss-stage[data-layout='compact'] .gh-verdict > :nth-child(n+3) { display: none; }
+}
