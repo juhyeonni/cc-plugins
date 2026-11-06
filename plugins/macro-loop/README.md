@@ -12,6 +12,20 @@ Issue → triage → grilling → spec → implement → open-pr → verify → 
 
 Any stage can be the entry point. When a stage's input is missing, the skill warns and asks. If you go ahead, it records the gap on the Issue as a `skipped:*` label, so skipped stages can be counted later instead of disappearing. GitHub Free private repos cannot enforce required checks, so the routine records rather than blocks.
 
+## See it run
+
+One Issue through the routine, from triage to a PASS verdict. Each comment and PR body is in the plugin's real format:
+
+![One Issue, #21 "Export a chart's data as CSV", goes from triage to a PASS verdict](../../docs/demos/macro-loop-routine.gif)
+
+The four artifacts a run leaves on GitHub, side by side:
+
+![The Issue, the spec comment, the pull request and the verdict, side by side](../../docs/demos/macro-loop-formats.png)
+
+`/macro-loop:goal` carries a goal through the stages with nobody watching. One question about the goal is asked up front, a one-way door waits in the question queue while the other Issues run, and the run stops at the merge:
+
+![A goal run: five Issues, one waiting for a decision, four PRs that pass](../../docs/demos/macro-loop-goal.gif)
+
 ## Use
 
 | Skill | What it does | Leaves behind |
