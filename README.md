@@ -20,6 +20,8 @@ Run once inside a Claude Code session:
 
 After that, manage everything from `/plugin` (list / install / update).
 
+https://github.com/user-attachments/assets/800dcd15-b3ba-4d47-a1a2-9ba656c62ed4
+
 ## Plugins
 
 Run the install command from the table and **restart Claude Code** to activate.
