@@ -617,6 +617,9 @@ test('#241 AC1: a goal\'s children read as a tree and its track is a bar of its 
 test('#241 AC2: in a goal band the columns after the number line up on every row', () => {
   const laid = render(goalBand(), { now: MIN, columns: WIDE, repo: REPO })
   const out = lines(laid)
+  // The number column is as wide as the widest prefixed number, and each row draws its own.
+  assert.equal(laid.columns.find((c) => c.name === 'number').width, [...'├ #239'].length)
+  assert.deepEqual(out.map((l) => [...l].slice(3, 9).join('').trimEnd()), ['#242', '├ #239', '├ #237', '└ #240'])
   for (const col of ['track', 'stage', 'time']) {
     const at = out.map((l, i) => [...l].join('').indexOf(laid.rows[i].cells.find((c) => c.col === col).text))
     assert.equal(new Set(at).size, 1, `${col}\n${out.join('\n')}`)
