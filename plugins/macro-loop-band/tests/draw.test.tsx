@@ -27,9 +27,9 @@ const TRUST_OUT = JSON.stringify({
 }) + '\n'
 
 // The engine beneath the plugin: its clock, surfaces, own drawing, a Bash that answers
-// stage.mjs (merge for #12, wait for #101) and trust.mjs, and the host's
-// `git remote get-url origin` (none by default).
-async function setup($: any, on: any, remote = '', runs: unknown[] = []) {
+// stage.mjs (merge for #12, wait for #101, or what `stages` says for an Issue) and trust.mjs,
+// and the host's `git remote get-url origin` (none by default).
+async function setup($: any, on: any, remote = '', runs: unknown[] = [], stages: Record<number, string> = {}) {
   const clock = mock.clock(on)
   on('session.surfaces', () => ({ value: ['terminal'] }))
   on('session.start', (_$: any, e: any) => ({ cwd: e.cwd }))
@@ -45,7 +45,8 @@ async function setup($: any, on: any, remote = '', runs: unknown[] = []) {
   })
   on('tool.call', { tool: 'Bash' }, (_$: any, e: any) => ({
     result: {
-      stdout: /trust\.mjs/.test(e.command) ? TRUST_OUT : stageOut(/--issue 101/.test(e.command) ? 'wait' : 'merge'),
+      stdout: /trust\.mjs/.test(e.command) ? TRUST_OUT
+        : stages[Number(/--issue (\d+)/.exec(e.command)?.[1])] ?? stageOut(/--issue 101/.test(e.command) ? 'wait' : 'merge'),
       stderr: '',
       interrupted: false,
     },
@@ -139,4 +140,33 @@ test('a drawn band links the Issue and each document seen, on the remote read on
   expect(await ui.find({ key: 'r0-fill' })).toBeDefined()
   await ui.unmount()
   expect(runs).toEqual([{ argv: ['git', 'remote', 'get-url', 'origin'], cwd: '/work' }])
+})
+
+test('a needs-decision label written under a goal shows its child held until its next stage check', async ($, on) => {
+  const stages: Record<number, string> = {
+    26: JSON.stringify({ stage: 'goal', why: '0 of 1 children done', gate: true }) + '\n',
+    27: stageOut('grilling'),
+  }
+  await setup($, on, '', [], stages)
+  const stageOf = (n: number) => $.tool.call({ tool: 'Bash', command: `node "/x/macro-loop/scripts/stage.mjs" --issue ${n}` })
+
+  await $.skill.prompt({ skill: 'macro-loop:goal', text: '' })
+  await stageOf(26)
+  await stageOf(27)
+  await $.tool.call({ tool: 'Bash', command: "gh api -X POST repos/o/r/issues/27/labels -f 'labels[]=needs-decision'" })
+
+  const ui = await mount($, 'terminal')
+  expect(await cell(ui, 'r1-number')).toBe('#27')
+  expect(await cell(ui, 'r1-symbol')).toBe('◆')
+  expect(await cell(ui, 'r1-track')).toBe('●◐○○○○')
+  expect(await cell(ui, 'r1-stage')).toBe('held')
+  expect(await cell(ui, 'r1-action')).toBe('answer queue')
+  expect(await cell(ui, 'r0-action')).toBe('answer queue')
+  await ui.unmount()
+
+  stages[27] = stageOut('implement')
+  await stageOf(27)
+  const after = await mount($, 'terminal')
+  expect(await cell(after, 'r1-stage')).toBe('implement')
+  await after.unmount()
 })

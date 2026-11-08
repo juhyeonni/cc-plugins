@@ -8,6 +8,9 @@
 // A goal is not a Run: state.goal = { issue, done, total, merge, running, since, idleSince } is
 // its row, shown first, with the Runs of its children under it. State without a goal has no key.
 //
+// A Run is held (#240) while a goal is in the band and its Issue waits on the goal's question
+// round: its stage check says a decision is needed, or run.held marks the needs-decision label.
+//
 // A Run also keeps the GitHub ids it observed (D15): its PR, the Issue's spec comment, and the
 // PR's last verdict. Given the repo, rows() turns them into links.
 
@@ -50,7 +53,7 @@ const newRun = (at) => ({
 })
 
 // What a Run adopts from its Issue's waiting entry.
-const KEPT = ['pr', 'round', 'stage', 'spec', 'verdict', 'pos']
+const KEPT = ['pr', 'round', 'stage', 'spec', 'verdict', 'pos', 'held']
 
 const same = (a, b) => {
   if (a === b) return true
@@ -157,6 +160,7 @@ const step = (s, ev) => {
       const m = ev.issue ?? s.cur?.issue ?? null
       s.cur ??= newRun(at)
       if (m !== null) focus(s, m, at)
+      s.cur.held = false
       if (ev.ok === true && STAGES.includes(ev.stage)) {
         Object.assign(s.cur, { stage: ev.stage, why: String(ev.why ?? ''), failed: false })
         // D16: a stop keeps the last position seen; done fills the track.
@@ -187,6 +191,13 @@ const step = (s, ev) => {
         })
       }
       if (ev.issue != null && ev.spec !== undefined) s.cur.spec = posInt(ev.spec) ? ev.spec : null
+      return
+    }
+    case 'held': {
+      if (!posInt(ev.issue)) return
+      const r = [s.cur, ...s.waiting].find((x) => x?.issue === ev.issue)
+      if (r) r.held = ev.held === true
+      else if (ev.held === true) s.waiting.push({ ...newRun(at), issue: ev.issue, held: true })
       return
     }
     case 'pr':
@@ -262,6 +273,8 @@ export function track(pos) {
   return TRACK.map((_, i) => (i < pos ? '●' : i === pos ? '◐' : '○')).join('')
 }
 
+const isHeld = (run) => run.held === true || (run.stage === 'grilling' && /^a decision is needed/.test(run.why ?? ''))
+
 const since = (run, now, idle) => elapsed(now - (idle ? (run.idleSince ?? run.since) : run.since))
 const stageAt = (run, fallback) => TRACK[run.pos] ?? fallback
 
@@ -277,7 +290,7 @@ const personRow = (run) => {
 }
 
 // One Run's row: { tone, issue, href, track, stage, action, round, time, links }.
-function rowOf(run, { isWorking, now, base }, isCur) {
+function rowOf(run, { isWorking, now, base, hasGoal }, isCur) {
   const issue = posInt(run.issue) ? run.issue : null
   let row
   if (run.failed) row = { tone: 'unknown', stage: stageAt(run, ''), action: 'run /macro-loop:status' }
@@ -285,12 +298,14 @@ function rowOf(run, { isWorking, now, base }, isCur) {
   else if (isCur && run.running && isWorking) {
     // A working next is about its Issue's stage.
     row = { tone: 'run', stage: (run.skill === 'next' || !run.skill ? run.stage : run.skill) ?? 'next', time: since(run, now, false) }
-  } else row = { ...personRow(run), time: since(run, now, true) }
+  } else if (hasGoal && isHeld(run)) row = { tone: 'you', stage: 'held', action: 'answer queue', time: since(run, now, true), pos: POS.grilling }
+  else row = { ...personRow(run), time: since(run, now, true) }
+  const { pos = run.pos, ...shown } = row
   return {
-    ...row,
+    ...shown,
     issue,
     href: base && issue ? `${base}/issues/${issue}` : null,
-    track: track(run.pos),
+    track: track(pos),
     round: !run.done && Number.isInteger(run.round) ? `r${run.round}` : '',
     links: linksOf(run, base),
   }
@@ -322,7 +337,7 @@ export function rows(state, opts) {
     const runs = cur ? [cur, ...waiting] : waiting
     const goal = isObj(state) && isObj(state.goal) ? state.goal : null
     if (!runs.length && !goal) return null
-    const ctx = { isWorking: o.isWorking === true, now: Number.isFinite(o.now) ? o.now : 0, base: repoBase(o.repo) }
+    const ctx = { isWorking: o.isWorking === true, now: Number.isFinite(o.now) ? o.now : 0, base: repoBase(o.repo), hasGoal: goal !== null }
     const out = runs.map((r) => rowOf(r, ctx, r === cur))
     return goal ? [goalRow(goal, out, ctx), ...out] : out
   } catch {

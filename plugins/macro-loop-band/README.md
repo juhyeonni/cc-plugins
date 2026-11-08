@@ -46,6 +46,8 @@ A goal (`/macro-loop:goal`) shows as one row on top for its tracking Issue (goal
 
 The goal's track is the six cells scaled to children done over total. It says `merge the PRs` once every child passed, and drops when the tracking Issue is done.
 
+A child the goal holds for a decision reads `held` and `answer queue` on the grilling cell: you answer it in the goal's question round, not in an interview. It is held when its stage check says a decision is needed, or when the session adds the `needs-decision` label to it (the name macro-loop's config gives); its next other stage check, or removing the label, clears it. Without a goal, the same Issue reads `grilling  answer Qs`.
+
 Each row is one Issue, in fixed columns: symbol, Issue number, progress track and stage, what you do, verify round, elapsed time, then one column per document: spec, PR, verdict. A column keeps its place on every row, so a time or an action that changes length moves nothing after it. The Issue being worked on comes first, then the others in the order they stopped, oldest first. Past four Issues the band shows four rows and `+N more · /macro-loop:status`. A done Issue leaves at the next turn.
 
 | Symbol | Meaning |
@@ -64,6 +66,7 @@ The symbol, the track and the action are drawn in the row's color; the stage, ro
 |---|---|---|
 | Claude working | the skill's stage | (nothing) |
 | Interview waiting on you | `grilling` | `answer Qs` |
+| Child held under a goal: a decision is needed | `held` | `answer queue` |
 | PASS, merge is yours | `merge` | `merge the PR` |
 | `stop` | last stage seen | `decide: NEEDS-FIX 3×` (or another short reason) |
 | A skill asked a question, the turn ended | the skill's stage | `answer above` |
