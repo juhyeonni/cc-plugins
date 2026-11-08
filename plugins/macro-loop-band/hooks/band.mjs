@@ -11,11 +11,11 @@
 // A Run also keeps the GitHub ids it observed (D15): its PR, the Issue's spec comment, and the
 // PR's last verdict. Given the repo, rows() turns them into links.
 
-export const SKILLS = ['next', 'triage', 'grilling', 'spec', 'implement', 'open-pr', 'verify', 'goal']
+export const SKILLS = ['next', 'triage', 'grilling', 'research', 'ui-placement', 'spec', 'implement', 'open-pr', 'verify', 'goal']
 export const STAGES = ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'resumable', 'wait', 'merge', 'stop', 'done', 'goal']
 // D16: the track's six cells, and the cell each stage or skill sits on.
 export const TRACK = ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'merge']
-const POS = { triage: 0, wait: 0, resumable: 0, grilling: 1, spec: 1, implement: 2, 'open-pr': 3, verify: 4, merge: 5 }
+const POS = { triage: 0, wait: 0, resumable: 0, grilling: 1, research: 1, 'ui-placement': 1, spec: 1, implement: 2, 'open-pr': 3, verify: 4, merge: 5 }
 // D15: one column per GitHub document a row can link; the Issue itself is the row's number.
 export const LINK_COLUMNS = ['spec', 'pr', 'verdict']
 // D17: the columns in order, and the order whole columns drop in when the band is narrow.
