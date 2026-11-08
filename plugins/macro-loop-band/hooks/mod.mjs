@@ -12,6 +12,8 @@ const DIM = ['stage', 'round', 'time']
 // Matched by script name, so any quoting of the path and any compound prefix still match.
 const STAGE = /(?:^|[\s"'\/\\])stage\.mjs["']?\s+(?:[^|;&\n]*?\s)?--issue(?:=|\s+)["']?(\d+)/
 const TRUST = /(?:^|[\s"'\/\\])trust\.mjs["']?\s+(?:[^|;&\n]*?\s)?--(?:pr|issue)(?:=|\s+)["']?\d+/
+const REPORT = /(?:^|[\s"'\/\\])execute\.mjs["']?\s+(?:[^|;&\n]*?\s)?--report\b/
+const EXECUTE = /(?:^|[\s"'\/\\])execute\.mjs["']?(?=[\s|;&]|$)/
 const GH_API = /\bgh\s+api\b/
 const POST = /(?:-X\s*|--method[=\s]+)POST\b/
 const PULLS = /repos\/\S+?\/pulls(?=["'\s]|$)/
@@ -59,13 +61,14 @@ async function feed($, ev) {
 
 async function redraw($) {
   if ((await $.session.surfaces()).length === 0) return
-  if (state.cur) readRemote($)
-  if (!state.cur && timer) {
+  const shown = state.cur || state.waiting.length > 0
+  if (shown) readRemote($)
+  if (!shown && timer) {
     timer.cancel()
     timer = null
   }
   // Started lazily: a reload drops timers and no session.start follows it.
-  if (state.cur && !timer) timer = $.clock.every(60_000, () => { redraw($).catch(() => {}) })
+  if (shown && !timer) timer = $.clock.every(60_000, () => { redraw($).catch(() => {}) })
   const sig = signature(state, await $.clock.now(), repo)
   if (sig === lastSig) return
   lastSig = sig
@@ -88,7 +91,8 @@ function lastJson(out, ok) {
 
 const num = (v) => (Number.isInteger(v) && v > 0 ? v : null)
 
-// The band events one main-loop Bash call gives: a stage check, a trust check, a PR created.
+// The band events one main-loop Bash call gives: a stage check, a trust check, a PR created,
+// the Issues an execute run carries and its report (#239).
 export function bashEvents(command, r, at) {
   const cmd = String(command ?? '')
   const out = typeof r.result?.stdout === 'string' ? r.result.stdout : (r.text ?? '')
@@ -118,6 +122,12 @@ export function bashEvents(command, r, at) {
         verdict: pr?.lastVerdict ?? null, tracking: TRACKING.some((k) => Object.hasOwn(issue ?? {}, k)), at,
       })
     }
+  }
+  // The report ends the run whether or not it printed.
+  if (REPORT.test(cmd)) evs.push({ type: 'report', at })
+  else if (!r.isError && EXECUTE.test(cmd)) {
+    const o = lastJson(out, (x) => Array.isArray(x.run))
+    if (o) evs.push({ type: 'execute', run: o.run, at })
   }
   if (!r.isError && GH_API.test(cmd) && POST.test(cmd) && PULLS.test(cmd)) {
     const text = String(out).trim()

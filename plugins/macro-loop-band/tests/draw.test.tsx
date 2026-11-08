@@ -25,6 +25,20 @@ const TRUST_OUT = JSON.stringify({
   pr: { number: 109, closes: 12, lastVerdict: 777, lastVerdictResult: 'PASS', lastVerdictSha: null, round: 2 },
   issue: { number: 12, spec: 555 },
 }) + '\n'
+const EXECUTE_OUT = JSON.stringify({
+  base: 'main',
+  run: [
+    { number: 12, stage: 'implement', why: 'a spec and no PR', ui: null, prAuthor: null, start: 'implement' },
+    { number: 13, stage: 'verify', why: 'no verdict for the head', ui: null, prAuthor: null, start: 'verify' },
+  ],
+  left: [{ number: 14, stage: 'grilling', reason: 'stage grilling needs a person: no spec' }],
+}) + '\n'
+const bashOut = (command: string) => {
+  if (/execute\.mjs.*--report/.test(command)) return '| Issue | Implement |\n'
+  if (/execute\.mjs/.test(command)) return EXECUTE_OUT
+  if (/trust\.mjs/.test(command)) return TRUST_OUT
+  return stageOut(/--issue 101/.test(command) ? 'wait' : 'merge')
+}
 
 // The engine beneath the plugin: its clock, surfaces, own drawing, a Bash that answers
 // stage.mjs (merge for #12, wait for #101, or what `stages` says for an Issue) and trust.mjs,
@@ -45,8 +59,7 @@ async function setup($: any, on: any, remote = '', runs: unknown[] = [], stages:
   })
   on('tool.call', { tool: 'Bash' }, (_$: any, e: any) => ({
     result: {
-      stdout: /trust\.mjs/.test(e.command) ? TRUST_OUT
-        : stages[Number(/--issue (\d+)/.exec(e.command)?.[1])] ?? stageOut(/--issue 101/.test(e.command) ? 'wait' : 'merge'),
+      stdout: /--issue/.test(e.command) && stages[Number(/--issue (\d+)/.exec(e.command)?.[1])] || bashOut(e.command),
       stderr: '',
       interrupted: false,
     },
@@ -169,4 +182,29 @@ test('a needs-decision label written under a goal shows its child held until its
   const after = await mount($, 'terminal')
   expect(await cell(after, 'r1-stage')).toBe('implement')
   await after.unmount()
+})
+
+test('#239 AC5: an execute run draws each carried Issue as worked on, and none of the left ones', async ($, on) => {
+  await setup($, on)
+
+  await $.skill.prompt({ skill: 'macro-loop:execute', text: '' })
+  await $.tool.call({ tool: 'Bash', command: 'node "/x/macro-loop/scripts/execute.mjs"' })
+
+  for (const isWorking of [true, false]) {
+    const ui = await mount($, 'terminal', isWorking)
+    for (const [i, n, t] of [[0, '#12', '●●◐○○○'], [1, '#13', '●●●●◐○']]) {
+      expect(await cell(ui, `r${i}-symbol`)).toBe('▶')
+      expect(await cell(ui, `r${i}-number`)).toBe(n)
+      expect(await cell(ui, `r${i}-track`)).toBe(t)
+      expect(await cell(ui, `r${i}-stage`)).toBe('execute')
+    }
+    expect(await ui.find({ key: 'r2' })).toBeUndefined()
+    await ui.unmount()
+  }
+
+  await $.tool.call({ tool: 'Bash', command: 'node "/x/macro-loop/scripts/execute.mjs" --report /tmp/r.json' })
+  const done = await mount($, 'terminal', true)
+  expect(await cell(done, 'r0-symbol')).toBe('◆')
+  expect(await cell(done, 'r1-symbol')).toBe('◆')
+  await done.unmount()
 })
