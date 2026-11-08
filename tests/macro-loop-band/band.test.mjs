@@ -29,7 +29,7 @@ const text = (s, now, isWorking, o = {}) => lines(render(s, { now, isWorking, co
 const pick = (r) => r && { tone: r.tone, stage: r.stage, action: r.action, track: r.track, round: r.round, time: r.time }
 
 test('constants: the skills, stages, track cells and columns the band knows', () => {
-  assert.deepEqual(SKILLS, ['next', 'triage', 'grilling', 'research', 'ui-placement', 'spec', 'implement', 'open-pr', 'verify', 'goal'])
+  assert.deepEqual(SKILLS, ['next', 'triage', 'grilling', 'research', 'ui-placement', 'spec', 'implement', 'open-pr', 'verify', 'goal', 'execute'])
   assert.deepEqual(STAGES, ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'resumable', 'wait', 'merge', 'stop', 'done', 'goal'])
   assert.deepEqual(TRACK, ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'merge'])
   assert.deepEqual(COLUMNS, ['symbol', 'number', 'track', 'stage', 'action', 'round', 'time', 'spec', 'pr', 'verdict'])
@@ -545,4 +545,51 @@ test('AC2: the needs-decision label marks a child held under a goal; its next ot
   const other = run([held(31, true, 4)], g)
   assert.deepEqual([childRow(other).stage, childRow(other, 31).stage], ['grilling', 'held'])
   assert.equal(idle(run([stage(27, 'grilling', 2), held(27, true, 4)]), MIN).stage, 'grilling')
+})
+
+// #239: an execute run's carried Issues, as the glue reads them from execute.mjs.
+const execute = (run, at = 0) => ({ type: 'execute', run, at })
+const carried = () => run([skill('execute', 0), execute([{ number: 12, start: 'implement' }, { number: 13, start: 'verify' }], MIN)])
+const view = (s, now, isWorking) => rows(s, { now, isWorking }).map((r) => [r.issue, r.tone, r.stage, r.track, r.time])
+
+test('#239 AC1: every Issue execute carries shows ▶ execute at its start cell, whoever works', () => {
+  const s = carried()
+  for (const w of [true, false])
+    assert.deepEqual(view(run([turnEnd(2 * MIN)], s), 5 * MIN, w), [[12, 'run', 'execute', '●●◐○○○', '4m'], [13, 'run', 'execute', '●●●●◐○', '4m']], String(w))
+  assert.deepEqual(text(s, 5 * MIN, false), ['▶  #12  ●●◐○○○  execute  4m', '▶  #13  ●●●●◐○  execute  4m'])
+  // The execute skill alone starts no row.
+  const empty = initial()
+  assert.equal(reduce(empty, skill('execute')), empty)
+})
+
+test('#239 AC2: a trust.mjs --pr for #13 ends its working state and sets its PR and round; #12 goes on', () => {
+  const s = run([trustFull({ pr: 109, round: 2, issue: 13, spec: 555, verdict: 777 }, 3 * MIN)], carried())
+  const [r12, r13] = rows(s, { now: 5 * MIN, isWorking: true })
+  assert.deepEqual([r12.issue, r12.tone, r12.stage], [12, 'run', 'execute'])
+  assert.deepEqual([r13.issue, r13.tone, r13.stage, r13.action, r13.round, r13.time], [13, 'you', 'execute', 'read report', 'r2', '2m'])
+  assert.deepEqual([s.waiting[1].pr, s.waiting[1].verdict, s.waiting[1].spec], [109, 777, 555])
+  // A stage check ends it too and sets the row as today.
+  const st = run([stage(12, 'merge', 4 * MIN), turnEnd(4 * MIN)], s)
+  assert.deepEqual(pick(idle(st, 5 * MIN)), { tone: 'you', stage: 'merge', action: 'merge the PR', track: '●●●●●◐', round: '', time: '1m' })
+})
+
+test('#239 AC3: execute.mjs --report ends every row the run carried, at its last state', () => {
+  const s = run([trustFull({ pr: 109, round: 2, issue: 13 }, 2 * MIN), { type: 'report', at: 3 * MIN }], carried())
+  for (const w of [true, false])
+    assert.deepEqual(rows(s, { now: 5 * MIN, isWorking: w }).map((r) => [r.issue, r.tone, r.action, r.track]),
+      [[12, 'you', 'read report', '●●◐○○○'], [13, 'you', 'read report', '●●●●◐○']])
+  // A later turn does not bring them back to ▶.
+  assert.deepEqual(rows(run([turnStart(6 * MIN)], s), { now: 7 * MIN, isWorking: true }).map((r) => r.tone), ['you', 'you'])
+  // So does the session clearing.
+  assert.equal(rows(reduce(carried(), { type: 'sessionEnd', reason: 'clear', at: 2 * MIN }), {}), null)
+})
+
+test('#239 AC4: left Issues get no working row; an Issue already a row keeps its documents', () => {
+  const s = run([skill('verify', 0), trustFull({ pr: 109, round: 1, issue: 12, spec: 555, verdict: 777 }, 0), turnEnd(1),
+    execute([{ number: 12, start: 'verify' }], MIN)])
+  assert.deepEqual(s.waiting, [])
+  assert.deepEqual([s.cur.carried, s.cur.pr, s.cur.round, s.cur.spec, s.cur.verdict], [true, 109, 1, 555, 777])
+  // Only run items with a known start count; left never reaches the band.
+  const g = run([execute([{ number: 0, start: 'verify' }, { number: 14, start: 'bogus' }, { number: 15 }, 'x'], MIN)])
+  assert.equal(rows(g, {}), null)
 })

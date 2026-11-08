@@ -13,8 +13,11 @@
 //
 // A Run also keeps the GitHub ids it observed (D15): its PR, the Issue's spec comment, and the
 // PR's last verdict. Given the repo, rows() turns them into links.
+//
+// A Run an `execute` run carries (#239) has `carried: true`: it shows as worked on, whoever's
+// turn it is, until the band sees its result.
 
-export const SKILLS = ['next', 'triage', 'grilling', 'research', 'ui-placement', 'spec', 'implement', 'open-pr', 'verify', 'goal']
+export const SKILLS = ['next', 'triage', 'grilling', 'research', 'ui-placement', 'spec', 'implement', 'open-pr', 'verify', 'goal', 'execute']
 export const STAGES = ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'resumable', 'wait', 'merge', 'stop', 'done', 'goal']
 // D16: the track's six cells, and the cell each stage or skill sits on.
 export const TRACK = ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'merge']
@@ -49,7 +52,7 @@ const width = (s) => [...s].length
 const newRun = (at) => ({
   issue: null, skill: null, stage: null, why: null, failed: false,
   pr: null, round: null, running: false, since: at, idleSince: null, done: false,
-  spec: null, verdict: null, pos: null,
+  spec: null, verdict: null, pos: null, carried: false,
 })
 
 // What a Run adopts from its Issue's waiting entry.
@@ -120,6 +123,21 @@ const dropRun = (s, issue) => {
   s.cur = prev ? { ...prev, skill, running, since } : null
 }
 
+const runs = (s) => (s.cur ? [s.cur, ...s.waiting] : s.waiting)
+const carriedRun = (s, issue) => runs(s).find((r) => r.carried && r.issue === issue)
+const endCarried = (run, at) => Object.assign(run, { carried: false, idleSince: at })
+
+// #239 D3, D5: each Issue the run carries is worked on from its start cell; one with no row yet
+// gets one, one that has a row keeps its documents.
+const carry = (s, list, at) => {
+  for (const item of Array.isArray(list) ? list : []) {
+    if (!isObj(item) || !posInt(item.number) || POS[item.start] === undefined) continue
+    let run = runs(s).find((r) => r.issue === item.number)
+    if (!run) s.waiting.push(run = { ...newRun(at), issue: item.number })
+    Object.assign(run, { skill: 'execute', stage: null, why: null, failed: false, done: false, carried: true, since: at, pos: POS[item.start] })
+  }
+}
+
 const goalStage = (s, ev, at) => {
   if (ev.stage === 'done') {
     delete s.goal
@@ -136,7 +154,8 @@ const step = (s, ev) => {
   switch (ev.type) {
     case 'skill': {
       const name = typeof ev.skill === 'string' ? SKILL.exec(ev.skill)?.[1] : undefined
-      if (!SKILLS.includes(name)) return
+      // #239 D1: execute is about no one Issue; its carried Issues come from execute.mjs.
+      if (!SKILLS.includes(name) || name === 'execute') return
       if (name === 'goal') {
         s.goal = { issue: null, done: 0, total: 0, merge: false, running: true, since: at, idleSince: null }
         return
@@ -161,6 +180,7 @@ const step = (s, ev) => {
       s.cur ??= newRun(at)
       if (m !== null) focus(s, m, at)
       s.cur.held = false
+      s.cur.carried = false
       if (ev.ok === true && STAGES.includes(ev.stage)) {
         Object.assign(s.cur, { stage: ev.stage, why: String(ev.why ?? ''), failed: false })
         // D16: a stop keeps the last position seen; done fills the track.
@@ -179,6 +199,14 @@ const step = (s, ev) => {
       if (s.goal && ev.issue != null && (ev.tracking === true || s.goal.issue === ev.issue)) {
         s.goal.issue = ev.issue
         dropRun(s, ev.issue)
+        return
+      }
+      // #239 D4: a carried Issue's PR check ends its working state, in its place.
+      const c = ev.pr != null && ev.issue != null ? carriedRun(s, ev.issue) : null
+      if (c) {
+        endCarried(c, at)
+        Object.assign(c, { pr: ev.pr, round: Number.isInteger(ev.round) && ev.round >= 0 ? ev.round : null, verdict: posInt(ev.verdict) ? ev.verdict : null })
+        if (ev.spec !== undefined) c.spec = posInt(ev.spec) ? ev.spec : null
         return
       }
       if (!s.cur) return
@@ -200,6 +228,12 @@ const step = (s, ev) => {
       else if (ev.held === true) s.waiting.push({ ...newRun(at), issue: ev.issue, held: true })
       return
     }
+    case 'execute':
+      carry(s, ev.run, at)
+      return
+    case 'report':
+      for (const r of runs(s)) if (r.carried) endCarried(r, at)
+      return
     case 'pr':
       if (!posInt(ev.pr) || !s.cur) return
       // A verdict belongs to the PR it judged.
@@ -210,7 +244,7 @@ const step = (s, ev) => {
       if (s.goal && !s.goal.merge) s.goal.running = true
       if (s.cur?.done) s.cur = s.waiting.pop() ?? null
       // A skill's own row (no stage since it started) goes on: the person answered it.
-      else if (s.cur?.skill && s.cur.stage === null && !s.cur.failed) s.cur.running = true
+      else if (s.cur?.skill && s.cur.skill !== 'execute' && s.cur.stage === null && !s.cur.failed) s.cur.running = true
       return
     case 'turnEnd':
       if (s.cur?.running) Object.assign(s.cur, { running: false, idleSince: at })
@@ -286,6 +320,7 @@ const personRow = (run) => {
   if (key === 'resumable') return { tone: 'you', stage: 'triage', action: 'read reply' }
   if (key === 'wait') return { tone: 'other', stage: 'triage', action: '(requester)' }
   if (key === 'grilling') return { tone: 'you', stage: 'grilling', action: 'answer Qs' }
+  if (key === 'execute') return { tone: 'you', stage: 'execute', action: 'read report' }
   return { tone: 'you', stage: key ?? 'next', action: 'answer above' }
 }
 
@@ -295,6 +330,7 @@ function rowOf(run, { isWorking, now, base, hasGoal }, isCur) {
   let row
   if (run.failed) row = { tone: 'unknown', stage: stageAt(run, ''), action: 'run /macro-loop:status' }
   else if (run.done) row = { tone: 'done', stage: 'merge' }
+  else if (run.carried) row = { tone: 'run', stage: 'execute', time: since(run, now, false) }
   else if (isCur && run.running && isWorking) {
     // A working next is about its Issue's stage.
     row = { tone: 'run', stage: (run.skill === 'next' || !run.skill ? run.stage : run.skill) ?? 'next', time: since(run, now, false) }

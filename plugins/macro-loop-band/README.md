@@ -48,6 +48,8 @@ The goal's track is the six cells scaled to children done over total. It says `m
 
 A child the goal holds for a decision reads `held` and `answer queue` on the grilling cell: you answer it in the goal's question round, not in an interview. It is held when its stage check says a decision is needed, or when the session adds the `needs-decision` label to it (the name macro-loop's config gives); its next other stage check, or removing the label, clears it. Without a goal, the same Issue reads `grilling  answer Qs`.
 
+An `execute` run (`/macro-loop:execute`) gives each Issue it carries a row: `▶`, the stage `execute` and the track at the stage the run starts it from, from the `execute.mjs` output on. The row stays `▶` while the workflow runs in the background, whether or not Claude is working, until the band sees that Issue's result: its `trust.mjs --pr` check, its stage check, or `execute.mjs --report`. The band does not see which stage inside the workflow an Issue has reached. The Issues `execute` leaves out get no row.
+
 Each row is one Issue, in fixed columns: symbol, Issue number, progress track and stage, what you do, verify round, elapsed time, then one column per document: spec, PR, verdict. A column keeps its place on every row, so a time or an action that changes length moves nothing after it. The Issue being worked on comes first, then the others in the order they stopped, oldest first. Past four Issues the band shows four rows and `+N more · /macro-loop:status`. A done Issue leaves at the next turn.
 
 | Symbol | Meaning |
@@ -65,6 +67,8 @@ The symbol, the track and the action are drawn in the row's color; the stage, ro
 | State | Stage | What you do |
 |---|---|---|
 | Claude working | the skill's stage | (nothing) |
+| `execute` carrying it (▶) | `execute` | (nothing) |
+| `execute` reported | `execute` | `read report` |
 | Interview waiting on you | `grilling` | `answer Qs` |
 | Child held under a goal: a decision is needed | `held` | `answer queue` |
 | PASS, merge is yours | `merge` | `merge the PR` |
