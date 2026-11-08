@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const MOD = join(ROOT, 'plugins/macro-loop-band/hooks/band.mjs')
-const { SKILLS, STAGES, TRACK, COLUMNS, MAX_ROWS, GAP, initial, reduce, rows, layout, render, lines, track, elapsed, clean, signature, repoOf } =
+const { SKILLS, STAGES, TRACK, COLUMNS, MAX_ROWS, GAP, initial, reduce, rows, layout, render, lines, track, bar, elapsed, clean, signature, repoOf } =
   await import(pathToFileURL(MOD).href)
 
 const MIN = 60_000
@@ -472,7 +472,7 @@ test('AC25: past four Issues the band shows four rows and a +N more row', () => 
 test('a goal row comes first, its children under it, and merge is the person\'s turn', () => {
   const g = run([skill('goal', 0), stage(26, 'goal', 1, '2 of 4 children done')])
   const r = working(g, MIN, {})
-  assert.deepEqual([r.issue, r.stage, r.tone, r.track], [26, 'goal 2/4', 'run', '●●●◐○○'])
+  assert.deepEqual([r.issue, r.stage, r.tone, r.track], [26, 'goal 2/4', 'run', '■■□□'])
   const kids = run([stage(27, 'verify', 2)], g)
   assert.deepEqual(rows(kids, { now: MIN, isWorking: true }).map((x) => x.issue), [26, 27])
   const m = run([stage(26, 'merge', 3, 'every child passed'), turnEnd(4)], kids)
@@ -532,7 +532,7 @@ test('AC1, AC3: under a goal, a child whose stage check needs a decision reads h
   const g = goalOf(ask, turnEnd(3))
   assert.deepEqual(pick(childRow(g)), { tone: 'you', stage: 'held', action: 'answer queue', track: '●◐○○○○', round: '', time: '0m' })
   assert.equal(idle(g, MIN).action, 'answer queue')
-  assert.match(text(g, MIN, false)[1], /^◆ {2}#27 {2}●◐○○○○ {2}held +answer queue/)
+  assert.match(text(g, MIN, false)[1], /^◆ {2}└ #27 {2}●◐○○○○ {2}held +answer queue/)
   assert.deepEqual(pick(idle(run([ask, turnEnd(3)]), MIN)), { tone: 'you', stage: 'grilling', action: 'answer Qs', track: '●◐○○○○', round: '', time: '0m' })
 })
 
@@ -592,4 +592,43 @@ test('#239 AC4: left Issues get no working row; an Issue already a row keeps its
   // Only run items with a known start count; left never reaches the band.
   const g = run([execute([{ number: 0, start: 'verify' }, { number: 14, start: 'bogus' }, { number: 15 }, 'x'], MIN)])
   assert.equal(rows(g, {}), null)
+})
+
+// #241: goal #242 of 5 children, 1 done, with three child rows.
+const goalBand = () => run([
+  skill('goal', 0), stage(242, 'goal', 0, '1 of 5 children done'),
+  skill('next', 0), stage(237, 'merge', 0), turnEnd(0),
+  skill('next', 0), stage(240, 'wait', 0), turnEnd(0),
+  skill('next', 0), stage(239, 'verify', 0), skill('verify', 0),
+])
+const numbers = (laid) => laid.rows.map((r) => r.cells.find((c) => c.col === 'number').text)
+
+test('#241 AC1: a goal\'s children read as a tree and its track is a bar of its children', () => {
+  const laid = render(goalBand(), { isWorking: true, now: MIN, columns: WIDE })
+  assert.deepEqual(numbers(laid), ['#242', '├ #239', '├ #237', '└ #240'])
+  assert.equal(laid.rows[0].cells.find((c) => c.col === 'track').text, '■□□□□')
+  assert.deepEqual([bar(0, 3), bar(3, 3), bar(9, 2), bar(1, 0), bar(null, 2)], ['□□□', '■■■', '■■', '', '□□'])
+  // Past four rows, the last child shown closes the tree.
+  const more = render(run([skill('next', 0), stage(1, 'wait', 0), turnEnd(0)], goalBand()), { now: MIN, columns: WIDE })
+  assert.deepEqual(numbers(more), ['#242', '├ #1', '├ #237', '└ #240'])
+  assert.equal(more.more, '+1 more · /macro-loop:status')
+})
+
+test('#241 AC2: in a goal band the columns after the number line up on every row', () => {
+  const laid = render(goalBand(), { now: MIN, columns: WIDE, repo: REPO })
+  const out = lines(laid)
+  // The number column is as wide as the widest prefixed number, and each row draws its own.
+  assert.equal(laid.columns.find((c) => c.name === 'number').width, [...'├ #239'].length)
+  assert.deepEqual(out.map((l) => [...l].slice(3, 9).join('').trimEnd()), ['#242', '├ #239', '├ #237', '└ #240'])
+  for (const col of ['track', 'stage', 'time']) {
+    const at = out.map((l, i) => [...l].join('').indexOf(laid.rows[i].cells.find((c) => c.col === col).text))
+    assert.equal(new Set(at).size, 1, `${col}\n${out.join('\n')}`)
+  }
+})
+
+test('#241 AC3: without a goal, number cells and tracks are as today', () => {
+  const laid = render(four(), { isWorking: true, now: 34 * MIN, columns: WIDE })
+  assert.deepEqual(numbers(laid), ['#12', '#7', '#108', '#93'])
+  assert.deepEqual(laid.rows.map((r) => r.cells.find((c) => c.col === 'track').text), ['●●●●◐○', '●●●●●◐', '●◐○○○○', '◐○○○○○'])
+  assert.ok(laid.rows.every((r) => r.cells.every((c) => c.branch === undefined)))
 })

@@ -19,7 +19,7 @@ const BAND = {
   viewport: { columns: 120, rows: 40, isFullscreen: false },
   props: PROPS,
 } as const
-const stageOut = (stage: string) => JSON.stringify({ stage, why: '', gate: true }) + '\n'
+const stageOut = (stage: string, why = '') => JSON.stringify({ stage, why, gate: true }) + '\n'
 const TRUST_OUT = JSON.stringify({
   configFile: null, config: {}, trusted: ['o'],
   pr: { number: 109, closes: 12, lastVerdict: 777, lastVerdictResult: 'PASS', lastVerdictSha: null, round: 2 },
@@ -59,7 +59,8 @@ async function setup($: any, on: any, remote = '', runs: unknown[] = [], stages:
   })
   on('tool.call', { tool: 'Bash' }, (_$: any, e: any) => ({
     result: {
-      stdout: /--issue/.test(e.command) && stages[Number(/--issue (\d+)/.exec(e.command)?.[1])] || bashOut(e.command),
+      stdout: /--issue/.test(e.command) && stages[Number(/--issue (\d+)/.exec(e.command)?.[1])]
+        || (/--issue 26/.test(e.command) ? stageOut('goal', '1 of 3 children done') : bashOut(e.command)),
       stderr: '',
       interrupted: false,
     },
@@ -169,7 +170,7 @@ test('a needs-decision label written under a goal shows its child held until its
   await $.tool.call({ tool: 'Bash', command: "gh api -X POST repos/o/r/issues/27/labels -f 'labels[]=needs-decision'" })
 
   const ui = await mount($, 'terminal')
-  expect(await cell(ui, 'r1-number')).toBe('#27')
+  expect(await cell(ui, 'r1-number')).toBe('└ #27')
   expect(await cell(ui, 'r1-symbol')).toBe('◆')
   expect(await cell(ui, 'r1-track')).toBe('●◐○○○○')
   expect(await cell(ui, 'r1-stage')).toBe('held')
@@ -207,4 +208,20 @@ test('#239 AC5: an execute run draws each carried Issue as worked on, and none o
   expect(await cell(done, 'r0-symbol')).toBe('◆')
   expect(await cell(done, 'r1-symbol')).toBe('◆')
   await done.unmount()
+})
+
+test('a goal\'s children draw as a tree, each child\'s number still a link', async ($, on) => {
+  await setup($, on, 'git@github.com:o/r.git')
+
+  await $.skill.prompt({ skill: 'macro-loop:goal', text: '' })
+  await $.tool.call({ tool: 'Bash', command: 'node "/x/macro-loop/scripts/stage.mjs" --issue 26' })
+  await $.skill.prompt({ skill: 'macro-loop:next', text: '' })
+  await $.tool.call({ tool: 'Bash', command: 'node "/x/macro-loop/scripts/stage.mjs" --issue 12' })
+
+  const ui = await mount($, 'terminal')
+  expect(await cell(ui, 'r0-track')).toBe('■□□')
+  expect(await cell(ui, 'r1-number')).toBe('└ #12')
+  const links = await ui.findAll({ type: 'Link' })
+  expect(links.map((l: any) => [l.props.label, l.props.href])).toContainEqual(['#12', 'https://github.com/o/r/issues/12'])
+  await ui.unmount()
 })

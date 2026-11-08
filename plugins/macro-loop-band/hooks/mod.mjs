@@ -211,7 +211,9 @@ export const register = (on) => {
     // Issue number and each document are links (D15).
     const cell = (r, i, c) => {
       // One line, clipped: a terminal that draws a link as its label and full URL keeps the table.
-      const box = (child) => h(Box, { key: `r${i}-${c.col}`, width: c.width, height: 1, overflow: 'hidden', flexShrink: 0 }, child)
+      const box = (...children) => h(Box, { key: `r${i}-${c.col}`, width: c.width, height: 1, overflow: 'hidden', flexShrink: 0 }, ...children)
+      // A child's tree prefix sits before its number, outside the link (#241 D2).
+      if (c.href && c.branch) return box(h(Text, {}, c.branch), h(Link, { href: c.href, label: c.text.slice(c.branch.length) }))
       if (c.href) return box(h(Link, { href: c.href, label: c.text }))
       const style = DIM.includes(c.col) ? { dimColor: true } : TONED.includes(c.col) ? { color: TONE[r.tone] } : {}
       return box(h(Text, { ...style, wrap: 'truncate-end' }, c.text))

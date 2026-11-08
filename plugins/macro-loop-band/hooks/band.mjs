@@ -347,12 +347,18 @@ function rowOf(run, { isWorking, now, base, hasGoal }, isCur) {
   }
 }
 
-// The goal's row: its stage cell reads `goal N/M`, its track the six cells scaled to done/total.
+// A goal's bar: one cell per child, ■ for each done (#241 D3).
+export function bar(done, total) {
+  if (!posInt(total)) return ''
+  const d = Math.min(total, Math.max(0, Number.isInteger(done) ? done : 0))
+  return '■'.repeat(d) + '□'.repeat(total - d)
+}
+
+// The goal's row: its stage cell reads `goal N/M`, its track the bar of its children.
 // On the person's turn it says the merge, else the first child waiting for them.
 function goalRow(g, children, { isWorking, now, base }) {
   const { done, total } = g
   const issue = posInt(g.issue) ? g.issue : null
-  const pos = total > 0 ? Math.min(TRACK.length, Math.floor((done * TRACK.length) / total)) : null
   const row = { stage: total > 0 ? `goal ${done}/${total}` : 'goal' }
   if (g.merge) Object.assign(row, { tone: 'you', action: 'merge the PRs', time: since(g, now, true) })
   else if (g.running && isWorking) Object.assign(row, { tone: 'run', time: since(g, now, false) })
@@ -360,7 +366,7 @@ function goalRow(g, children, { isWorking, now, base }) {
     const c = children.find((r) => r.tone === 'you')
     Object.assign(row, { tone: 'you', action: c?.action ?? 'answer above', time: since(g, now, true) })
   }
-  return { ...row, issue, href: base && issue ? `${base}/issues/${issue}` : null, track: pos === null ? '' : track(pos), round: '', links: linksOf({}, base) }
+  return { ...row, issue, href: base && issue ? `${base}/issues/${issue}` : null, track: bar(done, total), round: '', links: linksOf({}, base) }
 }
 
 // The rows to show, the current Issue first and the others oldest first, before layout; null
@@ -375,7 +381,7 @@ export function rows(state, opts) {
     if (!runs.length && !goal) return null
     const ctx = { isWorking: o.isWorking === true, now: Number.isFinite(o.now) ? o.now : 0, base: repoBase(o.repo), hasGoal: goal !== null }
     const out = runs.map((r) => rowOf(r, ctx, r === cur))
-    return goal ? [goalRow(goal, out, ctx), ...out] : out
+    return goal ? [goalRow(goal, out, ctx), ...out.map((r) => ({ ...r, child: true }))] : out
   } catch {
     return null
   }
@@ -384,7 +390,7 @@ export function rows(state, opts) {
 // A cell's text in a column.
 const cellText = (r, col) => {
   if (col === 'symbol') return SYMBOL[r.tone] ?? ''
-  if (col === 'number') return r.issue ? `#${r.issue}` : ''
+  if (col === 'number') return (r.branch ?? '') + (r.issue ? `#${r.issue}` : '')
   if (LINK_COLUMNS.includes(col)) return r.links[col]?.label ?? ''
   return clean(r[col] ?? '')
 }
@@ -402,6 +408,9 @@ export function layout(rs, columns) {
     if (!Array.isArray(rs) || !rs.length) return null
     const list = rs.filter(isObj).map((r) => ({ ...r, links: cleanLinks(r.links) }))
     const shown = list.slice(0, list.length > MAX_ROWS ? MAX_ROWS : list.length)
+    // #241 D2: a goal's children read as a tree; the last one shown closes it.
+    const last = shown.findLastIndex((r) => r.child)
+    shown.forEach((r, i) => { if (r.child) r.branch = i === last ? '└ ' : '├ ' })
     const more = list.length - shown.length
     const max = typeof columns === 'number' && !Number.isNaN(columns) ? columns : Infinity
     const dropped = new Set()
@@ -427,6 +436,7 @@ export function layout(rs, columns) {
         cells: cols.map((c) => {
           const cell = { col: c, text: cellText(r, c), width: w[c] }
           if (c === 'number' && r.href) cell.href = r.href
+          if (c === 'number' && r.branch) cell.branch = r.branch
           if (LINK_COLUMNS.includes(c) && r.links[c]) cell.href = r.links[c].href
           return cell
         }),

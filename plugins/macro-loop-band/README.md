@@ -37,14 +37,15 @@ Several folders are separated by the platform's path-list separator (`;` on Wind
 ◆  #93   ◐○○○○○  triage    read reply        24m
 ```
 
-A goal (`/macro-loop:goal`) shows as one row on top for its tracking Issue (goal #26 below), with its children as rows under it:
+A goal (`/macro-loop:goal`) shows as one row on top for its tracking Issue (goal #26 below), with its children as a tree under it:
 
 ```text
-▶  #26  ●●●◐○○  goal 2/4         3m
-▶  #27  ●●●●◐○  verify          12m
+▶  #26    ■■□□    goal 2/4                15m
+▶  ├ #27  ●●●●◐○  verify                  12m
+◆  └ #28  ●●●●●◐  merge     merge the PR  15m
 ```
 
-The goal's track is the six cells scaled to children done over total. It says `merge the PRs` once every child passed, and drops when the tracking Issue is done.
+The goal's track is a bar of one cell per child: `■` for each child done, `□` for the rest. It says `merge the PRs` once every child passed, and drops when the tracking Issue is done.
 
 A child the goal holds for a decision reads `held` and `answer queue` on the grilling cell: you answer it in the goal's question round, not in an interview. It is held when its stage check says a decision is needed, or when the session adds the `needs-decision` label to it (the name macro-loop's config gives); its next other stage check, or removing the label, clears it. Without a goal, the same Issue reads `grilling  answer Qs`.
 
