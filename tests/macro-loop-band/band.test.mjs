@@ -522,3 +522,27 @@ test('a trust output without the tracking keys still focuses its Issue (#237 AC3
   assert.equal(s.cur.issue, 28)
   assert.deepEqual(rows(s, { now: MIN, isWorking: true }).map((x) => x.issue), [26, 28, 27])
 })
+
+const held = (issue, on, at = 0) => ({ type: 'held', issue, held: on, at })
+const goalOf = (...events) => run([skill('goal', 0), stage(26, 'goal', 1, '0 of 2 children done'), ...events])
+const childRow = (s, issue = 27) => rows(s, { now: MIN, isWorking: false }).find((r) => r.issue === issue)
+
+test('AC1, AC3: under a goal, a child whose stage check needs a decision reads held; without a goal it reads grilling', () => {
+  const ask = stage(27, 'grilling', 2, 'a decision is needed: D3')
+  const g = goalOf(ask, turnEnd(3))
+  assert.deepEqual(pick(childRow(g)), { tone: 'you', stage: 'held', action: 'answer queue', track: '●◐○○○○', round: '', time: '0m' })
+  assert.equal(idle(g, MIN).action, 'answer queue')
+  assert.match(text(g, MIN, false)[1], /^◆ {2}#27 {2}●◐○○○○ {2}held +answer queue/)
+  assert.deepEqual(pick(idle(run([ask, turnEnd(3)]), MIN)), { tone: 'you', stage: 'grilling', action: 'answer Qs', track: '●◐○○○○', round: '', time: '0m' })
+})
+
+test('AC2: the needs-decision label marks a child held under a goal; its next other stage check or the label\'s removal clears it', () => {
+  const g = goalOf(stage(27, 'grilling', 2), turnEnd(3))
+  const on = run([held(27, true, 4)], g)
+  assert.deepEqual([childRow(on).stage, childRow(on).action], ['held', 'answer queue'])
+  assert.deepEqual([childRow(run([stage(27, 'implement', 5)], on)).stage], ['implement'])
+  assert.equal(childRow(run([held(27, false, 5)], on)).stage, 'grilling')
+  const other = run([held(31, true, 4)], g)
+  assert.deepEqual([childRow(other).stage, childRow(other, 31).stage], ['grilling', 'held'])
+  assert.equal(idle(run([stage(27, 'grilling', 2), held(27, true, 4)]), MIN).stage, 'grilling')
+})

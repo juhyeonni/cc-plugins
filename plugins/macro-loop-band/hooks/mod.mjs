@@ -18,9 +18,16 @@ const PULLS = /repos\/\S+?\/pulls(?=["'\s]|$)/
 const PR_URL = /\/pull\/(\d+)/
 // trust.mjs prints these keys under `issue` only for a goal's tracking Issue (#218, #220).
 const TRACKING = ['queue', 'queueWarnings', 'records', 'recordWarnings', 'summary']
+const DELETE = /(?:-X\s*|--method[=\s]+)DELETE\b/
+const METHOD = /(?:-X\s*|--method[=\s]+)[A-Za-z]/
+// An Issue's label added (POST .../labels with labels[]=name) or removed (DELETE .../labels/name).
+const LABELS = /repos\/[^\s/]+\/[^\s/]+\/issues\/(\d+)\/labels(?:\/([^\s"'/?]+))?(?=["'\s?]|$)/
+const LABEL_FIELD = /labels\[\]=["']?([^\s"']+)/
 
 // Lost on a hot reload, and so is the timer, until the next event restarts it (D10).
 let state = initial()
+// The needs-decision label's name, from the last trust.mjs output's config (#240).
+let needsDecision = 'needs-decision'
 let lastSig = ''
 let timer = null
 // The origin remote's { owner, repo }, null when it is no GitHub remote (D15). Read once per
@@ -98,6 +105,9 @@ export function bashEvents(command, r, at) {
   if (trust) {
     const isObj = (x) => x !== null && typeof x === 'object' && !Array.isArray(x)
     const o = lastJson(out, (x) => (isObj(x.pr) && num(x.pr.number) !== null) || (isObj(x.issue) && num(x.issue.number) !== null))
+    const conf = lastJson(out, (x) => isObj(x.config))?.config
+    const name = isObj(conf?.labels) && isObj(conf.labels.state) ? conf.labels.state.needsDecision : undefined
+    if (typeof name === 'string' && name) needsDecision = name
     if (o) {
       const pr = isObj(o.pr) ? o.pr : null
       const issue = isObj(o.issue) ? o.issue : null
@@ -114,6 +124,13 @@ export function bashEvents(command, r, at) {
     const m = text.match(PR_URL)
     const pr = m ? Number(m[1]) : /^\d+$/.test(text) ? Number(text) : null
     if (num(pr) !== null) evs.push({ type: 'pr', pr, at })
+  }
+  const label = !r.isError && GH_API.test(cmd) && cmd.match(LABELS)
+  if (label) {
+    const issue = Number(label[1])
+    const name = (s) => { try { return decodeURIComponent(s) } catch { return s } }
+    if (label[2] && DELETE.test(cmd) && name(label[2]) === needsDecision) evs.push({ type: 'held', issue, held: false, at })
+    else if (!label[2] && (POST.test(cmd) || !METHOD.test(cmd)) && cmd.match(LABEL_FIELD)?.[1] === needsDecision) evs.push({ type: 'held', issue, held: true, at })
   }
   return evs
 }
