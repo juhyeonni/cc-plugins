@@ -107,12 +107,23 @@ const focus = (s, m, at) => {
   s.cur = { ...base, skill: c.skill, running: c.running, since: c.since, issue: m, done: false, failed: false, pos: POS[c.skill] ?? base.pos }
 }
 
+// The goal's tracking Issue is the goal row alone (#237): a Run row drawn for it before it was
+// known goes, and the Run it pushed aside is current again.
+const dropRun = (s, issue) => {
+  takeWaiting(s, issue)
+  if (s.cur?.issue !== issue) return
+  const { skill, running, since } = s.cur
+  const prev = s.waiting.pop()
+  s.cur = prev ? { ...prev, skill, running, since } : null
+}
+
 const goalStage = (s, ev, at) => {
   if (ev.stage === 'done') {
     delete s.goal
     return
   }
   s.goal = { ...(s.goal ?? { running: false, since: at, idleSince: null }), issue: ev.issue, merge: ev.stage === 'merge' }
+  if (ev.stage === 'goal') dropRun(s, ev.issue)
   const n = /^(\d+) of (\d+) children done/.exec(String(ev.why ?? ''))
   if (n) Object.assign(s.goal, { done: Number(n[1]), total: Number(n[2]) })
 }
@@ -160,7 +171,13 @@ const step = (s, ev) => {
     case 'trust': {
       // --pr gives the PR, its round and last verdict; an Issue (--issue, or the one the PR
       // closes) its spec: undefined when the output named no Issue, null when it has none yet.
-      if (!optNum(ev.pr) || !optNum(ev.issue) || !s.cur || (ev.pr == null && ev.issue == null)) return
+      if (!optNum(ev.pr) || !optNum(ev.issue) || (ev.pr == null && ev.issue == null)) return
+      if (s.goal && ev.issue != null && (ev.tracking === true || s.goal.issue === ev.issue)) {
+        s.goal.issue = ev.issue
+        dropRun(s, ev.issue)
+        return
+      }
+      if (!s.cur) return
       if (ev.issue != null) focus(s, ev.issue, at)
       if (ev.pr != null) {
         Object.assign(s.cur, {

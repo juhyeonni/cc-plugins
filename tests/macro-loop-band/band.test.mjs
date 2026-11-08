@@ -470,3 +470,34 @@ test('a goal row comes first, its children under it, and merge is the person\'s 
   assert.equal(idle(m, MIN).tone, 'you')
   assert.equal(run([stage(26, 'done', 5)], m).goal, undefined)
 })
+
+test('a trust output for the known tracking Issue changes no row (#237 AC1)', () => {
+  const g = run([skill('goal', 0), stage(26, 'goal', 1, '2 of 4 children done'), skill('verify', 2), stage(27, 'verify', 2)])
+  for (const ev of [trustFull({ issue: 26, spec: 5 }, 3), trustFull({ issue: 26, spec: 5, tracking: true }, 3)]) {
+    const s = reduce(g, ev)
+    assert.equal(s, g, JSON.stringify(ev))
+    assert.deepEqual(rows(s, { now: MIN, isWorking: true }).map((x) => x.issue), [26, 27])
+    assert.equal(s.cur.issue, 27)
+  }
+})
+
+test('a trust output with the tracking keys makes its Issue the goal\'s and drops its Run row (#237 AC2)', () => {
+  const before = run([skill('goal', 0), skill('verify', 1), stage(27, 'verify', 1), trustFull({ issue: 26, spec: null }, 2)])
+  assert.deepEqual(rows(before, { now: MIN, isWorking: true }).map((x) => x.issue), [null, 26, 27])
+  const s = reduce(before, trustFull({ issue: 26, spec: null, tracking: true }, 3))
+  assert.equal(s.goal.issue, 26)
+  assert.equal(s.cur.issue, 27)
+  assert.equal(s.cur.running, true)
+  assert.deepEqual(s.waiting, [])
+  assert.deepEqual(rows(s, { now: MIN, isWorking: true }).map((x) => x.issue), [26, 27])
+  // A stage of goal identifies it the same way.
+  const viaStage = reduce(before, stage(26, 'goal', 3, '0 of 2 children done'))
+  assert.deepEqual([viaStage.goal.issue, viaStage.cur.issue, viaStage.waiting.length], [26, 27, 0])
+})
+
+test('a trust output without the tracking keys still focuses its Issue (#237 AC3)', () => {
+  const g = run([skill('goal', 0), stage(26, 'goal', 1), skill('verify', 2), stage(27, 'verify', 2)])
+  const s = reduce(g, trustFull({ issue: 28, spec: 5, tracking: false }, 3))
+  assert.equal(s.cur.issue, 28)
+  assert.deepEqual(rows(s, { now: MIN, isWorking: true }).map((x) => x.issue), [26, 28, 27])
+})
