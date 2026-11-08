@@ -1,6 +1,6 @@
 # macro-loop-band
 
-A band above the Claude Code prompt while `next`, `implement`, `verify` and the other macro-loop skills work on Issues: one row per Issue this session touched, saying how far along it is, whose turn it is, and what you do next, so you can look away during a long run. Each row links its Issue and the GitHub documents the session saw: spec, PR and verdict (see [Links](#links)).
+A band above the Claude Code prompt while `next`, `triage`, `grilling`, `research`, `ui-placement`, `spec`, `implement`, `open-pr`, `verify` and `goal` work on Issues: one row per Issue this session touched, saying how far along it is, whose turn it is, and what you do next, so you can look away during a long run. Each row links its Issue and the GitHub documents the session saw: spec, PR and verdict (see [Links](#links)).
 
 It only observes: no GitHub calls (one local `git remote get-url origin` per session, for the links), no changes to macro-loop.
 
@@ -58,7 +58,7 @@ Each row is one Issue, in fixed columns: symbol, Issue number, progress track an
 
 The symbol, the track and the action are drawn in the row's color; the stage, round and time are dim. Color only repeats the symbol.
 
-**Track.** Six cells: triage, grilling (with spec), implement, open-pr, verify, merge. `●` passed, `◐` where the Issue is, `○` still ahead. `wait` and `resumable` sit on triage; a NEEDS-FIX verdict sends the Issue back to implement; `stop` and a failed stage check keep the last position seen.
+**Track.** Six cells: triage, grilling (with research, ui-placement and spec), implement, open-pr, verify, merge. `●` passed, `◐` where the Issue is, `○` still ahead. `wait` and `resumable` sit on triage; a NEEDS-FIX verdict sends the Issue back to implement; `stop` and a failed stage check keep the last position seen.
 
 | State | Stage | What you do |
 |---|---|---|

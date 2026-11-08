@@ -29,7 +29,7 @@ const text = (s, now, isWorking, o = {}) => lines(render(s, { now, isWorking, co
 const pick = (r) => r && { tone: r.tone, stage: r.stage, action: r.action, track: r.track, round: r.round, time: r.time }
 
 test('constants: the skills, stages, track cells and columns the band knows', () => {
-  assert.deepEqual(SKILLS, ['next', 'triage', 'grilling', 'spec', 'implement', 'open-pr', 'verify', 'goal'])
+  assert.deepEqual(SKILLS, ['next', 'triage', 'grilling', 'research', 'ui-placement', 'spec', 'implement', 'open-pr', 'verify', 'goal'])
   assert.deepEqual(STAGES, ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'resumable', 'wait', 'merge', 'stop', 'done', 'goal'])
   assert.deepEqual(TRACK, ['triage', 'grilling', 'implement', 'open-pr', 'verify', 'merge'])
   assert.deepEqual(COLUMNS, ['symbol', 'number', 'track', 'stage', 'action', 'round', 'time', 'spec', 'pr', 'verdict'])
@@ -141,6 +141,16 @@ test('D10: a skill after a ◆ merge row starts a new run and keeps the Issue as
     assert.deepEqual(s.waiting.map((w) => w.issue), [12], name)
     const rs = rows(s, { isWorking: true, now: 4 + MIN })
     assert.deepEqual(rs.map((r) => [r.tone, r.issue, r.stage]), [['run', null, name], ['you', 12, 'merge']], name)
+  }
+})
+
+test('#238: research and ui-placement keep the current Issue on the grilling cell', () => {
+  for (const name of ['research', 'ui-placement']) {
+    const s = run([skill('next', 0), stage(12, 'grilling', 1), skill(name, 2)])
+    assert.equal(s.cur.issue, 12, name)
+    assert.deepEqual(s.waiting, [], name)
+    const r = working(s, 3)
+    assert.deepEqual([r.issue, r.stage, r.track], [12, name, '●◐○○○○'], name)
   }
 })
 
