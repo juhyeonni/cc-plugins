@@ -45,7 +45,7 @@ async function implement(s) {
 6. If the spec is wrong or incomplete, or you cannot finish, stop and report why with status "stopped".
 
 Return status "committed" with the branch name and the commit's full sha, or "stopped" with the reason and whatever branch you made.`,
-    { label: `#${i.number} implement`, phase: 'implement', isolation: 'worktree', schema: IMPLEMENTED })
+    { label: `#${i.number} ${i.slug}`, phase: 'implement', isolation: 'worktree', schema: IMPLEMENTED })
   if (!r) return stop(s, 'implement', 'the agent returned no result')
   if (r.status !== 'committed') return stop(s, 'implement', r.reason || 'stopped')
   return { ...s, branch: r.branch, out: { ...s.out, implement: { ok: true, branch: r.branch, head: r.head } } }
@@ -62,7 +62,7 @@ async function openPr(s) {
 3. Never check out or switch a branch: push it by name. Never post or edit anything else on GitHub.
 
 Return status "opened" with the PR number and its head sha, or "stopped" with the reason (pr 0 and head "" when there is none).`,
-    { label: `#${i.number} open-pr`, phase: 'open-pr', schema: OPENED })
+    { label: `#${i.number} ${i.slug}`, phase: 'open-pr', schema: OPENED })
   if (!r) return stop(s, 'openPr', `the agent returned no result: run /macro-loop:open-pr ${s.branch}`)
   if (r.status !== 'opened') return stop(s, 'openPr', r.reason || `stopped: run /macro-loop:open-pr ${s.branch}`)
   return { ...s, pr: r.pr, head: r.head, out: { ...s.out, openPr: { ok: true, pr: r.pr, head: r.head } } }
@@ -82,11 +82,11 @@ async function verify(s) {
     ...(axis === 'spec' ? [`Run spec commands: ${i.runSpecCommands ? 'yes' : 'no'}`, 'Run tests and lint: yes'] : []),
   ].join('\n')
   const verifier = (axis) => () =>
-    agent(lines(axis), { label: `#${i.number} verify · ${axis}`, phase: 'verify', agentType: 'macro-loop:verifier', isolation: 'worktree' })
+    agent(lines(axis), { label: `#${i.number} ${i.slug} · ${axis}`, phase: 'verify', agentType: 'macro-loop:verifier', isolation: 'worktree' })
   // Each Issue here has a PR of its own, so this is the PR's one security reviewer (#197).
   const reviewer = () =>
     agent(['Axis: security', `Base: origin/${args.base}`, `Head: ${s.head}`].join('\n'), {
-      label: `#${i.number} verify · security`,
+      label: `#${i.number} ${i.slug} · security`,
       phase: 'verify',
       agentType: 'macro-loop:security-reviewer',
       isolation: 'worktree',

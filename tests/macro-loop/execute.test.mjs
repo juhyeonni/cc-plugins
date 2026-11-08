@@ -142,7 +142,7 @@ const happy = (p, o) => {
 test('AC3: an Issue from implement goes implement → open-pr → verify, every row starting #<n>', async () => {
   const { value, calls } = await runWorkflow([issue(61)], happy)
   assert.deepEqual(calls.map((c) => c.opts.phase), ['implement', 'open-pr', 'verify', 'verify', 'verify'])
-  assert.deepEqual(calls.map((c) => c.opts.label), ['#61 implement', '#61 open-pr', '#61 verify · spec', '#61 verify · standards', '#61 verify · security'])
+  assert.deepEqual(calls.map((c) => c.opts.label), ['#61 s61', '#61 s61', '#61 s61 · spec', '#61 s61 · standards', '#61 s61 · security'])
   const impl = calls[0]
   assert.equal(impl.opts.isolation, 'worktree')
   assert.match(impl.prompt, /never edit the spec/i)
@@ -150,7 +150,7 @@ test('AC3: an Issue from implement goes implement → open-pr → verify, every 
   assert.match(impl.prompt, /git branch -D/)
   assert.match(impl.prompt, /worktree-\* branch/)
   assert.match(calls[1].prompt, /approved the push up front/)
-  assert.deepEqual(value, [{ number: 61, implement: { ok: true, branch: '61-s61', head: 'impl61' }, openPr: { ok: true, pr: 161, head: 'pr61' }, verify: { pr: 161, head: 'pr61', spec: 'report #61 verify · spec', standards: 'report #61 verify · standards', security: 'report #61 verify · security' } }])
+  assert.deepEqual(value, [{ number: 61, implement: { ok: true, branch: '61-s61', head: 'impl61' }, openPr: { ok: true, pr: 161, head: 'pr61' }, verify: { pr: 161, head: 'pr61', spec: 'report #61 s61 · spec', standards: 'report #61 s61 · standards', security: 'report #61 s61 · security' } }])
 })
 
 test('AC4: each Issue gets exactly two worktree verifiers with the identifier lines and its own head', async () => {
@@ -191,9 +191,9 @@ test('AC5: each Issue gets only its own stages in one run, and its result under 
 
 test('AC6: an Issue stops at the stage that cannot go on, and the others still go through every stage', async () => {
   const answer = (p, o) => {
-    if (o.label === '#1 implement') return { status: 'stopped', branch: '', head: '', reason: 'the spec does not match the code' }
-    if (o.label === '#2 implement') return null
-    if (o.label === '#4 open-pr') return { status: 'stopped', pr: 0, head: '', reason: 'push rejected' }
+    if (o.label === '#1 s1' && o.phase === 'implement') return { status: 'stopped', branch: '', head: '', reason: 'the spec does not match the code' }
+    if (o.label === '#2 s2' && o.phase === 'implement') return null
+    if (o.label === '#4 s4' && o.phase === 'open-pr') return { status: 'stopped', pr: 0, head: '', reason: 'push rejected' }
     return happy(p, o)
   }
   const { value, of } = await runWorkflow([issue(1), issue(2), issue(3, { push: false }), issue(4), issue(5)], answer)
@@ -253,7 +253,7 @@ test('#197 AC8: each PR gets one worktree security reviewer with Axis, Base and 
     assert.equal(reviewers[0].opts.isolation, 'worktree')
     assert.equal(reviewers[0].prompt, `Axis: security\nBase: origin/main\nHead: ${head}`)
   }
-  assert.equal(value[1].verify.security, 'report #9 verify · security')
+  assert.equal(value[1].verify.security, 'report #9 s9 · security')
 })
 
 test("#197 AC8: execute's step 4 passes the security report to verdict.mjs", () => {
