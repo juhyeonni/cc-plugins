@@ -16,7 +16,7 @@ const GH_API = /\bgh\s+api\b/
 const POST = /(?:-X\s*|--method[=\s]+)POST\b/
 const PULLS = /repos\/\S+?\/pulls(?=["'\s]|$)/
 const PR_URL = /\/pull\/(\d+)/
-// trust.mjs prints these keys only for a goal's tracking Issue (#218, #220).
+// trust.mjs prints these keys under `issue` only for a goal's tracking Issue (#218, #220).
 const TRACKING = ['queue', 'queueWarnings', 'records', 'recordWarnings', 'summary']
 
 // Lost on a hot reload, and so is the timer, until the next event restarts it (D10).
@@ -82,7 +82,7 @@ function lastJson(out, ok) {
 const num = (v) => (Number.isInteger(v) && v > 0 ? v : null)
 
 // The band events one main-loop Bash call gives: a stage check, a trust check, a PR created.
-function bashEvents(command, r, at) {
+export function bashEvents(command, r, at) {
   const cmd = String(command ?? '')
   const out = typeof r.result?.stdout === 'string' ? r.result.stdout : (r.text ?? '')
   const evs = []
@@ -105,7 +105,7 @@ function bashEvents(command, r, at) {
         type: 'trust', pr: num(pr?.number), round: pr?.round ?? null, issue: num(issue?.number) ?? num(pr?.closes),
         // undefined: the output named no Issue, so the spec seen before stays.
         spec: issue ? issue.spec ?? null : undefined,
-        verdict: pr?.lastVerdict ?? null, tracking: TRACKING.some((k) => Object.hasOwn(o, k)), at,
+        verdict: pr?.lastVerdict ?? null, tracking: TRACKING.some((k) => Object.hasOwn(issue ?? {}, k)), at,
       })
     }
   }

@@ -495,6 +495,17 @@ test('a trust output with the tracking keys makes its Issue the goal\'s and drop
   assert.deepEqual([viaStage.goal.issue, viaStage.cur.issue, viaStage.waiting.length], [26, 27, 0])
 })
 
+test('the glue reads the tracking keys where trust.mjs prints them, under issue (#237 AC2)', async () => {
+  const { bashEvents } = await import(pathToFileURL(join(ROOT, 'plugins/macro-loop-band/hooks/mod.mjs')).href)
+  const out = (issue) => ({ result: { stdout: JSON.stringify({ configFile: true, config: {}, trusted: ['o'], issue }) + '\n' } })
+  const cmd = 'node /x/macro-loop/scripts/trust.mjs --issue 26'
+  const [ev] = bashEvents(cmd, out({ number: 26, spec: null, records: [{ child: 27, comment: 1 }], recordWarnings: [] }), 3)
+  assert.deepEqual([ev.type, ev.issue, ev.tracking], ['trust', 26, true])
+  assert.equal(bashEvents(cmd, out({ number: 26, spec: null }), 3)[0].tracking, false)
+  const before = run([skill('goal', 0), skill('verify', 1), stage(27, 'verify', 1), trustFull({ issue: 26, spec: null }, 2)])
+  assert.deepEqual(rows(reduce(before, ev), { now: MIN, isWorking: true }).map((x) => x.issue), [26, 27])
+})
+
 test('a trust output without the tracking keys still focuses its Issue (#237 AC3)', () => {
   const g = run([skill('goal', 0), stage(26, 'goal', 1), skill('verify', 2), stage(27, 'verify', 2)])
   const s = reduce(g, trustFull({ issue: 28, spec: 5, tracking: false }, 3))
