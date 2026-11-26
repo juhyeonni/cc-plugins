@@ -9,7 +9,7 @@
 // --table adds `table`, one row per PR read, with `cannot tell` for a value it cannot read (#214).
 // On any failure it prints nothing and exits non-zero with the error.
 import { spawnSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { isMain } from './is-main.mjs'
 import { parseArgs } from 'node:util'
 import { api, list } from './stage.mjs'
 import { CLOSES, answersOf, prState, trustContext } from './trust.mjs'
@@ -194,7 +194,7 @@ function decide(argv) {
   })
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     process.stdout.write(`${JSON.stringify(decide(process.argv.slice(2)))}\n`)
   } catch (e) {

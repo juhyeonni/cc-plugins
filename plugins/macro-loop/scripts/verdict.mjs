@@ -20,7 +20,7 @@
 // the branch's open PR closes, which it also finds itself (#270).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { isMain } from './is-main.mjs'
 import { parseArgs } from 'node:util'
 import { api, closesAll, comments, specOf, trustContext } from './trust.mjs'
 import { reportPath, reportsDir } from './verifier-report.mjs'
@@ -281,7 +281,7 @@ function main(argv) {
   return `${out}\n${comment.split('\n').slice(1, 3).join('\n')}\n`
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     process.stdout.write(main(process.argv.slice(2)))
   } catch (e) {

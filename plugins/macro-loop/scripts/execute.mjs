@@ -9,7 +9,7 @@
 // nothing and exits non-zero with the error.
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { isMain } from './is-main.mjs'
 import { parseArgs } from 'node:util'
 import { api, findPr, list, runContext, stageOfIssue } from './stage.mjs'
 import { answersOf, prState, specOf } from './trust.mjs'
@@ -125,7 +125,7 @@ function decide(argv) {
   return `${JSON.stringify({ base: ctx.defaultBranch, run, left })}\n`
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     process.stdout.write(decide(process.argv.slice(2)))
   } catch (e) {
