@@ -96,7 +96,7 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/verdict.mjs --round <N> --head <Head from ste
 
 It writes the comment to a file beside the saved reports and prints that file's path and the heading.
 
-Per Issue, INCONCLUSIVE when a report or block is missing or invalid, `couldNotRun` is not empty (even if the diff seems to settle it), `gh` fails, the spec report misses an AC of the trusted spec it fetches, or an Issue the branch's open PR closes has no spec or no standards report. NEEDS-FIX when a criterion is unmet or wrong or a failure is introduced; else PASS. The PR is NEEDS-FIX if any Issue is. A criterion judged from the diff because running was declined is not INCONCLUSIVE. Security findings never change the result; a security review that could not run is noted in the verdict. Never decide the verdict yourself.
+Per Issue, INCONCLUSIVE when a report or block is missing or invalid, `couldNotRun` is not empty (even if the diff seems to settle it), `gh` fails, the spec report misses an AC of the trusted spec it fetches, or an Issue the PR (`--pr`, else the branch's) closes lacks a spec or standards report. NEEDS-FIX when a criterion is unmet or wrong or a failure is introduced; else PASS. The PR is NEEDS-FIX if any Issue is. A criterion judged from the diff because running was declined is not INCONCLUSIVE. Security findings never change the result; a security review that could not run is noted in the verdict. Never decide the verdict yourself.
 
 ## 7. Report the verdict
 

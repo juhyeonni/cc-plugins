@@ -476,7 +476,7 @@ test('#270 AC4: no open PR gives the same comment as before; a failing PR lookup
 
 test('#270 AC5: the verify skill names a closed Issue with no report as a cause of INCONCLUSIVE', () => {
   const skill = readFileSync(join(ROOT, 'plugins/macro-loop/skills/verify/SKILL.md'), 'utf8')
-  assert.match(skill, /INCONCLUSIVE when [^\n]*an Issue the branch's open PR closes has no spec or no standards report/)
+  assert.match(skill, /INCONCLUSIVE when [^\n]*an Issue the PR \(`--pr`, else the branch's\) closes lacks a spec or standards report/)
 })
 
 test('#271: a trusted spec from which no criterion can be read posts nothing and names the spec comment', () => {
@@ -561,6 +561,13 @@ test('#279 AC11: a previous verdict without a sha and a spec updated after it gi
   assert.equal(r.status, 0, r.stderr)
   assert.ok(r.stdout.includes(`${EDIT_HEAD}\n\n${CANNOT_TELL}\n`), r.stdout)
   assert.match(r.stdout, /^## Verify: PASS \(round 2 of 3\)$/m)
+})
+
+test('#279: the previous verdict is the one trust.mjs reads as pr.lastVerdict, a later trusted one with a loose marker included (ADR-0009)', () => {
+  const loose = { id: 902, user: { login: 'Carol' }, body: '<!-- macro-loop:verify round=2 sha=OLD -->\n## Verify: NEEDS-FIX (round 2 of 3)', created_at: '2026-11-22T10:00:00Z' }
+  const r = run(ok(), prArgs('3'), PR3('Closes #12\n', [verdictComment('carol', HEAD, T0), loose], specAt(T1)))
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(r.stdout, /Nothing to decide first\./)
 })
 
 test('#279 AC8: a failing gh call reading the PR by number or its verdict comments posts nothing and names the error', () => {

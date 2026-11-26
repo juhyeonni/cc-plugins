@@ -24,7 +24,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
-import { api, closesAll, comments, specOf, trustContext, verdictMarker } from './trust.mjs'
+import { api, closesAll, comments, specOf, trustContext, verdictMarker, verdictsOf } from './trust.mjs'
 import { reportPath, reportsDir } from './verifier-report.mjs'
 
 const TAG = '```macro-loop-report'
@@ -242,12 +242,14 @@ const prOf = (number, branch) =>
     ? api([`repos/{owner}/{repo}/pulls/${number}`])
     : (api([`repos/{owner}/{repo}/pulls?head={owner}:${encodeURIComponent(branch)}&state=open`])[0] ?? null)
 
-// One line per trusted spec updated after the PR's previous trusted verdict, when that verdict
-// judged this head or recorded no head (#279, ADR-0016).
+// One line per trusted spec updated after the PR's previous trusted verdict, found as trust.mjs
+// finds pr.lastVerdict (ADR-0009), when that verdict judged this head or recorded no head (#279, ADR-0016).
 function specEditsOf(prComments, specs, head, trusted) {
-  const previous = prComments.filter((c) => trusted.includes(String(c.user?.login ?? '').toLowerCase()) && verdictMarker(c.body)).at(-1)
+  const verdicts = verdictsOf(prComments, trusted)
+  const previous = verdicts.at(-1)
   if (!previous) return []
-  const [, round, sha] = verdictMarker(previous.body)
+  const round = verdicts.length
+  const sha = verdictMarker(previous.body)?.[2]
   if (sha && !head.startsWith(sha) && !sha.startsWith(head)) return []
   const edited = [...specs].filter(([, s]) => s && s.updated_at > previous.created_at)
   return edited.map(([n]) =>

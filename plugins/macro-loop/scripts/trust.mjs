@@ -104,9 +104,12 @@ const trustedMarked = (comments, trusted, marker) =>
 
 export const specOf = (comments, trusted) => trustedMarked(comments, trusted, SPEC).at(-1)?.id ?? null
 
+// The PR's trusted verdict comments, oldest first: prState and verdict.mjs read the last one from here.
+export const verdictsOf = (comments, trusted) => trustedMarked(comments, trusted, VERDICT)
+
 // `p` is a PR as the pulls API returns it, `comments` its comments.
 export function prState(p, comments, trusted) {
-  const verdicts = trustedMarked(comments, trusted, VERDICT)
+  const verdicts = verdictsOf(comments, trusted)
   return {
     author: p.user.login,
     authorTrusted: trusted.includes(lower(p.user.login)),
@@ -128,7 +131,7 @@ const ANSWER_LINE = /^- ((?:#\d+ )?[A-Z]+\d+) (wrong|intended|minor): (.*\S)\s*$
 // The head sha each round's trusted verdict judged; a verdict written without one gives none.
 function verdictShas(comments, trusted) {
   const shas = new Map()
-  for (const c of trustedMarked(comments, trusted, VERDICT)) {
+  for (const c of verdictsOf(comments, trusted)) {
     const m = verdictMarker(c.body)
     if (m) shas.set(Number(m[1]), m[2] ?? null)
   }
