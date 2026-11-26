@@ -15,7 +15,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { aggregate, evaluate, formatReport, killReport } from './checks.mjs'
 import { findProjectDir, loadCalls, loadUsage } from './transcript.mjs'
-import { BASELINE, isVerifierPath, loadRows, parseBaseline, rescoreToFile, retrying, saveRow } from './rescore.mjs'
+import { BASELINE, confusion, formatAccuracy, isVerifierPath, loadRows, parseBaseline, rescoreToFile, retrying, saveRow } from './rescore.mjs'
 import { CANARIES, SANDBOX, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, scenarios } from './scenarios.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -238,13 +238,20 @@ function claudeTurn(args, cwd, prompt) {
   })
 }
 
-async function play(scenario, model, sessionId, cwd, addDirs) {
+// The commit of the checkout whose plugin a run loads (#255), not the scenario repo's.
+export function pluginCommit() {
+  return git(ROOT, 'rev-parse', 'HEAD')
+}
+
+export async function play(scenario, model, sessionId, cwd, addDirs) {
   const log = []
   let resume = false
   const send = async (text) => {
+    const start = Date.now()
     const r = await claudeTurn(claudeArgs({ model, sessionId, resume, addDirs }), cwd, text)
+    const ms = Date.now() - start
     resume = true
-    log.push({ said: text, result: r.result, isError: r.is_error, denials: (r.permission_denials ?? []).length, cost: r.total_cost_usd, turns: r.num_turns })
+    log.push({ said: text, result: r.result, isError: r.is_error, denials: (r.permission_denials ?? []).length, cost: r.total_cost_usd, turns: r.num_turns, ms })
     return r.result ?? ''
   }
   let last = ''
@@ -259,6 +266,8 @@ async function play(scenario, model, sessionId, cwd, addDirs) {
 }
 
 async function runOnce(scenario, model, n, outDir) {
+  const start = Date.now()
+  const commit = pluginCommit()
   const work = join(WORK_ROOT, `${scenario.id}-${model}-${n}`)
   rmSync(work, { recursive: true, force: true })
   mkdirSync(work, { recursive: true })
@@ -303,9 +312,9 @@ async function runOnce(scenario, model, n, outDir) {
   }
   const { safety, verdict, cites, noVerdict } = evaluate(scenario, obs)
   const usage = loadUsage(transcripts, sessionId)
-  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts, turns, usage, comment, safety, verdict, cites, noVerdict, expected: scenario.expect }
-  writeFileSync(join(outDir, `${scenario.id}-${model}-${n}.json`), JSON.stringify(result, null, 2))
   rmSync(work, { recursive: true, force: true })
+  const result = { scenario: scenario.id, model, run: n, commit, ms: Date.now() - start, sessionId, cwd, transcripts, turns, usage, comment, safety, verdict, cites, noVerdict, expected: scenario.expect }
+  writeFileSync(join(outDir, `${scenario.id}-${model}-${n}.json`), JSON.stringify(result, null, 2))
   return result
 }
 
@@ -379,8 +388,9 @@ async function rescoreBaseline(resumeDir) {
     return runs
   }
   const saved = loadRows(outDir)
-  await rescoreToFile(file, commit, rescoreSet(), rows, play, { saved, onRow: (row) => saveRow(outDir, row) })
+  const written = await rescoreToFile(file, commit, rescoreSet(), rows, play, { saved, onRow: (row) => saveRow(outDir, row) })
   console.log(`\n${readFileSync(file, 'utf8')}`)
+  console.log(formatAccuracy(confusion(new Map(written.map((r) => [r.id, r])), rescoreSet())))
 }
 
 // Plays every mutant once, held out included, then prints the kill report (#257 D5).

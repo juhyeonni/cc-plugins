@@ -35,19 +35,27 @@ const stop = (s, key, reason) => ({ ...s, out: { ...s.out, [key]: { ok: false, r
 async function implement(s) {
   if (!runs(s, 'implement')) return s
   const i = s.i
+  // An open PR at implement means its head got NEEDS-FIX: the fix round goes on the PR's branch (#253).
+  const switchTo = i.pr
+    ? `\`git fetch origin ${i.branch}\`, \`git branch --show-current\` (remember it), \`git switch ${i.branch}\`, then \`git branch -D <the branch you remembered>\`. Never create or reset ${i.branch}; if the switch fails, stop.`
+    : `\`git fetch origin ${args.base}\`, \`git branch --show-current\` (remember it), \`git switch -c ${i.number}-${i.slug} origin/${args.base}\`, then \`git branch -D <the branch you remembered>\`.`
+  const fixRound = i.pr
+    ? `\n7. This is a fix round for PR #${i.pr.number}. Run \`node ${args.pluginRoot}/scripts/trust.mjs --issue ${i.number} --pr ${i.pr.number}\` and read the verdict comment whose id is \`pr.lastVerdict\`. Fix each of its findings that is not marked "already answered", at every place its class covers, as step 1 of the implement skill says. Post no answer comment: nobody can approve one during this run.`
+    : ''
   const r = await agent(`Implement GitHub Issue #${i.number} in this repository. You are in a worktree of your own.
 
 1. ${READ} Then follow steps 3 (Build) and 4 (Commit) of ${args.pluginRoot}/skills/implement/SKILL.md, and skip its other steps.
 2. The contract is the spec comment ${i.spec} on Issue #${i.number}: \`gh api repos/{owner}/{repo}/issues/comments/${i.spec} --jq .body\`.
-3. Each in a Bash call of its own: \`git fetch origin ${args.base}\`, \`git branch --show-current\` (remember it), \`git switch -c ${i.number}-${i.slug} origin/${args.base}\`, then \`git branch -D <the branch you remembered>\`. That last one deletes the worktree-* branch this worktree started on.
+3. Each in a Bash call of its own: ${switchTo} That last one deletes the worktree-* branch this worktree started on.
 4. The spec's \`check: cmd\` commands: ${i.runSpecCommands ? 'the person approved them; you may run them as written.' : 'the person did not approve them; do not run them.'} The repo's own tests need no approval.
 5. Never push, never open a PR, never post or edit anything on GitHub, and never edit the spec.
-6. If the spec is wrong or incomplete, or you cannot finish, stop and report why with status "stopped".
+6. If the spec is wrong or incomplete, or you cannot finish, stop and report why with status "stopped".${fixRound}
 
 Return status "committed" with the branch name and the commit's full sha, or "stopped" with the reason and whatever branch you made.`,
     { label: `#${i.number} ${i.slug}`, phase: 'implement', isolation: 'worktree', schema: IMPLEMENTED })
   if (!r) return stop(s, 'implement', 'the agent returned no result')
   if (r.status !== 'committed') return stop(s, 'implement', r.reason || 'stopped')
+  if (i.pr && r.branch !== i.branch) return stop(s, 'implement', `the commit is on ${r.branch || 'no branch'}, not on the PR's branch ${i.branch}`)
   return { ...s, branch: r.branch, out: { ...s.out, implement: { ok: true, branch: r.branch, head: r.head } } }
 }
 

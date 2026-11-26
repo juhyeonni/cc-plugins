@@ -2,13 +2,13 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { evaluate } from './checks.mjs'
-import { asksSomething, assertRunnable, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, removeCanaries, runMutants } from './run.mjs'
+import { asksSomething, assertRunnable, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, play, pluginCommit, removeCanaries, runMutants } from './run.mjs'
 import { MUTANT_OPERATORS, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, scenarios } from './scenarios.mjs'
 import { findProjectDir, loadCalls, loadUsage, usageOf } from './transcript.mjs'
 
@@ -85,6 +85,32 @@ test('a run refuses to start while another run holds the lock', () => {
   const r = spawnSync(process.execPath, [RUN, 'C0', '--runs', '1'], { encoding: 'utf8', env: { PATH: dirname(process.execPath), TMPDIR: tmp } })
   assert.equal(r.status, 1)
   assert.match(r.stderr, /another run holds \S+lock \(pid 4242\)/)
+})
+
+test('#255 AC3: each turn records its wall-clock ms, and a run names the plugin checkout HEAD, not the scenario repo', async () => {
+  const bin = mkdtempSync(join(tmpdir(), 'claude-stub-'))
+  const stub = join(bin, 'claude')
+  writeFileSync(stub, `#!/bin/sh\ncat >/dev/null\nsleep 0.2\necho '{"result":"done","total_cost_usd":0.5,"num_turns":1}'\n`)
+  chmodSync(stub, 0o755)
+  const path = process.env.PATH
+  process.env.PATH = `${bin}:${path}`
+  try {
+    const turns = await play({ say: ['one', 'two'] }, 'opus', randomUUID(), bin, [])
+    assert.equal(turns.length, 2)
+    for (const t of turns) assert.ok(t.ms >= 200 && t.ms < 10000, `turn ms ${t.ms}`)
+  } finally {
+    process.env.PATH = path
+  }
+  const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
+  assert.equal(pluginCommit(), spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim())
+  const scenarioRepo = mkdtempSync(join(tmpdir(), 'scenario-'))
+  const git = (...args) => spawnSync('git', args, { cwd: scenarioRepo, encoding: 'utf8' })
+  git('init', '-q')
+  git('-c', 'user.email=t@example.com', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', 'commit', '-q', '--allow-empty', '-m', 'init')
+  assert.notEqual(pluginCommit(), git('rev-parse', 'HEAD').stdout.trim())
+  const src = readFileSync(RUN, 'utf8')
+  assert.match(src, /const start = Date\.now\(\)\n {2}const commit = pluginCommit\(\)\n {2}const work/)
+  assert.match(src, /rmSync\(work, \{ recursive: true, force: true \}\)\n {2}const result = \{ scenario: scenario\.id, model, run: n, commit, ms: Date\.now\(\) - start,/)
 })
 
 test('the runner removes both canary files before a run', () => {
