@@ -16,12 +16,13 @@
 // or invalid block, a missing report, or a non-empty could-not-run list prints nothing on
 // stdout, names why on stderr and exits non-zero: nothing is posted. So does a spec report that
 // does not judge every criterion of the Issue's trusted spec, which the script finds itself (#252),
-// or a trusted spec from which no criterion can be read (#271).
+// or a trusted spec from which no criterion can be read (#271), and reports that leave out an Issue
+// the branch's open PR closes, which it also finds itself (#270).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
-import { comments, specOf, trustContext } from './trust.mjs'
+import { api, closesAll, comments, specOf, trustContext } from './trust.mjs'
 import { reportPath, reportsDir } from './verifier-report.mjs'
 
 const TAG = '```macro-loop-report'
@@ -232,6 +233,19 @@ export function checkCoverage(report, spec) {
   if (missing.length) throw new Error(`INCONCLUSIVE: the spec report for #${n} does not judge ${missing.join(', ')} of spec comment ${spec.id}`)
 }
 
+// Every Issue the branch's open PR closes, or none when the branch has no open PR (#270).
+const closedBy = (branch) =>
+  api([`repos/{owner}/{repo}/pulls?head={owner}:${encodeURIComponent(branch)}&state=open`]).flatMap((p) => closesAll(p.body))
+
+// Each Issue the PR closes needs a spec and a standards report, or the verdict is INCONCLUSIVE.
+function checkClosed(closed, reports) {
+  for (const n of closed) {
+    for (const axis of ['spec', 'standards']) {
+      if (!reports.some((r) => r.data.axis === axis && r.data.issue === n)) throw new Error(`INCONCLUSIVE: the PR closes #${n}, but there is no ${axis} report for #${n}`)
+    }
+  }
+}
+
 // The report verifier-report.mjs saved when that verifier stopped.
 function savedReport(id) {
   const path = reportPath(id)
@@ -254,6 +268,7 @@ function main(argv) {
     ...positionals.map((file) => parseReport(readFileSync(file, 'utf8'), file)),
     ...agents.map((id) => parseReport(savedReport(id), `the report of verifier ${id}`)),
   ]
+  checkClosed(closedBy(values.branch), reports)
   const comment = verdict({ round: Number(values.round), head: values.head, branch: values.branch, reports })
   const specReports = reports.filter((r) => r.data.axis === 'spec').map((r) => r.data)
   const specs = trustedSpecs([...new Set(specReports.map((d) => d.issue))])

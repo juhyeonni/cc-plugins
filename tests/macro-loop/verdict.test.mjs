@@ -49,6 +49,8 @@ const SPEC_13 = 5976278400
 const comment = (id, login, body) => ({ id, user: { login }, body })
 const specBody = (...ids) => ['<!-- macro-loop:spec -->', '## Spec', '', '**Acceptance criteria**', ...ids.map((id) => `- [ ] ${id}. something · check: test`)].join('\n')
 const issueComments = (n, list) => ({ [`api --paginate --slurp repos/{owner}/{repo}/issues/${n}/comments`]: { stdout: [list] } })
+// The open PRs of the branch 12-csv, each with the body given.
+const openPrs = (...bodies) => ({ 'api repos/{owner}/{repo}/pulls?head={owner}:12-csv&state=open': { stdout: bodies.map((body) => ({ body })) } })
 // Carol runs verify; the repo belongs to the User carol. #12's spec has AC1 and AC2, #13's AC1.
 const GH = (over = {}) => ({
   'api user': { stdout: { login: 'carol' } },
@@ -56,6 +58,7 @@ const GH = (over = {}) => ({
   'api repos/{owner}/{repo}/contents/.github/macro-loop.json': { stderr: 'gh: Not Found (HTTP 404)\n', code: 1 },
   ...issueComments(12, [comment(SPEC_ID, 'carol', specBody('AC1', 'AC2'))]),
   ...issueComments(13, [comment(SPEC_13, 'carol', specBody('AC1'))]),
+  ...openPrs(),
   ...over,
 })
 
@@ -441,6 +444,38 @@ test('#252 AC5: full coverage gives the same comment as before, per Issue on a t
   refusedBy(crossed, GH(), /#13 names spec 5976278327, not #13's trusted spec comment 5976278400/)
   refusedBy(ok(), GH({ 'api user': { stderr: 'gh: Bad credentials (HTTP 401)\n', code: 1 } }), /Bad credentials/)
   refusedBy(ok(), GH({ 'api --paginate --slurp repos/{owner}/{repo}/issues/12/comments': { stderr: 'gh: Server Error (HTTP 500)\n', code: 1 } }), /HTTP 500/)
+})
+
+const CLOSES_12_13 = GH(openPrs('Fixes the CSV export.\n\nCloses #12\nCloses #13\n'))
+const for13 = (...reports) => [...ok(), ...reports]
+const sameAsBefore = async (reports, gh) => {
+  const { verdict, parseReport } = await import(SCRIPT)
+  const r = run(reports, undefined, gh)
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(r.stdout, verdict({ round: 1, head: HEAD, branch: '12-csv', reports: reports.map((t, k) => parseReport(t, `r${k}`)) }))
+}
+
+test('#270 AC1: the PR closes #12 and #13, reports cover #12 only: nothing to post, #13 named', () => {
+  refusedBy(for13(), CLOSES_12_13, /INCONCLUSIVE: the PR closes #13, but there is no spec report for #13/)
+})
+
+test("#270 AC2: a spec report for #13 without its standards report names #13's missing standards report", () => {
+  refusedBy(for13('B' + block(spec({ issue: 13, spec: SPEC_13 }))), CLOSES_12_13, /no standards report for #13/)
+})
+
+test('#270 AC3: reports for every closed Issue, or a PR body with no Closes line, give the same comment as before', async () => {
+  await sameAsBefore(for13('B' + block(spec({ issue: 13, spec: SPEC_13 })), 'C' + block(standards({ issue: 13 }))), CLOSES_12_13)
+  await sameAsBefore(ok(), GH(openPrs('No closing line here.')))
+})
+
+test('#270 AC4: no open PR gives the same comment as before; a failing PR lookup posts nothing', async () => {
+  await sameAsBefore(ok(), GH(openPrs()))
+  refusedBy(ok(), GH({ 'api repos/{owner}/{repo}/pulls?head={owner}:12-csv&state=open': { stderr: 'gh: Server Error (HTTP 502)\n', code: 1 } }), /HTTP 502/)
+})
+
+test('#270 AC5: the verify skill names a closed Issue with no report as a cause of INCONCLUSIVE', () => {
+  const skill = readFileSync(join(ROOT, 'plugins/macro-loop/skills/verify/SKILL.md'), 'utf8')
+  assert.match(skill, /INCONCLUSIVE when [^\n]*an Issue the branch's open PR closes has no spec or no standards report/)
 })
 
 test('#271: a trusted spec from which no criterion can be read posts nothing and names the spec comment', () => {
