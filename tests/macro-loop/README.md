@@ -54,6 +54,8 @@ CI passes a PR that touches one of these paths only when one of these holds:
 - The PR updates `baseline.txt`, its commit is in the branch's history, no path above changed between that commit and the head, and every confirmed regression has a body line `Suite: accepted regression — <scenario>: <reason>`.
 - The PR body has a line `Suite: skipped — <reason>`, with a reason.
 
+A release, a PR that changes the `version` in `plugins/macro-loop/.claude-plugin/plugin.json`, is held to more (#278). CI reads `baseline.txt` at the head, and fails the release when it names no commit, names one outside the branch's history, or when a path above changed between that commit and the head. `Suite: skipped` does not cover a release: only a rescore does. A release with nothing changed since the baseline's commit passes with no body line.
+
 CI runs again when you edit the PR body.
 
 A model change with no PR, when the verifier inherits the session's model, is #112's to handle.

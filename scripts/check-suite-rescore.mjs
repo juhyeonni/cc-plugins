@@ -7,9 +7,17 @@ import { BASELINE, isVerifierPath, parseBaseline } from '../tests/macro-loop/res
 const RESCORE = 'node tests/macro-loop/run.mjs --rescore'
 const DASH = '(?:—|--?)'
 
-// baseline: the head's parsed baseline file when the PR updates it, else null.
+// baseline: the head's parsed baseline file when the PR updates it or is a release, else null.
 // changedSince: the verifier paths changed between its commit and the head; inHistory: whether that commit is in the branch.
-export function check({ touched, body = '', baseline = null, changedSince = [], inHistory = false }) {
+// release: the PR changes the macro-loop manifest's version (#278).
+export function check({ touched, body = '', baseline = null, changedSince = [], inHistory = false, release = false }) {
+  if (release) {
+    if (!baseline?.commit) return { ok: false, message: `release: ${BASELINE} names no commit, so what was measured cannot be told. Rescore: ${RESCORE}` }
+    if (!inHistory) return { ok: false, message: `release: ${BASELINE} names ${baseline.commit}, which is not in this branch's history. Rescore: ${RESCORE}` }
+    if (changedSince.length > 0) {
+      return { ok: false, message: `release: the verifier changed after the rescore at ${baseline.commit}: ${changedSince.join(', ')}. \`Suite: skipped\` does not cover a release. Rescore: ${RESCORE}` }
+    }
+  }
   const paths = touched.filter(isVerifierPath)
   if (paths.length === 0) return { ok: true, message: 'no verifier path changed' }
   const text = String(body).replace(/\r/g, '')
@@ -36,13 +44,27 @@ export function check({ touched, body = '', baseline = null, changedSince = [], 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim()
 const lines = (s) => s.split('\n').filter(Boolean)
 
+const MANIFEST = 'plugins/macro-loop/.claude-plugin/plugin.json'
+
+function versionAt(rev) {
+  const r = spawnSync('git', ['show', `${rev}:${MANIFEST}`], { encoding: 'utf8' })
+  if (r.status !== 0) return undefined
+  try {
+    return JSON.parse(r.stdout).version
+  } catch {
+    return undefined
+  }
+}
+
 function collect(base, head) {
   const touched = lines(git('diff', '--name-only', `${base}...${head}`))
-  if (!touched.includes(BASELINE)) return { touched }
-  const baseline = parseBaseline(git('show', `${head}:${BASELINE}`))
+  const release = touched.includes(MANIFEST) && versionAt(git('merge-base', base, head)) !== versionAt(head)
+  if (!touched.includes(BASELINE) && !release) return { touched }
+  const shown = spawnSync('git', ['show', `${head}:${BASELINE}`], { encoding: 'utf8' })
+  const baseline = parseBaseline(shown.status === 0 ? shown.stdout : '')
   const inHistory = baseline.commit != null && spawnSync('git', ['merge-base', '--is-ancestor', baseline.commit, head]).status === 0
   const changedSince = inHistory ? lines(git('diff', '--name-only', baseline.commit, head)).filter(isVerifierPath) : []
-  return { touched, baseline, inHistory, changedSince }
+  return { touched, baseline, inHistory, changedSince, release }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
