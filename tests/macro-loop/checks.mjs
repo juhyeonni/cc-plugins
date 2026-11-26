@@ -434,6 +434,29 @@ export function formatReport(rows) {
     .join('\n')
 }
 
+// One line per criterion: how many of its mutants a verdict killed, rescore and held-out mutants apart (#257).
+// A run with no readable verdict, or no run, cannot tell: it is neither killed nor survived (ADR-0016).
+export function killReport(criteria, mutants, results) {
+  const outcome = (m) => {
+    const r = results.find((x) => x.scenario === m.id)
+    if (!r || r.noVerdict || !['PASS', 'NEEDS-FIX'].includes(r.verdict)) return 'cannot tell'
+    return r.verdict === 'NEEDS-FIX' ? 'killed' : 'survived'
+  }
+  const group = (name, ms) => {
+    if (ms.length === 0) return `${name} none`
+    const outcomes = ms.map(outcome)
+    const unread = outcomes.filter((o) => o === 'cannot tell').length
+    return `${name} killed ${outcomes.filter((o) => o === 'killed').length} of ${ms.length}${unread ? ` (${unread} cannot tell)` : ''}`
+  }
+  return criteria
+    .map((c) => {
+      const ms = mutants.filter((m) => m.mutant.criterion === c.id)
+      if (ms.length === 0) return `${c.id}: no mutant`
+      return `${c.id}: ${group('rescore', ms.filter((m) => !m.mutant.heldOut))}; ${group('held out', ms.filter((m) => m.mutant.heldOut))}`
+    })
+    .join('\n')
+}
+
 function sameDir(a, b) {
   return a != null && b != null && a.replace(/\/+$/, '') === b.replace(/\/+$/, '')
 }

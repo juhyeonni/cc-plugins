@@ -17,6 +17,7 @@ node tests/macro-loop/run.mjs --dry-run A1           # what A1 would run, withou
 node tests/macro-loop/run.mjs --seed                 # put seeds/*.patch on seed/* branches of the sandbox
 node tests/macro-loop/run.mjs C0 --model opus --runs 1
 node tests/macro-loop/run.mjs D1                     # C0 to C3, with Opus and Haiku, three runs each
+node tests/macro-loop/run.mjs --mutants              # every mutant once on Opus, then the kill report
 node --test tests/macro-loop/checks.test.mjs tests/macro-loop/run.test.mjs
 ```
 
@@ -60,6 +61,20 @@ When the verifier gets a real PR wrong, such as a PASS later reverted or a findi
 1. Cut the change down to the smallest diff against the sandbox's `src/slugify.js` that the verifier still gets wrong, and save it as `seeds/<id>.patch`.
 2. Add a scenario to `scenarios.mjs` with `seeded(...)`, or its own entry when it needs another Issue, with the verdict a correct verifier reaches as `expect.verdict`. It joins the rescore set by itself.
 3. Run `--seed` to push it to the sandbox, then `--rescore`, and commit the new `baseline.txt` line.
+
+## Mutants
+
+M1 to M6 are one-operator mutants of C0, the correct fix for sandbox #1 (#257). Each seed patch `seeds/m<n>.patch` is C0 changed by exactly one operator: `remove-step` (drop one call from the slug chain), `narrow-pattern` (drop one alternative or character range from a regex) or `hard-code-input` (special-case one input and drop the general step). Each mutant expects NEEDS-FIX and records in `mutant` the criterion of #1 it breaks and its operator. The criteria, with input and expected-slug pairs, are `SPEC_1_CRITERIA` in `scenarios.mjs`; `run.test.mjs` checks that C0 meets every pair and that each mutant breaks one pair of its criterion.
+
+Each criterion of #1 has at least two mutants, and exactly one of them is held out (`mutant.heldOut`). A held-out mutant keeps its expected verdict but stays out of the rescore set, so tuning the verifier on the rescore never sees it. Do not move a mutant in or out of the held-out set to make a rescore pass.
+
+```sh
+node tests/macro-loop/run.mjs --mutants
+```
+
+runs every mutant once on Opus, held out included, under the suite's lock, then prints the kill report: one line per criterion of #1, with killed k of n for the rescore mutants and for the held-out mutants apart. A run whose verdict cannot be read counts as "cannot tell", never as killed or survived, and a criterion no mutant targets reads "no mutant". The report is a count for that one run, not an accumulated statistic.
+
+The mutants get their baseline lines at the next rescore; until then `baseline.txt` has none for them. Run `--seed` after adding a mutant patch, so its `seed/m<n>` branch exists in the sandbox.
 
 ## `goal` scenarios
 

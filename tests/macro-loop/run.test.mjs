@@ -3,16 +3,17 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { evaluate } from './checks.mjs'
-import { asksSomething, assertRunnable, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, removeCanaries } from './run.mjs'
-import { findScenario, scenarios } from './scenarios.mjs'
+import { asksSomething, assertRunnable, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, removeCanaries, runMutants } from './run.mjs'
+import { MUTANT_OPERATORS, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, scenarios } from './scenarios.mjs'
 import { findProjectDir, loadCalls, loadUsage, usageOf } from './transcript.mjs'
 
 const RUN = join(dirname(fileURLToPath(import.meta.url)), 'run.mjs')
-const IDS = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'D1', 'E1', 'G1', 'G2', 'G3', 'G4']
+const IDS = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'D1', 'E1', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'G1', 'G2', 'G3', 'G4']
 
 // Only node on the PATH: a dry run that tried to start `claude` or `gh` would fail.
 const nodeOnly = (args) => spawnSync(process.execPath, [RUN, ...args], { encoding: 'utf8', env: { PATH: dirname(process.execPath) } })
@@ -276,4 +277,85 @@ test('#222 AC6: a scenario that needs sandbox fixtures is refused, naming them; 
   const refused = nodeOnly(['G1'])
   assert.notEqual(refused.status, 0)
   assert.match(refused.stderr, /G1 is not run yet: the sandbox lacks/)
+})
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const seedName = (s) => s.setup.join(' ').match(/origin\/seed\/(\S+)/)[1]
+
+test('#257 AC1: the dry run of M1 expects NEEDS-FIX against #1', () => {
+  const r = nodeOnly(['--dry-run', 'M1'])
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(r.stdout, /^Expected verdict: NEEDS-FIX$/m)
+  assert.match(r.stdout, /say: \/macro-loop:verify the current branch against #1/)
+})
+
+test('#257 AC2: every mutant expects NEEDS-FIX, names a criterion and an operator, has a seed patch; two or more per criterion, one held out', () => {
+  const ms = mutants()
+  assert.ok(ms.length > 0)
+  for (const m of ms) {
+    assert.match(m.id, /^M\d+$/)
+    assert.equal(m.issue, 1)
+    assert.equal(m.expect.verdict, 'NEEDS-FIX', m.id)
+    assert.ok(SPEC_1_CRITERIA.some((c) => c.id === m.mutant.criterion), m.id)
+    assert.ok(MUTANT_OPERATORS.includes(m.mutant.operator), m.id)
+    assert.ok(existsSync(join(HERE, 'seeds', `${seedName(m)}.patch`)), m.id)
+  }
+  for (const c of ['AC1', 'AC2', 'AC3']) {
+    const of = ms.filter((m) => m.mutant.criterion === c)
+    assert.ok(of.length >= 2, c)
+    assert.equal(of.filter((m) => m.mutant.heldOut).length, 1, c)
+  }
+})
+
+// src/slugify.js on the sandbox's main, blob a6cb845, which every seed patch applies to.
+const SANDBOX_SLUGIFY = `'use strict';
+
+// Lower case, whitespace to dashes, then drop anything that is not a letter, digit or dash.
+function slugify(text) {
+  return String(text)
+    .toLowerCase()
+    .replace(/\\s/g, '-')
+    .replace(/[^a-z0-9-]/g, '');
+}
+
+module.exports = slugify;
+`
+
+function seededSlugify(patch) {
+  const dir = mkdtempSync(join(tmpdir(), `seed-${patch}-`))
+  mkdirSync(join(dir, 'src'))
+  writeFileSync(join(dir, 'src', 'slugify.js'), SANDBOX_SLUGIFY)
+  const r = spawnSync('git', ['apply', join(HERE, 'seeds', `${patch}.patch`)], { cwd: dir, encoding: 'utf8' })
+  assert.equal(r.status, 0, `${patch}: ${r.stderr}`)
+  return createRequire(join(dir, 'index.js'))('./src/slugify.js')
+}
+
+test("#257 AC3: C0 meets every criterion's pairs, and each mutant breaks the criterion it names", () => {
+  const c0 = seededSlugify('c0')
+  for (const c of SPEC_1_CRITERIA) for (const [input, slug] of c.pairs) assert.equal(c0(input), slug, `C0 on ${c.id} ${JSON.stringify(input)}`)
+  for (const m of mutants()) {
+    const slugify = seededSlugify(seedName(m))
+    const { pairs } = SPEC_1_CRITERIA.find((c) => c.id === m.mutant.criterion)
+    assert.ok(pairs.some(([input, slug]) => slugify(input) !== slug), `${m.id} breaks none of ${m.mutant.criterion}'s inputs`)
+  }
+})
+
+test('#257 AC4: rescoreSet leaves out held-out mutants and keeps every other scenario with a verdict', () => {
+  const ids = rescoreSet().map((s) => s.id)
+  for (const m of mutants()) assert.equal(ids.includes(m.id), !m.mutant.heldOut, m.id)
+  for (const id of ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6']) assert.ok(ids.includes(id), id)
+})
+
+test('#257 AC6: --mutants plays every mutant once, held out included, and nothing else, then prints the kill report', async () => {
+  const played = []
+  const printed = []
+  const report = await runMutants(async (s) => {
+    played.push(s.id)
+    return { scenario: s.id, verdict: 'NEEDS-FIX', noVerdict: false }
+  }, (text) => printed.push(text))
+  assert.deepEqual(played, ['M1', 'M2', 'M3', 'M4', 'M5', 'M6'])
+  assert.ok(mutants().some((m) => m.mutant.heldOut))
+  assert.equal(printed.length, 1)
+  assert.ok(printed[0].includes(report))
+  for (const c of ['AC1', 'AC2', 'AC3']) assert.match(report, new RegExp(`^${c}: rescore killed 1 of 1; held out killed 1 of 1$`, 'm'))
 })

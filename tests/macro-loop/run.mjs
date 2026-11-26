@@ -5,6 +5,7 @@
 //   node tests/macro-loop/run.mjs --seed
 //   node tests/macro-loop/run.mjs <ID> [--model opus|haiku|sonnet] [--runs 3]
 //   node tests/macro-loop/run.mjs --rescore [--resume <results dir>]
+//   node tests/macro-loop/run.mjs --mutants
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -12,10 +13,10 @@ import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
-import { aggregate, evaluate, formatReport } from './checks.mjs'
+import { aggregate, evaluate, formatReport, killReport } from './checks.mjs'
 import { findProjectDir, loadCalls, loadUsage } from './transcript.mjs'
 import { BASELINE, isVerifierPath, loadRows, parseBaseline, rescoreToFile, retrying, saveRow } from './rescore.mjs'
-import { CANARIES, SANDBOX, findScenario, rescoreSet, scenarios } from './scenarios.mjs'
+import { CANARIES, SANDBOX, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, scenarios } from './scenarios.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(here, '../..')
@@ -382,23 +383,40 @@ async function rescoreBaseline(resumeDir) {
   console.log(`\n${readFileSync(file, 'utf8')}`)
 }
 
+// Plays every mutant once, held out included, then prints the kill report (#257 D5).
+// `runOne(scenario)` plays one run and resolves to its result.
+export async function runMutants(runOne, print = console.log) {
+  const set = mutants()
+  const results = []
+  for (const s of set) results.push(await runOne(s))
+  const report = killReport(SPEC_1_CRITERIA, set, results)
+  print(`Kill report for #1:\n${report}`)
+  return report
+}
+
 export async function main(argv) {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
-    options: { list: { type: 'boolean' }, 'dry-run': { type: 'string' }, seed: { type: 'boolean' }, rescore: { type: 'boolean' }, resume: { type: 'string' }, model: { type: 'string' }, runs: { type: 'string' } },
+    options: { list: { type: 'boolean' }, 'dry-run': { type: 'string' }, seed: { type: 'boolean' }, rescore: { type: 'boolean' }, mutants: { type: 'boolean' }, resume: { type: 'string' }, model: { type: 'string' }, runs: { type: 'string' } },
   })
   const models = values.model ? [values.model] : undefined
   if (values.list) return console.log(scenarios.map((s) => `${s.id}  ${s.title}`).join('\n'))
   if (values['dry-run']) return console.log(dryRun(findScenario(values['dry-run']), models ?? MODELS))
-  if (!values.seed && !values.rescore && positionals.length !== 1) {
-    throw new Error('usage: run.mjs --list | --dry-run <ID> | --seed | --rescore | <ID> [--model m] [--runs n]')
+  const named = !values.seed && !values.rescore && !values.mutants
+  if (named && positionals.length !== 1) {
+    throw new Error('usage: run.mjs --list | --dry-run <ID> | --seed | --rescore | --mutants | <ID> [--model m] [--runs n]')
   }
-  if (positionals.length === 1 && !values.seed && !values.rescore) assertRunnable(findScenario(positionals[0]))
+  if (named) assertRunnable(findScenario(positionals[0]))
   const unlock = lock()
   try {
     if (values.seed) return seedSandbox()
     if (values.rescore) return await rescoreBaseline(values.resume)
+    if (values.mutants) {
+      const outDir = join(RESULTS_DIR, `${new Date().toISOString().replace(/[:.]/g, '-')}-mutants`)
+      mkdirSync(outDir, { recursive: true })
+      return await runMutants((s) => runOnce(s, 'opus', 1, outDir))
+    }
     const results = await runScenario(positionals[0], models, Number(values.runs ?? 3))
     console.log(`\n${formatReport(aggregate(results))}`)
   } finally {
