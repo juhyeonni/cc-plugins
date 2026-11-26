@@ -49,8 +49,8 @@ const SPEC_13 = 5976278400
 const comment = (id, login, body) => ({ id, user: { login }, body })
 const specBody = (...ids) => ['<!-- macro-loop:spec -->', '## Spec', '', '**Acceptance criteria**', ...ids.map((id) => `- [ ] ${id}. something · check: test`)].join('\n')
 const issueComments = (n, list) => ({ [`api --paginate --slurp repos/{owner}/{repo}/issues/${n}/comments`]: { stdout: [list] } })
-// The open PRs of the branch 12-csv, each with the body given.
-const openPrs = (...bodies) => ({ 'api repos/{owner}/{repo}/pulls?head={owner}:12-csv&state=open': { stdout: bodies.map((body) => ({ body })) } })
+// The open PRs of the branch 12-csv, each with the body given; the first is PR 7.
+const openPrs = (...bodies) => ({ 'api repos/{owner}/{repo}/pulls?head={owner}:12-csv&state=open': { stdout: bodies.map((body, k) => ({ number: 7 + k, body })) } })
 // Carol runs verify; the repo belongs to the User carol. #12's spec has AC1 and AC2, #13's AC1.
 const GH = (over = {}) => ({
   'api user': { stdout: { login: 'carol' } },
@@ -59,6 +59,7 @@ const GH = (over = {}) => ({
   ...issueComments(12, [comment(SPEC_ID, 'carol', specBody('AC1', 'AC2'))]),
   ...issueComments(13, [comment(SPEC_13, 'carol', specBody('AC1'))]),
   ...openPrs(),
+  ...issueComments(7, []),
   ...over,
 })
 
@@ -489,4 +490,94 @@ test('#271: a trusted spec from which no criterion can be read posts nothing and
   const r = run(ok())
   assert.equal(r.status, 0, r.stderr)
   assert.match(r.stdout, /^## Verify: PASS/m)
+})
+
+const OFF_TEMPLATE = GH(issueComments(12, [comment(SPEC_ID, 'carol', [specBody('AC1'), '- [ ] AC2. empty input, judged by reading'].join('\n'))]))
+
+test('#279 AC1: a spec report that leaves out a criterion whose line has no `check:` posts nothing and names it', () => {
+  refusedBy(ok(spec({ criteria: [met('AC1', 'CSV quoted fields')] })), OFF_TEMPLATE, /does not judge AC2 of spec comment 5976278327/)
+})
+
+test('#279 AC2: a report that judges every criterion, those without `check:` included, gives the same comment as before', async () => {
+  await sameAsBefore(ok(), OFF_TEMPLATE)
+})
+
+const prArgs = (round = '1') => ['--round', round, '--head', HEAD, '--branch', 'pr-3', '--pr', '3']
+// PR 3 on the branch pr-3, which the branch lookup would not find, with the comments given.
+const PR3 = (body, list = [], over = {}) => GH({ 'api repos/{owner}/{repo}/pulls/3': { stdout: { number: 3, body } }, ...issueComments(3, list), ...over })
+
+test('#279 AC3: with --pr 3 on the branch pr-3, a PR closing #12 and #13 with reports for #12 only names #13', () => {
+  const r = run(ok(), prArgs(), PR3('Closes #12\nCloses #13\n'))
+  assert.notEqual(r.status, 0)
+  assert.equal(r.stdout, '')
+  assert.match(r.stderr, /INCONCLUSIVE: the PR closes #13, but there is no spec report for #13/)
+})
+
+test('#279 AC4: without --pr, the Issues a PR closes are still found by the branch open PR', () => {
+  refusedBy(ok(), GH(openPrs('Closes #12\nCloses #13\n')), /the PR closes #13, but there is no spec report for #13/)
+})
+
+test('#279 AC5: the verify skill passes the PR number to verdict.mjs with --pr when there is a PR', () => {
+  const skill = readFileSync(join(ROOT, 'plugins/macro-loop/skills/verify/SKILL.md'), 'utf8')
+  assert.match(skill, /scripts\/verdict\.mjs [^\n]*\[--pr <pr\.number>\]/)
+})
+
+const verdictComment = (login, sha, created_at) => ({ id: 901, user: { login }, body: `<!-- macro-loop:verify round=1${sha ? ` sha=${sha}` : ''} -->\n## Verify: NEEDS-FIX (round 1 of 3)`, created_at })
+const specAt = (updated_at) => issueComments(12, [{ ...comment(SPEC_ID, 'carol', specBody('AC1', 'AC2')), updated_at }])
+const T0 = '2026-11-20T10:00:00Z'
+const T1 = '2026-11-21T10:00:00Z'
+const EDIT_HEAD = 'Decide first: a spec was edited after the previous verdict:'
+const EDITED = '- #12: the spec changed since round 1 on this head; a person confirms the edit.'
+const CANNOT_TELL = '- #12: the spec was updated after round 1, whose verdict recorded no head, so it cannot tell whether the spec changed on this head; a person confirms the edit.'
+
+test('#279 AC6: a spec updated after the previous verdict on the same head adds one line; marker and result unchanged', () => {
+  const r = run(ok(), prArgs('2'), PR3('Closes #12\n', [verdictComment('carol', HEAD, T0)], specAt(T1)))
+  assert.equal(r.status, 0, r.stderr)
+  assert.ok(r.stdout.includes(`${EDIT_HEAD}\n\n${EDITED}\n`), r.stdout)
+  assert.equal(r.stdout.split(EDITED).length, 2)
+  const plain = run(ok(), prArgs('2'), PR3('Closes #12\n', [verdictComment('carol', HEAD, T1)], specAt(T0)))
+  assert.equal(plain.status, 0, plain.stderr)
+  assert.deepEqual(r.stdout.split('\n').slice(0, 2), plain.stdout.split('\n').slice(0, 2))
+  assert.equal(r.stdout.replace(`${EDIT_HEAD}\n\n${EDITED}\n`, 'Nothing to decide first.\n'), plain.stdout)
+})
+
+test('#279 AC7: no line when the spec was not updated after the verdict, the verdict judged another head, or there is no PR', () => {
+  for (const gh of [
+    PR3('Closes #12\n', [verdictComment('carol', HEAD, T1)], specAt(T0)),
+    PR3('Closes #12\n', [verdictComment('carol', 'abcdef1234567', T0)], specAt(T1)),
+    PR3('Closes #12\n', [verdictComment('mallory', HEAD, T0)], specAt(T1)),
+  ]) {
+    const r = run(ok(), prArgs('2'), gh)
+    assert.equal(r.status, 0, r.stderr)
+    assert.match(r.stdout, /Nothing to decide first\./)
+  }
+  const none = run(ok(), undefined, GH(specAt(T1)))
+  assert.equal(none.status, 0, none.stderr)
+  assert.match(none.stdout, /Nothing to decide first\./)
+})
+
+test('#279 AC11: a previous verdict without a sha and a spec updated after it gives a cannot-tell line; the result does not change', () => {
+  const r = run(ok(), prArgs('2'), PR3('Closes #12\n', [verdictComment('carol', null, T0)], specAt(T1)))
+  assert.equal(r.status, 0, r.stderr)
+  assert.ok(r.stdout.includes(`${EDIT_HEAD}\n\n${CANNOT_TELL}\n`), r.stdout)
+  assert.match(r.stdout, /^## Verify: PASS \(round 2 of 3\)$/m)
+})
+
+test('#279 AC8: a failing gh call reading the PR by number or its verdict comments posts nothing and names the error', () => {
+  for (const [over, why] of [
+    [{ 'api repos/{owner}/{repo}/pulls/3': { stderr: 'gh: Not Found (HTTP 404)\n', code: 1 } }, /pulls\/3 failed: gh: Not Found \(HTTP 404\)/],
+    [{ 'api --paginate --slurp repos/{owner}/{repo}/issues/3/comments': { stderr: 'gh: Server Error (HTTP 500)\n', code: 1 } }, /issues\/3\/comments failed: gh: Server Error \(HTTP 500\)/],
+  ]) {
+    const r = run(ok(), prArgs(), PR3('Closes #12\n', [], over))
+    assert.notEqual(r.status, 0)
+    assert.equal(r.stdout, '')
+    assert.match(r.stderr, why)
+  }
+})
+
+test('#279 AC9: the verifier hooks description states as many rules as it lists', () => {
+  const { description } = JSON.parse(readFileSync(join(ROOT, 'plugins/macro-loop/hooks/hooks.json'), 'utf8'))
+  const m = /to (\w+) rules: (.*?)\. Every other call/.exec(description)
+  assert.ok(m, description)
+  assert.equal(['one', 'two', 'three', 'four', 'five', 'six', 'seven'].indexOf(m[1]) + 1, m[2].split(/; (?:and )?/).length)
 })
