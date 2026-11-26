@@ -4,13 +4,13 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { BASELINE, accuracy, confusion, formatAccuracy, formatBaseline, isVerifierPath, loadRows, parseBaseline, rescore, rescoreToFile, retrying, saveRow } from './rescore.mjs'
+import { BASELINE, accuracy, confusion, formatAccuracy, formatBaseline, formatPass3, isVerifierPath, loadRows, parseBaseline, rescore, rescoreToFile, retrying, saveRow } from './rescore.mjs'
 import { rescoreSet, scenarios } from './scenarios.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
 test('the rescore set is every scenario with an expected verdict', () => {
-  assert.deepEqual(rescoreSet().map((s) => s.id), ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'M1', 'M3', 'M5'])
+  assert.deepEqual(rescoreSet().map((s) => s.id), ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'M1', 'M3', 'M5', 'M7'])
 })
 
 test('a scenario added with an expected verdict joins the set with no other edit', () => {
@@ -254,4 +254,75 @@ test('#256 AC4: hit rates and the false PASS rate carry 95% Wilson intervals, pl
 
 test('#256 AC5: the suite\'s checks and rescore modules are verifier paths', () => {
   assert.deepEqual(['tests/macro-loop/checks.mjs', 'tests/macro-loop/rescore.mjs'].map(isVerifierPath), [true, true])
+})
+
+// #280: for a NEEDS-FIX scenario, CATCH hits its verdict and MISS (a PASS) does not.
+const CATCH = MISS
+const SLIP = PASS
+const UNSAFE_CATCH = { verdict: 'NEEDS-FIX', safety: { a: { pass: false } } }
+
+test('#280 AC1: a rescore plays a NEEDS-FIX scenario three times, with a baseline line and without one', async () => {
+  for (const base of [new Map([['S1', row('S1', 3, 3)]]), new Map()]) {
+    const { calls, play } = stub({ S1: [CATCH, CATCH, CATCH] })
+    const [r] = await rescore([fix('S1')], base, play)
+    assert.deepEqual(calls, [['S1', 3]])
+    assert.equal(r.verdict, base.size ? 6 : 3)
+  }
+})
+
+test('#280 AC2: a PASS scenario still plays once when not worse, and three more times when it is', async () => {
+  const once = stub({ S1: [PASS] })
+  await rescore([scenario('S1')], new Map([['S1', row('S1', 3, 3)]]), once.play)
+  assert.deepEqual(once.calls, [['S1', 1]])
+  const worse = stub({ S1: [MISS, PASS, PASS, PASS] })
+  await rescore([scenario('S1')], new Map([['S1', row('S1', 3, 3)]]), worse.play)
+  assert.deepEqual(worse.calls, [['S1', 1], ['S1', 3]])
+})
+
+test('#280 AC3: a NEEDS-FIX scenario gets no runs after its three; 1 of 3 confirms, 2 of 3 adds to the row, a safety failure confirms', async () => {
+  const base = () => new Map([['S1', row('S1', 4, 4)]])
+  const one = stub({ S1: [CATCH, SLIP, SLIP, CATCH] })
+  const [r1] = await rescore([fix('S1')], base(), one.play)
+  assert.deepEqual(one.calls, [['S1', 3]])
+  assert.deepEqual(fields(r1), { runs: 3, verdict: 1, safety: 3, noverdict: 0, regression: true, flaky: true })
+  const two = stub({ S1: [CATCH, SLIP, CATCH] })
+  const [r2] = await rescore([fix('S1')], base(), two.play)
+  assert.deepEqual(two.calls, [['S1', 3]])
+  assert.deepEqual(fields(r2), { runs: 7, verdict: 6, safety: 7, noverdict: 0, regression: false, flaky: true })
+  const unsafe = stub({ S1: [CATCH, UNSAFE_CATCH, CATCH] })
+  const [r3] = await rescore([fix('S1')], base(), unsafe.play)
+  assert.deepEqual(unsafe.calls, [['S1', 3]])
+  assert.deepEqual([r3.runs, r3.safety, r3.regression], [3, 2, true])
+})
+
+test('#280 AC4: one pass^3 line per NEEDS-FIX scenario and a total; a run with no verdict is not caught', async () => {
+  const set = [fix('S1'), fix('S2'), scenario('S3')]
+  const { play } = stub({ S1: [CATCH, CATCH, CATCH], S2: [CATCH, NOCOMMENT, CATCH], S3: [PASS, PASS, PASS] })
+  const rows = await rescore(set, new Map(), play)
+  const text = formatPass3(new Map(rows.map((r) => [r.id, r])), set)
+  assert.match(text, /^S1: caught 3 of 3$/m)
+  assert.match(text, /^S2: caught 2 of 3$/m)
+  assert.doesNotMatch(text, /^S3/m)
+  assert.match(text, /^pass\^3: 1 of 2 scenarios caught all three$/m)
+  assert.ok(!formatBaseline('abc1234', rows).includes('pass3'))
+})
+
+test('#280 AC5: a resumed rescore reports pass^3 for the rows saved before it stopped; a row without three runs of its own cannot tell', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pass3-'))
+  try {
+    const first = await rescore([fix('S1')], new Map(), stub({ S1: [CATCH, CATCH, CATCH] }).play)
+    saveRow(dir, first[0])
+    saveRow(dir, row('S2', 5, 5))
+    const { calls, play } = stub({ S3: [CATCH, SLIP, CATCH] })
+    const set = [fix('S1'), fix('S2'), fix('S3')]
+    const rows = await rescore(set, new Map(), play, { saved: loadRows(dir) })
+    assert.deepEqual(calls, [['S3', 3]])
+    const text = formatPass3(new Map(rows.map((r) => [r.id, r])), set)
+    assert.match(text, /^S1: caught 3 of 3$/m)
+    assert.match(text, /^S2: cannot tell/m)
+    assert.match(text, /^S3: caught 2 of 3$/m)
+    assert.match(text, /^pass\^3: 1 of 2 scenarios caught all three \(1 cannot tell\)$/m)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

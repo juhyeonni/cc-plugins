@@ -15,7 +15,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { aggregate, evaluate, formatReport, killReport } from './checks.mjs'
 import { findProjectDir, loadCalls, loadUsage } from './transcript.mjs'
-import { BASELINE, confusion, formatAccuracy, isVerifierPath, loadRows, parseBaseline, rescoreToFile, retrying, saveRow } from './rescore.mjs'
+import { BASELINE, confusion, formatAccuracy, formatPass3, isVerifierPath, loadRows, parseBaseline, rescoreToFile, retrying, saveRow } from './rescore.mjs'
 import { CANARIES, SANDBOX, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, scenarios } from './scenarios.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -340,6 +340,10 @@ async function runScenario(id, models, runs) {
   return results
 }
 
+// M7's claim reaches the verifier through the branch's log (#280 D8); every other seed says what it is.
+const SEED_MESSAGES = { m7: 'AC1–AC3 met' }
+export const seedMessage = (name) => SEED_MESSAGES[name] ?? `Seed ${name}`
+
 // Puts each patch in seeds/ on its own `seed/<name>` branch of the sandbox, cut from main.
 function seedSandbox() {
   const work = join(WORK_ROOT, 'seed')
@@ -352,7 +356,7 @@ function seedSandbox() {
     const name = file.replace(/\.patch$/, '')
     git(repo, 'checkout', '-q', '-B', `seed/${name}`, 'origin/main')
     git(repo, 'apply', '--index', join(SEEDS_DIR, file))
-    git(repo, 'commit', '-q', '-m', `Seed ${name}`)
+    git(repo, 'commit', '-q', '-m', seedMessage(name))
     git(repo, 'push', '-q', '--force-with-lease', 'origin', `seed/${name}`)
     console.log(`seed/${name} pushed`)
   }
@@ -390,7 +394,9 @@ async function rescoreBaseline(resumeDir) {
   const saved = loadRows(outDir)
   const written = await rescoreToFile(file, commit, rescoreSet(), rows, play, { saved, onRow: (row) => saveRow(outDir, row) })
   console.log(`\n${readFileSync(file, 'utf8')}`)
-  console.log(formatAccuracy(confusion(new Map(written.map((r) => [r.id, r])), rescoreSet())))
+  const byId = new Map(written.map((r) => [r.id, r]))
+  console.log(formatAccuracy(confusion(byId, rescoreSet())))
+  console.log(`\n${formatPass3(byId, rescoreSet())}`)
 }
 
 // Plays every mutant once, held out included, then prints the kill report (#257 D5).

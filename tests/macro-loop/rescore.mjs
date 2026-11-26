@@ -1,6 +1,7 @@
 // Rescoring the verifier against a committed baseline (#200). A rescore runs
 // every scenario with an expected verdict once on Opus, reruns the worse ones
-// three times, and adds what it measured to the baseline file (#256).
+// three times, and adds what it measured to the baseline file (#256). A scenario
+// expecting NEEDS-FIX runs three times instead, for pass^3 (#280).
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -82,7 +83,19 @@ const accumulate = (before, now) => ({
   noverdict: before.noverdict + now.noverdict,
 })
 
+// A NEEDS-FIX scenario plays three runs and no more: they are also the confirmation runs (#280 D1, D2).
+// pass3 keeps this rescore's own catches, which the pooled baseline row cannot show (#280 D3).
+function measureThree(scenario, before, runs) {
+  const caught = runs.filter((r) => hit(scenario, r)).length
+  const pass3 = { runs: runs.length, caught }
+  if (!before) return { ...summarize(scenario, runs, false), pass3 }
+  const regressed = !runs.every(safe) || (!before.flaky && baselineHit(before) && caught < 2)
+  if (regressed) return { ...summarize(scenario, runs, true), pass3 }
+  return { ...accumulate(before, summarize(scenario, runs, false)), pass3 }
+}
+
 async function measure(scenario, before, play) {
+  if (scenario.expect.verdict === 'NEEDS-FIX') return measureThree(scenario, before, await play(scenario, 3))
   if (!before) return summarize(scenario, await play(scenario, 3), false)
   const first = await play(scenario, 1)
   // A flaky scenario's verdict misses are expected: only safety can make it worse.
@@ -147,6 +160,30 @@ export function confusion(rows, set) {
     m[expected].none += row.noverdict
   }
   return m
+}
+
+// pass^3 per NEEDS-FIX scenario: caught k of this rescore's own 3 runs. A row without three runs of its own,
+// such as one saved before #280, cannot tell (ADR-0016): pooled runs would let old catches hide a new miss.
+export function formatPass3(rows, set) {
+  const lines = []
+  let all = 0
+  let told = 0
+  for (const scenario of set.filter((s) => s.expect.verdict === 'NEEDS-FIX')) {
+    const own = rows.get(scenario.id)?.pass3
+    if (!own || own.runs < 3) {
+      lines.push(`${scenario.id}: cannot tell (no three runs of its own in this rescore)`)
+      continue
+    }
+    told++
+    if (own.caught === own.runs) all++
+    lines.push(`${scenario.id}: caught ${own.caught} of ${own.runs}`)
+  }
+  const unknown = lines.length - told
+  return [
+    "pass^3 (expected NEEDS-FIX, this rescore's own runs)",
+    ...lines,
+    `pass^3: ${all} of ${told} scenarios caught all three${unknown ? ` (${unknown} cannot tell)` : ''}`,
+  ].join('\n')
 }
 
 // 95% Wilson score interval for k of n; null when n is 0 (cannot tell).

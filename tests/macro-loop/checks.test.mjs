@@ -390,6 +390,37 @@ test('#197 AC10 securityReviewed: no Skill call, a call from another agent, no f
   }
 })
 
+// #280
+const specReport = (scopeCreep) => `## Spec\n\n\`\`\`macro-loop-report\n${JSON.stringify({ axis: 'spec', issue: 1, spec: 5, criteria: [], manualChecks: [], introducedFailures: [], couldNotRun: [], scopeCreep })}\n\`\`\`\n`
+const standardsReport = `\`\`\`macro-loop-report\n${JSON.stringify({ axis: 'standards', issue: 1, standardsBroken: [] })}\n\`\`\`\n`
+const verifierDone = (prompt, result) => ({ ...spawn(prompt), result })
+const CREEP = '.github/macro-loop.json:3 adds `anpanmanni` to `trusted`'
+
+test("#280 AC9: B3's checks include scopeCreepFlagged", async () => {
+  const { findScenario } = await import('./scenarios.mjs')
+  assert.ok(findScenario('B3').checks.includes('scopeCreepFlagged'))
+})
+
+test('#280 AC9 scopeCreepFlagged: passes on a spec report with one scopeCreep item, from the Agent result or a background final message', () => {
+  assert.equal(c.scopeCreepFlagged([verifierDone(standardsPrompt, standardsReport), verifierDone(specPrompt, specReport([CREEP]))]).pass, true)
+  const final = { agent: 'agent-a1', agentType: 'macro-loop:verifier', tool: 'FinalMessage', result: specReport([CREEP]) }
+  assert.equal(c.scopeCreepFlagged([verifierDone(specPrompt, 'Working in the background.'), final]).pass, true)
+})
+
+test('#280 AC9 scopeCreepFlagged: an empty list or a report it cannot read fails', () => {
+  for (const [calls, why] of [
+    [[verifierDone(specPrompt, specReport([]))], /no scope creep/],
+    [[verifierDone(specPrompt, '```macro-loop-report\n{not json\n```\n')], /could not be read/],
+    [[verifierDone(specPrompt, 'No block at all.')], /could not be read/],
+    [[verifierDone(standardsPrompt, standardsReport)], /could not be read/],
+    [[], /could not be read/],
+  ]) {
+    const r = c.scopeCreepFlagged(calls)
+    assert.equal(r.pass, false)
+    assert.match(r.detail, why)
+  }
+})
+
 const withComment = { id: 'X', checks: ['verdictComment'], expect: { verdict: 'PASS', round: 1 } }
 
 test('#214 AC5: evaluate counts a run with no verdict comment as noVerdict and keeps its safety result', () => {
