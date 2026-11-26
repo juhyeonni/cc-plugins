@@ -269,14 +269,43 @@ test('aggregate: verdict accuracy is reported, not gated', () => {
   const [row] = c.aggregate([run(true), run(true, 'NEEDS-FIX'), run(true)])
   assert.equal(row.pass, true)
   assert.equal(row.verdicts, '2 of 3')
-  assert.match(c.formatReport([row]), /^C0 opus: PASS \(safety 3 of 3, expected verdict 2 of 3\)$/)
+  assert.match(c.formatReport([row]), /^C0 opus: PASS \(safety 3 of 3, expected verdict 2 of 3\)$/m)
 })
 
-test('aggregate: the row carries the mean main-session cache read, output and cost of its runs', () => {
-  const withUsage = (cacheRead, output, costs) => ({ ...run(true), usage: { main: { cacheRead, output } }, turns: costs.map((cost) => ({ cost })) })
-  const [row] = c.aggregate([withUsage(100, 10, [0.5, 0.5]), withUsage(200, 20, [2]), withUsage(300, 30, [1, 2])])
-  assert.deepEqual(row.tokens, { cacheRead: 200, output: 20, cost: 2 })
-  assert.match(c.formatReport([row]), /\n {2}main session, mean of 3 runs: cache read 200, output 20, cost \$2\.00$/)
+const measured = (cacheRead, output, costs, ms) => ({ ...run(true), usage: { main: { cacheRead, output } }, turns: costs.map((cost) => ({ cost })), ms })
+
+test('#255 AC1: a run costs its last reported turn cost, not the sum of its turns', () => {
+  const [row] = c.aggregate([measured(100, 10, [0.5, 1.0]), measured(200, 20, [2]), measured(300, 30, [1, 3])])
+  assert.deepEqual(row.measures.cost, { mean: 2, runs: 3 })
+  const [skipsUnreported] = c.aggregate([{ ...run(true), turns: [{ cost: 1 }, { cost: 3 }, {}] }])
+  assert.deepEqual(skipsUnreported.measures.cost, { mean: 3, runs: 1 })
+})
+
+test('#255 AC2: the report names cache read and output as main session, and cost as the session total including subagents', () => {
+  const [row] = c.aggregate([measured(100, 10, [0.5, 1.0], 1000), measured(200, 20, [2], 2000), measured(300, 30, [1, 3], 3000)])
+  const report = c.formatReport([row])
+  assert.match(report, /^ {2}main session: cache read 200 \(mean of 3 runs\), output 20 \(mean of 3 runs\)$/m)
+  assert.match(report, /^ {2}session total including subagents: cost \$2\.00 \(mean of 3 runs\)$/m)
+  assert.doesNotMatch(report, /main session.*cost/)
+})
+
+test('#255 AC4: the row reports the mean wall-clock time per run', () => {
+  const [row] = c.aggregate([measured(1, 1, [1], 60000), measured(1, 1, [1], 90000), measured(1, 1, [1], 120000)])
+  assert.deepEqual(row.measures.ms, { mean: 90000, runs: 3 })
+  assert.match(c.formatReport([row]), /^ {2}wall-clock time per run: 90s \(mean of 3 runs\)$/m)
+})
+
+test('#255 AC5: a run with no cost or no time is left out of that mean; a row where no run has it says so', () => {
+  const [some] = c.aggregate([measured(1, 1, [2], 10000), measured(1, 1, [], undefined), measured(1, 1, [4], 30000)])
+  assert.deepEqual(some.measures.cost, { mean: 3, runs: 2 })
+  assert.deepEqual(some.measures.ms, { mean: 20000, runs: 2 })
+  const [none] = c.aggregate([run(true), run(true), run(true)])
+  assert.equal(none.measures.cost, null)
+  assert.equal(none.measures.ms, null)
+  const report = c.formatReport([none])
+  assert.match(report, /cost cannot tell, no run recorded it/)
+  assert.match(report, /wall-clock time per run: cannot tell, no run recorded it/)
+  assert.doesNotMatch(report, /\$0\.00|\b0s\b/)
 })
 
 test('decideFirstCites: only the "Decide first" line counts', () => {
@@ -311,7 +340,7 @@ test('aggregate: a citation is reported as k of n, not gated', () => {
   const [row] = c.aggregate([cited(true), cited(false), cited(true)])
   assert.equal(row.pass, true)
   assert.equal(row.cites, '2 of 3')
-  assert.match(c.formatReport([row]), /^C0 opus: PASS \(safety 3 of 3, expected verdict 3 of 3, "Decide first" cites README\.md 2 of 3\)$/)
+  assert.match(c.formatReport([row]), /^C0 opus: PASS \(safety 3 of 3, expected verdict 3 of 3, "Decide first" cites README\.md 2 of 3\)$/m)
 })
 
 test('evaluate: an unknown check name throws', () => {
