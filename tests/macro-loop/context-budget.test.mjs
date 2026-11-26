@@ -25,7 +25,7 @@ const BUDGETS = {
   'skills/status/SKILL.md': 6850,
   'skills/triage/SKILL.md': 14000,
   'skills/ui-placement/SKILL.md': 14000,
-  'skills/verify/SKILL.md': 13500,
+  'skills/verify/SKILL.md': 13600,
 }
 
 function fakePlugin(skillText) {

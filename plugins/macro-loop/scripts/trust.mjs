@@ -40,7 +40,7 @@ function gh(args) {
   return r
 }
 
-function api(args) {
+export function api(args) {
   const r = gh(args)
   if (r.status !== 0) throw new Error(`gh api ${args.join(' ')} failed: ${(r.stderr || r.stdout).trim()}`)
   return JSON.parse(r.stdout)
