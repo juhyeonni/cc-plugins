@@ -230,10 +230,10 @@ test('findProjectDir finds a session by its id in any project folder, and fails 
   mkdirSync(worktree, { recursive: true })
   writeFileSync(join(checkout, 'another-session.jsonl'), '')
   writeFileSync(join(worktree, `${id}.jsonl`), '')
-  assert.equal(findProjectDir(id, home), worktree)
-  assert.throws(() => findProjectDir(missing, home), new RegExp(`no folder .* session ${missing}$`))
+  assert.equal(findProjectDir(id, join(home, '.claude')), worktree)
+  assert.throws(() => findProjectDir(missing, join(home, '.claude')), new RegExp(`no folder .* session ${missing}$`))
   writeFileSync(join(checkout, `${id}.jsonl`), '')
-  assert.throws(() => findProjectDir(id, home), new RegExp(`2 folders .* session ${id}:`))
+  assert.throws(() => findProjectDir(id, join(home, '.claude')), new RegExp(`2 folders .* session ${id}:`))
 })
 
 test('loadCalls pairs tool calls with results across the session and its subagents', () => {

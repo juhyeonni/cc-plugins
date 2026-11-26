@@ -5,11 +5,11 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 
 // Claude Code keeps a session's transcript, `<sessionId>.jsonl`, in a folder under
-// `~/.claude/projects` named after a working directory, and not always the one the
+// `projects` under its config folder (`CLAUDE_CONFIG_DIR`, else `~/.claude`) named after a working directory, and not always the one the
 // session started in: a session whose last turn ended inside a worktree it entered
 // had it in the worktree's folder (#58). A session id is unique, so one folder holds it.
-export function findProjectDir(sessionId, home = homedir()) {
-  const root = join(home, '.claude', 'projects')
+export function findProjectDir(sessionId, configDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude')) {
+  const root = join(configDir, 'projects')
   const found = existsSync(root) ? readdirSync(root).filter((d) => existsSync(join(root, d, `${sessionId}.jsonl`))) : []
   if (found.length === 0) throw new Error(`no folder under ${root} holds the transcript of session ${sessionId}`)
   if (found.length > 1) throw new Error(`${found.length} folders under ${root} hold the transcript of session ${sessionId}: ${found.join(', ')}`)
