@@ -102,7 +102,7 @@ Per Issue, INCONCLUSIVE when a report or block is missing or invalid, `couldNotR
 
 **PASS or NEEDS-FIX** (the script exited 0): post the file the script printed as the comment's body, unchanged, with `-F body=@<file>` (see `github.md`). Add nothing, cut nothing, and never write the comment by hand: a gap you see goes in your message to the user, outside the verdict. Without a PR, read the file and show it, and offer to post it on the Issue as a plain comment without its first line, the marker, so the result is not left in the chat only. The verdict counts as posted only when the POST printed the comment's id. If it did not, the verdict was not posted: say so, with the error, and show the verdict here.
 
-The comment starts with the marker `<!-- macro-loop:verify round=N sha=<head> -->` and the heading `## Verify: PASS | NEEDS-FIX (round N of 3)`, which `scripts/trust.mjs` reads; the rest is the script's (see `scripts/verdict.mjs`).
+The comment starts with the marker `<!-- macro-loop:verify round=N sha=<head> -->` and the heading `## Verify: PASS | NEEDS-FIX (…round N of 3)`, whose word `scripts/trust.mjs` reads; the rest is the script's (see `scripts/verdict.mjs`).
 
 **INCONCLUSIVE** (the script exited non-zero): print what it named and the error. Post no comment with the marker: an inconclusive run is not a round. Say what would let the checks run, then verify again.
 

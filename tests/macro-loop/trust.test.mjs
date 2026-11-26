@@ -333,6 +333,16 @@ test('--pr: the last verdict\'s result is read from a verdict that carries the c
   }
 })
 
+test('#283 AC4: the last verdict\'s result is PASS from the heading that counts the criteria run', () => {
+  const pr = { user: { login: 'carol' }, head: { sha: 'abc1234' }, base: { ref: 'main' } }
+  const body = '<!-- macro-loop:verify round=1 sha=0123abc -->\n## Verify: PASS (2 of 3 criteria ran, round 1 of 3)\n**Criteria:** 2 ran, 1 read, 0 manual'
+  const out = run(base({
+    'api repos/{owner}/{repo}/pulls/3': { stdout: pr },
+    'api --paginate --slurp repos/{owner}/{repo}/issues/3/comments': { stdout: [[comment(1, 'carol', body)]] },
+  }), ['--pr', '3']).out.pr
+  assert.equal(out.lastVerdictResult, 'PASS')
+})
+
 test('--pr: no trusted verdict gives round 1 and no last verdict', () => {
   const r = run(base({
     'api repos/{owner}/{repo}/pulls/3': { stdout: { user: { login: 'carol' }, head: { sha: 'abc123' }, base: { ref: 'main' } } },

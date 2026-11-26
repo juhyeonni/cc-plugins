@@ -93,7 +93,7 @@ test('PASS: the marker with round and head, the heading, the counts line, then t
   const lines = r.stdout.split('\n')
   assert.deepEqual(lines.slice(0, 5), [
     `<!-- macro-loop:verify round=1 sha=${HEAD} -->`,
-    '## Verify: PASS (round 1 of 3)',
+    '## Verify: PASS (1 of 2 criteria ran, round 1 of 3)',
     '**Criteria:** 1 ran, 1 read, 0 manual',
     '',
     'This PR can merge. Read this verdict, mark the draft "Ready for review", then merge. Nothing to decide first.',
@@ -289,7 +289,7 @@ test('--agent <id> reads the saved reports, writes the same comment as from file
   const comment = run(ok()).stdout
   assert.equal(readFileSync(out, 'utf8'), comment)
   assert.equal(byAgent.stdout, `${out}\n${comment.split('\n').slice(1, 3).join('\n')}\n`)
-  assert.match(byAgent.stdout, /^.+\n## Verify: PASS \(round 1 of 3\)\n\*\*Criteria:\*\*/)
+  assert.match(byAgent.stdout, /^.+\n## Verify: PASS \(1 of 2 criteria ran, round 1 of 3\)\n\*\*Criteria:\*\*/)
 })
 
 test('--agent <id> with no saved report prints nothing to post and names the id', () => {
@@ -315,8 +315,63 @@ test('#197 AC3: security findings come first in "Decide first", before Standards
 test('#197 AC4: security findings never change the result', () => {
   const pass = run(ok(spec(), standards(), security({ findings: [SQL, 'a leaked token in .env.example'] })))
   assert.equal(pass.status, 0, pass.stderr)
-  assert.match(pass.stdout, /^## Verify: PASS \(round 1 of 3\)$/m)
-  assert.match(pass.stdout, /This PR can merge\./)
+  assert.match(pass.stdout, /^## Verify: PASS \(1 of 2 criteria ran, round 1 of 3\)$/m)
+})
+
+const opening = (stdout) => stdout.split('\n')[4]
+const READ_ONLY = spec({ criteria: [met('AC1', 'CSV quoted fields', 'read'), { id: 'AC2', words: 'empty input', result: 'manual', judged: 'manual' }], manualChecks: ['AC2 empty input: try it'] })
+
+test('#283 AC1: a PASS heading says how many criteria ran; the Criteria line under it is unchanged', () => {
+  const r = run(ok(spec({ criteria: [met('AC1', 'a'), met('AC2', 'b', 'read'), met('AC3', 'c')] })), undefined, GH(issueComments(12, [comment(SPEC_ID, 'carol', specBody('AC1', 'AC2', 'AC3'))])))
+  assert.equal(r.status, 0, r.stderr)
+  assert.deepEqual(r.stdout.split('\n').slice(1, 3), ['## Verify: PASS (2 of 3 criteria ran, round 1 of 3)', '**Criteria:** 2 ran, 1 read, 0 manual'])
+})
+
+test('#283 AC2: for a PR closing two Issues, k and n count the criteria of both', () => {
+  const r = run([...ok(), 'B' + block(spec({ issue: 13, spec: SPEC_13, criteria: [met('AC1', 'dots to dashes')] })), 'C' + block(standards({ issue: 13 }))])
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(r.stdout, /^## Verify: PASS \(2 of 3 criteria ran, round 1 of 3\)$/m)
+})
+
+test('#283 AC3: a NEEDS-FIX heading keeps (round r of 3) (guards existing behavior)', () => {
+  const r = run(ok(spec({ criteria: [met('AC1', 'CSV quoted fields'), unmet('AC2', 'empty input')] })), ['--round', '2', '--head', HEAD, '--branch', '12-csv'])
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(r.stdout, /^## Verify: NEEDS-FIX \(round 2 of 3\)$/m)
+})
+
+test('#283 AC5: a PASS with a security finding tells you to read the Security section, not that it can merge', () => {
+  const r = run(ok(spec(), standards(), security({ findings: [SQL] })))
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(r.stdout, /^## Verify: PASS /m)
+  assert.doesNotMatch(r.stdout, /This PR can merge/)
+  assert.match(opening(r.stdout), /^Read the Security section before you merge: /)
+})
+
+test('#283 AC6: a PASS where no criterion ran tells you to read the criteria, not that it can merge', () => {
+  const r = run(ok(READ_ONLY))
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(r.stdout, /^## Verify: PASS \(0 of 2 criteria ran, round 1 of 3\)$/m)
+  assert.doesNotMatch(r.stdout, /This PR can merge/)
+  assert.match(opening(r.stdout), /^Read the criteria before you merge: /)
+  assert.match(opening(r.stdout), /Do the manual checks below/)
+})
+
+test('#283 AC7: a PASS with a security finding and no criterion run names both', () => {
+  const r = run(ok(READ_ONLY, standards(), security({ findings: [SQL] })))
+  assert.equal(r.status, 0, r.stderr)
+  assert.doesNotMatch(r.stdout, /This PR can merge/)
+  assert.match(opening(r.stdout), /^Read the Security section and the criteria before you merge: /)
+})
+
+test('#283 AC8: a criterion run and empty security findings still open with "This PR can merge", whatever the security prose says (guards existing behavior)', () => {
+  const r = run([SPEC_PROSE + block(spec()), STANDARDS_PROSE + block(standards()), `# Security review\n\nOne finding: ${SQL}` + block(security())])
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(opening(r.stdout), /^This PR can merge\. /)
+})
+
+test('#283 AC9: a risky PASS opening still carries "Decide first" or "Nothing to decide first."', () => {
+  assert.match(opening(run(ok(spec(), standards(), security({ findings: [SQL] }))).stdout), / Decide first: the Security report found these/)
+  assert.match(opening(run(ok(READ_ONLY)).stdout), / Nothing to decide first\.$/)
 })
 
 test('#197 AC5: no findings says "No findings"; could not run says Security did not run, with the reason, and is still posted', () => {
@@ -560,7 +615,7 @@ test('#279 AC11: a previous verdict without a sha and a spec updated after it gi
   const r = run(ok(), prArgs('2'), PR3('Closes #12\n', [verdictComment('carol', null, T0)], specAt(T1)))
   assert.equal(r.status, 0, r.stderr)
   assert.ok(r.stdout.includes(`${EDIT_HEAD}\n\n${CANNOT_TELL}\n`), r.stdout)
-  assert.match(r.stdout, /^## Verify: PASS \(round 2 of 3\)$/m)
+  assert.match(r.stdout, /^## Verify: PASS \(1 of 2 criteria ran, round 2 of 3\)$/m)
 })
 
 test('#279: the previous verdict is the one trust.mjs reads as pr.lastVerdict, a later trusted one with a loose marker included (ADR-0009)', () => {
