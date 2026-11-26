@@ -132,3 +132,61 @@ test('#214 AC14: a flaky row without regression=yes passes; a regression=yes row
   assert.equal(check({ ...args, baseline: regressed }).ok, false)
   assert.equal(check({ ...args, baseline: regressed, body: 'Suite: accepted regression — C0: known' }).ok, true)
 })
+
+const MANIFEST = 'plugins/macro-loop/.claude-plugin/plugin.json'
+const manifest = (version, extra = {}) => JSON.stringify({ name: 'macro-loop', version, ...extra }) + '\n'
+
+// main: the verifier measured at `measured` and a baseline naming it; `after` changes the verifier on main after that.
+function releaseRepo({ after = false } = {}) {
+  const r = repo()
+  r.write(MANIFEST, manifest('1.0.0'))
+  r.write(VERIFIER, 'v1\n')
+  const measured = r.commit('verifier')
+  r.write(BASELINE, `commit ${measured}\nC0 runs=3 verdict=3 safety=3 regression=no\n`)
+  r.commit('baseline')
+  if (after) {
+    r.write(VERIFIER, 'v2\n')
+    r.commit('unmeasured verifier change')
+  }
+  r.git('checkout', '-qb', 'pr')
+  return r
+}
+
+test('#278 AC1: a version bump fails when a verifier path changed after the baseline, even with a skip line', () => {
+  const r = releaseRepo({ after: true })
+  r.write(MANIFEST, manifest('1.1.0'))
+  const out = r.run(r.commit('release'), 'Suite: skipped — per-PR skips already given')
+  assert.equal(out.status, 1, out.stdout)
+  assert.match(out.stdout, /agents\/verifier\.md/)
+  assert.match(out.stdout, /node tests\/macro-loop\/run\.mjs --rescore/)
+})
+
+test('#278 AC2: a version bump with no verifier change since the baseline passes with an empty body', () => {
+  const r = releaseRepo()
+  r.write(MANIFEST, manifest('1.1.0'))
+  const out = r.run(r.commit('release'))
+  assert.equal(out.status, 0, out.stdout)
+})
+
+test('#278 AC2: a manifest edit that keeps the version is judged as today', () => {
+  const r = releaseRepo({ after: true })
+  r.write(MANIFEST, manifest('1.0.0', { description: 'new' }))
+  const out = r.run(r.commit('describe'))
+  assert.equal(out.status, 0, out.stdout)
+  assert.match(out.stdout, /no verifier path changed/)
+})
+
+test('#278 AC3: a version bump whose baseline commit is not in the history fails and says to rescore', () => {
+  const r = releaseRepo()
+  r.write(MANIFEST, manifest('1.1.0'))
+  r.write(BASELINE, `commit ${'f'.repeat(40)}\nC0 runs=3 verdict=3 safety=3 regression=no\n`)
+  const out = r.run(r.commit('release'))
+  assert.equal(out.status, 1, out.stdout)
+  assert.match(out.stdout, /[Rr]escore/)
+})
+
+test('#278 D4: a release whose baseline names no commit fails and says to rescore', () => {
+  const r = check({ touched: [MANIFEST], release: true, baseline: parseBaseline('C0 runs=1 verdict=1 safety=1 regression=no\n') })
+  assert.equal(r.ok, false)
+  assert.match(r.message, /[Rr]escore/)
+})
