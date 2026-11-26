@@ -476,4 +476,16 @@ test('#270 AC4: no open PR gives the same comment as before; a failing PR lookup
 test('#270 AC5: the verify skill names a closed Issue with no report as a cause of INCONCLUSIVE', () => {
   const skill = readFileSync(join(ROOT, 'plugins/macro-loop/skills/verify/SKILL.md'), 'utf8')
   assert.match(skill, /INCONCLUSIVE when [^\n]*an Issue the branch's open PR closes has no spec or no standards report/)
+=======
+test('#271: a trusted spec from which no criterion can be read posts nothing and names the spec comment', () => {
+  const lines = (line) => ['<!-- macro-loop:spec -->', '## Spec', '', '**Acceptance criteria**', line('AC1'), line('AC2')].join('\n')
+  const why = /INCONCLUSIVE: no acceptance-criterion line could be read from #12's spec comment 5976278327/
+  for (const line of [(id) => `- ${id}. something · check: test`, (id) => `- [ ] **${id}** something · check: test`]) {
+    const gh = GH(issueComments(12, [comment(SPEC_ID, 'carol', lines(line))]))
+    for (const criteria of [[], spec().criteria]) refusedBy(ok(spec({ criteria })), gh, why)
+  }
+  // A spec in the template's format still gives a verdict.
+  const r = run(ok())
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(r.stdout, /^## Verify: PASS/m)
 })
