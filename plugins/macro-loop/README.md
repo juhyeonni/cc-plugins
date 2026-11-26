@@ -69,6 +69,10 @@ A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:gri
 - **Read-only before implement.** `triage`, `grilling`, `research`, `ui-placement` and `spec` never change the working tree or run the repo's code in it. Code they need to see run goes to a subagent in a disposable worktree.
 - **Enforced, or followed.** Claude Code enforces two things: the verifier's worktree, which its definition declares, and the permission prompts for commands. Who is trusted, which comment is the spec or a verdict, and the verdict itself are decided in code (`scripts/trust.mjs`, `scripts/verdict.mjs`), the same way on every run, and the plugin's hooks hold the verifiers to their rules (see `hooks/hooks.json`). Every other rule here is an instruction the model follows. Re-tests found those rules followed on Opus, which is evidence, not a guarantee; on Haiku they were often skipped.
 
+## Claude Ship and Code Review
+
+macro-loop and Claude Code's Code Review judge different things, so use both. macro-loop's `verify` judges a PR against its Issue's acceptance criteria: did the change do what the spec asked. Code Review judges the code itself. Claude Ship can fix and approve a PR; macro-loop, on purpose, only opens drafts and never marks a PR ready or merges it (ADR-0006), so the merge stays a person's decision.
+
 ## Recommended
 
 Install the `security-guidance` plugin as well. It checks code for security problems while it is written, before `verify`'s review of the finished diff. Put any security rules of your own in that plugin's settings file, not in macro-loop.
