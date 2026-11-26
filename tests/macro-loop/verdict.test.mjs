@@ -20,6 +20,7 @@ const spec = (over = {}) => ({
   manualChecks: [],
   introducedFailures: [],
   couldNotRun: [],
+  scopeCreep: [],
   ...over,
 })
 const standards = (over = {}) => ({ axis: 'standards', issue: 12, standardsBroken: [], ...over })
@@ -314,4 +315,43 @@ test('#197 AC7: a PR that closes two Issues takes one security report; two are r
   assert.notEqual(twice.status, 0)
   assert.equal(twice.stdout, '')
   assert.match(twice.stderr, /2 security reports for one PR/)
+})
+
+const CREEP = 'src/trust.js:8 adds `bot` to `trusted`, which the spec did not ask for'
+const CREEP_HEAD = 'Decide first: the Spec report found behavior the spec did not ask for:'
+
+test('#254 AC1: a scope creep item opens "Decide first", on a PASS and on a NEEDS-FIX', () => {
+  for (const s of [spec({ scopeCreep: [CREEP] }), spec({ scopeCreep: [CREEP], criteria: [unmet('AC1', 'CSV quoted fields')] })]) {
+    const r = run(ok(s))
+    assert.equal(r.status, 0, r.stderr)
+    assert.ok(r.stdout.includes(`${CREEP_HEAD}\n\n- ${CREEP}\n`), r.stdout)
+  }
+})
+
+test('#254 AC2: scope creep never changes the result', () => {
+  for (const s of [spec(), spec({ criteria: [unmet('AC1', 'CSV quoted fields')] })]) {
+    const heading = (out) => out.split('\n')[1]
+    const creep = run(ok({ ...s, scopeCreep: [CREEP] })).stdout
+    assert.ok(creep.includes(`- ${CREEP}\n`), 'the item is reported')
+    assert.equal(heading(creep), heading(run(ok(s)).stdout))
+  }
+})
+
+test('#254 AC3: "Decide first" lists Security, then scope creep, then Standards', () => {
+  const r = run(ok(spec({ scopeCreep: [CREEP] }), standards({ standardsBroken: broken('ADR 0001: GraphQL') }), security({ findings: [SQL] })))
+  assert.equal(r.status, 0, r.stderr)
+  const sec = r.stdout.indexOf('Decide first: the Security report')
+  const creep = r.stdout.indexOf('The Spec report found behavior the spec did not ask for:\n\n- ' + CREEP)
+  const std = r.stdout.indexOf('The Standards report says the diff breaks these documented standards:\n\n- S1 ADR 0001')
+  assert.ok(sec >= 0 && creep > sec && std > creep, r.stdout)
+})
+
+test('#254: on a PR that closes two Issues, each scope creep item carries its Issue number', () => {
+  const r = run([...ok(spec({ scopeCreep: [CREEP] })), 'B' + block(spec({ issue: 13 })), 'C' + block(standards({ issue: 13 }))])
+  assert.equal(r.status, 0, r.stderr)
+  assert.ok(r.stdout.includes(`${CREEP_HEAD}\n\n- #12 ${CREEP}\n`), r.stdout)
+})
+
+test('#254 AC4: a spec block without `scopeCreep`, or with one that is not a list of non-empty strings, posts nothing', () => {
+  for (const scopeCreep of [undefined, 'none', [''], [' '], [3], [{ behavior: 'x' }]]) refused(ok(spec({ scopeCreep })), /scopeCreep/)
 })
