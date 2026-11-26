@@ -13,11 +13,13 @@
 // it prints the comment to post; from `--agent` it writes the comment to
 // `verdict-<head>.md` in the reports directory and prints that path and the heading. A missing
 // or invalid block, a missing report, or a non-empty could-not-run list prints nothing on
-// stdout, names why on stderr and exits non-zero: nothing is posted.
+// stdout, names why on stderr and exits non-zero: nothing is posted. So does a spec report that
+// does not judge every criterion of the Issue's trusted spec, which the script finds itself (#252).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
+import { comments, specOf, trustContext } from './trust.mjs'
 import { reportPath, reportsDir } from './verifier-report.mjs'
 
 const TAG = '```macro-loop-report'
@@ -194,6 +196,35 @@ export function verdict({ round, head, branch, reports }) {
   ].join('\n').trimEnd() + '\n'
 }
 
+// The AC IDs of a spec's acceptance-criteria lines that carry `check:`.
+export const specCriteria = (body) => [...String(body ?? '').matchAll(/^\s*- \[[ xX]\] (AC\d+)\b.*\bcheck:/gm)].map((m) => m[1])
+
+// Each Issue's trusted spec comment, or null, found as trust.mjs finds it: never from the reports.
+function trustedSpecs(numbers) {
+  const { trusted } = trustContext()
+  return new Map(
+    numbers.map((n) => {
+      const list = comments(n)
+      const id = specOf(list, trusted)
+      return [n, id === null ? null : list.find((c) => c.id === id)]
+    }),
+  )
+}
+
+// A spec report that names another spec, or leaves out a criterion of the trusted one, is INCONCLUSIVE.
+export function checkCoverage(report, spec) {
+  const n = report.issue
+  if (!spec) {
+    if (report.spec !== null) throw new Error(`INCONCLUSIVE: the spec report for #${n} names spec ${report.spec}, but #${n} has no trusted spec`)
+    if (!report.criteria.length) throw new Error(`INCONCLUSIVE: #${n} has no trusted spec, and the spec report judges no criterion against the Issue body`)
+    return
+  }
+  if (report.spec !== spec.id) throw new Error(`INCONCLUSIVE: the spec report for #${n} names spec ${report.spec}, not #${n}'s trusted spec comment ${spec.id}`)
+  const judged = new Set(report.criteria.map((c) => c.id))
+  const missing = specCriteria(spec.body).filter((id) => !judged.has(id))
+  if (missing.length) throw new Error(`INCONCLUSIVE: the spec report for #${n} does not judge ${missing.join(', ')} of spec comment ${spec.id}`)
+}
+
 // The report verifier-report.mjs saved when that verifier stopped.
 function savedReport(id) {
   const path = reportPath(id)
@@ -217,6 +248,9 @@ function main(argv) {
     ...agents.map((id) => parseReport(savedReport(id), `the report of verifier ${id}`)),
   ]
   const comment = verdict({ round: Number(values.round), head: values.head, branch: values.branch, reports })
+  const specReports = reports.filter((r) => r.data.axis === 'spec').map((r) => r.data)
+  const specs = trustedSpecs([...new Set(specReports.map((d) => d.issue))])
+  for (const d of specReports) checkCoverage(d, specs.get(d.issue))
   if (!agents.length) return comment
   // From saved reports, the comment goes to a file beside them, so the session needs no
   // directory or redirect of its own, and only the file and the heading reach its context.

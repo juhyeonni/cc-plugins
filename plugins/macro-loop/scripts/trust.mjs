@@ -228,7 +228,7 @@ export function recordsOf(comments, trusted) {
 // The goal run's summary comment: the newest trusted one, so a resume edits it and posts no second.
 export const summaryOf = (comments, trusted) => trustedMarked(comments, trusted, '<!-- macro-loop:summary -->').at(-1)?.id ?? null
 
-const comments = (n) => api(['--paginate', '--slurp', `repos/{owner}/{repo}/issues/${n}/comments`]).flat()
+export const comments = (n) => api(['--paginate', '--slurp', `repos/{owner}/{repo}/issues/${n}/comments`]).flat()
 
 function decide(argv) {
   const { values } = parseArgs({ args: argv, options: { issue: { type: 'string' }, pr: { type: 'string' } } })
