@@ -7,7 +7,7 @@
 // Run it in the repo's checkout, like stage.mjs. It reads only. It prints one JSON line per
 // Issue, and per PR that closes no Issue, then `{"more": <count>}` when Issues were left out.
 // On any failure it prints nothing and exits non-zero with the error.
-import { fileURLToPath } from 'node:url'
+import { isMain } from './is-main.mjs'
 import { list, runContext, stageOfIssue } from './stage.mjs'
 import { CLOSES } from './trust.mjs'
 
@@ -37,7 +37,7 @@ export function statusLines({ issues, prs, stageFor, limit = LIMIT }) {
   return recent.length > limit ? [...rows, { more: recent.length - limit }] : rows
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     const issues = list('repos/{owner}/{repo}/issues?state=open&per_page=100').filter((i) => !i.pull_request)
     const ctx = runContext()

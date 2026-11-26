@@ -8,7 +8,7 @@
 // the PR's verdict. It reads only. It prints one JSON line `{stage, why, gate}`. On any
 // failure it prints nothing and exits non-zero with the error.
 import { spawnSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { isMain } from './is-main.mjs'
 import { parseArgs } from 'node:util'
 import { closesAll, prState, specOf, trustContext } from './trust.mjs'
 
@@ -155,7 +155,7 @@ function decide(argv) {
   return stageOfIssue(n, api([`repos/{owner}/{repo}/issues/${n}`]), runContext())
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     process.stdout.write(`${JSON.stringify(decide(process.argv.slice(2)))}\n`)
   } catch (e) {
