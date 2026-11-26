@@ -2,10 +2,11 @@
 // How verify's verdicts turn out (#195): rounds to pass, merged PRs left unverified or merged
 // on a stale or NEEDS-FIX verdict, and PASS PRs later reverted or found to have missed a bug.
 //
-//   node outcomes.mjs [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--table]
+//   node outcomes.mjs [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--last N] [--table]
 //
 // Run it in the repo's checkout, like status.mjs. It reads only. It prints one JSON line; every
 // share is `{count, of}`, or `cannot tell` when it has no signal to count (#258). Data it cannot read goes under `cannotTell`, never into a count (#195 D14).
+// --last N reads only the N most recently merged PRs in the window; unmerged ones are not read (#282).
 // --table adds `table`, one row per PR read, with `cannot tell` for a value it cannot read (#214).
 // On any failure it prints nothing and exits non-zero with the error.
 import { spawnSync } from 'node:child_process'
@@ -41,10 +42,12 @@ function rounds(seq) {
   return { round1: pass >= 0 && needsFix === 0, round3: needsFix >= 2, reverified: pass >= 0 && pass < seq.length - 1 }
 }
 
-export function outcomes({ prs, repo, trusted, since, until, limit = LIMIT, table = false, commentsOf, commits, prsOfCommit, missedIssues, missedLabel = true }) {
-  const inWindow = prs
+export function outcomes({ prs, repo, trusted, since, until, last, limit = LIMIT, table = false, commentsOf, commits, prsOfCommit, missedIssues, missedLabel = true }) {
+  const closed = prs
     .filter((p) => p.closed_at && (!since || day(p) >= since) && (!until || day(p) <= until))
     .sort((a, b) => (b.merged_at ?? b.closed_at).localeCompare(a.merged_at ?? a.closed_at))
+  // #282 D4: --last keeps the N most recently merged; a PR closed unmerged is not read.
+  const inWindow = last ? closed.filter((p) => p.merged_at).slice(0, last) : closed
   const read = inWindow.slice(0, limit).map((p) => {
     const comments = commentsOf(p.number)
     return { p, seq: results(comments, trusted), state: prState(p, comments, trusted), answers: answersOf(comments, trusted) }
@@ -169,10 +172,16 @@ function date(flag, value) {
   return value
 }
 
+function count(flag, value) {
+  if (value !== undefined && !/^[1-9]\d*$/.test(value)) throw new Error(`--${flag} takes a positive integer, not ${JSON.stringify(value)}`)
+  return value === undefined ? undefined : Number(value)
+}
+
 function decide(argv) {
-  const { values } = parseArgs({ args: argv, options: { since: { type: 'string' }, until: { type: 'string' }, table: { type: 'boolean' } } })
+  const { values } = parseArgs({ args: argv, options: { since: { type: 'string' }, until: { type: 'string' }, last: { type: 'string' }, table: { type: 'boolean' } } })
   const since = date('since', values.since)
   const until = date('until', values.until)
+  const last = count('last', values.last)
   const { config, trusted, defaultBranch } = trustContext()
   const repo = api(['repos/{owner}/{repo}']).full_name
   // A revert comes after the PR it reverts, so commits before --since cannot revert one in the window.
@@ -185,6 +194,7 @@ function decide(argv) {
     trusted,
     since,
     until,
+    last,
     table: values.table,
     commentsOf: (n) => list(`repos/{owner}/{repo}/issues/${n}/comments`),
     commits,
