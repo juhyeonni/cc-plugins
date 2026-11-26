@@ -291,3 +291,53 @@ test('#258 AC5: a PR with a trusted answer line of the wrong shape cannot tell, 
   assert.deepEqual(r.answers, { wrong: 1, intended: 0, minor: 0 })
   assert.deepEqual(r.cannotTell.answers, [1])
 })
+
+test('#282 AC1: last N reads only the N most recently merged PRs; closed-unmerged ones are not read and count nowhere', () => {
+  const read = []
+  const prs = [
+    pr(1, { merged_at: '2026-10-01T00:00:00Z' }),
+    pr(2, { merged_at: '2026-10-02T00:00:00Z' }),
+    unmerged(3, { closed_at: '2026-10-05T00:00:00Z' }),
+    pr(4, { merged_at: '2026-10-04T00:00:00Z' }),
+  ]
+  const comments = { 1: [pass()], 2: [fix()], 3: [fix(), fix()], 4: [pass()] }
+  const r = outcomes({ prs, repo: 'carol/app', trusted: [ME], last: 2, commentsOf: (n) => (read.push(n), comments[n] ?? []), commits: [], prsOfCommit: () => [], missedIssues: [] })
+  assert.deepEqual(read, [4, 2])
+  assert.equal(r.read, 2)
+  assert.equal(r.rounds.notMerged, 0)
+  assert.deepEqual(r.rounds.reachedRound3, { count: 0, of: 2 })
+  assert.deepEqual(r.noVerdict, { count: 0, of: 2, noCloses: 0 })
+  assert.deepEqual(r.mergedOnNeedsFix, { count: 1, of: 2 })
+  assert.equal('more' in r, false)
+})
+
+test('#282 AC2: under last N, missed PASS counts a trusted marker only when it names one of those N PRs, over their PASS merges', () => {
+  const prs = [pr(1, { merged_at: '2026-10-01T00:00:00Z' }), pr(2, { merged_at: '2026-10-02T00:00:00Z' }), pr(3, { merged_at: '2026-10-03T00:00:00Z' }), unmerged(4, { closed_at: '2026-10-04T00:00:00Z' })]
+  const r = report({
+    prs,
+    comments: { 1: [pass()], 2: [pass()], 3: [pass()], 50: [missedMarker(1)], 51: [missedMarker(3)], 52: [missedMarker(4)] },
+    missed: [50, 51, 52],
+    last: 2,
+  })
+  assert.deepEqual(r.missedPass, { count: 1, of: 2 })
+  assert.equal(r.missedUnverified, 0)
+})
+
+test('#282 AC3: --last 5 prints one JSON line; 0, a negative number or a non-number prints nothing and exits non-zero', () => {
+  const ok = run(RESPONSES, '--last', '5')
+  assert.equal(ok.status, 0, ok.stderr)
+  assert.equal(ok.stdout.trim().split('\n').length, 1)
+  assert.equal(JSON.parse(ok.stdout).read, 1)
+  for (const args of [['--last', '0'], ['--last', '-3'], ['--last=-3'], ['--last', 'ten'], ['--last', '2.5']]) {
+    const r = run(RESPONSES, ...args)
+    assert.notEqual(r.status, 0, args.join(' '))
+    assert.equal(r.stdout, '', args.join(' '))
+  }
+})
+
+test('#282 AC4: under last N, no missed label, or no trusted marker naming a PR, gives missed PASS cannot tell', () => {
+  const prs = [pr(1), pr(2)]
+  const comments = { 1: [pass()], 2: [pass()], 50: [missedMarker(1, 'mallory')] }
+  assert.equal(report({ prs, comments, missedLabel: false, last: 1 }).missedPass, 'cannot tell')
+  for (const missed of [[], [50]]) assert.equal(report({ prs, comments, missed, last: 1 }).missedPass, 'cannot tell')
+})
