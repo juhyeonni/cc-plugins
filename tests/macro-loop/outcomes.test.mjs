@@ -176,6 +176,7 @@ const RESPONSES = {
   'api user': { stdout: { login: ME } },
   'api repos/{owner}/{repo}': { stdout: { owner: { login: ME, type: 'User' }, default_branch: 'main', full_name: 'carol/app' } },
   [CONFIG]: { stderr: 'gh: Not Found (HTTP 404)\n', code: 1 },
+  'api repos/{owner}/{repo}/labels/missed-by-verify': { stdout: { name: 'missed-by-verify' } },
   'api --paginate --slurp repos/{owner}/{repo}/commits?sha=main&per_page=100': { stdout: [[{ commit: { message: 'This reverts commit 1234567.' } }]] },
   'api --paginate --slurp repos/{owner}/{repo}/issues?state=all&labels=missed-by-verify&per_page=100': { stdout: [[]] },
   'api --paginate --slurp repos/{owner}/{repo}/pulls?state=closed&per_page=100': { stdout: [[pr(1)]] },
@@ -212,10 +213,10 @@ test('#214 AC12: --table gives one row per read PR, and cannot tell for what it 
   const r = report({ prs, comments, commits: ['This reverts commit 1234567'], table: true })
   assert.deepEqual(r.cannotTell.revertSha, ['1234567'])
   assert.deepEqual(r.table, [
-    { pr: 1, result: 'PASS', merged: 'yes', stale: 'no', reverted: 'cannot tell', missed: 'no' },
-    { pr: 2, result: 'PASS', merged: 'yes', stale: 'cannot tell', reverted: 'cannot tell', missed: 'no' },
+    { pr: 1, result: 'PASS', merged: 'yes', stale: 'no', reverted: 'cannot tell', missed: 'cannot tell' },
+    { pr: 2, result: 'PASS', merged: 'yes', stale: 'cannot tell', reverted: 'cannot tell', missed: 'cannot tell' },
     { pr: 3, result: 'no verdict', merged: 'no', stale: 'n/a', reverted: 'n/a', missed: 'n/a' },
-    { pr: 4, result: 'NEEDS-FIX', merged: 'yes', stale: 'no', reverted: 'cannot tell', missed: 'no' },
+    { pr: 4, result: 'NEEDS-FIX', merged: 'yes', stale: 'no', reverted: 'cannot tell', missed: 'cannot tell' },
   ])
 })
 
@@ -233,4 +234,60 @@ test('#214 AC12: a known revert and a known missed bug read as yes', () => {
 test('#214 AC13: without --table the output has no table', () => {
   const r = report({ prs: [pr(1)], comments: { 1: [pass()] } })
   assert.equal('table' in r, false)
+})
+
+const missedMarker = (n, login = ME) => ({ user: { login }, body: `<!-- macro-loop:missed pr=${n} -->` })
+
+test('#258 AC1: a 404 for the missed label makes missed PASS cannot tell; another failure prints nothing and exits non-zero', () => {
+  const { 'api --paginate --slurp repos/{owner}/{repo}/issues?state=all&labels=missed-by-verify&per_page=100': _, ...rest } = RESPONSES
+  const r = run({ ...rest, 'api repos/{owner}/{repo}/labels/missed-by-verify': { stderr: 'gh: Not Found (HTTP 404)\n', code: 1 } })
+  assert.equal(r.status, 0, r.stderr)
+  const out = JSON.parse(r.stdout)
+  assert.equal(out.missedPass, 'cannot tell')
+  assert.equal(out.missedUnverified, 'cannot tell')
+  assert.equal(out.cannotTell.missedLabel, true)
+
+  const failed = run({ ...RESPONSES, 'api repos/{owner}/{repo}/labels/missed-by-verify': { stderr: 'gh: Server Error (HTTP 500)\n', code: 1 } })
+  assert.notEqual(failed.status, 0)
+  assert.equal(failed.stdout, '')
+  assert.match(failed.stderr, /outcomes\.mjs: .*500/)
+})
+
+test('#258 AC2: with the label but no valid trusted marker, missed PASS cannot tell; one valid marker, even outside the window, counts', () => {
+  const prs = [pr(1, { merged_at: '2026-10-10T00:00:00Z' }), pr(2, { merged_at: '2026-09-01T00:00:00Z' })]
+  const comments = { 1: [pass()], 2: [pass()], 50: [missedMarker(1, 'mallory')], 51: [{ user: { login: ME }, body: 'see <!-- macro-loop:missed pr=1 -->' }] }
+  for (const missed of [[], [50, 51]]) {
+    const r = report({ prs, comments, missed, since: '2026-10-01' })
+    assert.equal(r.missedPass, 'cannot tell')
+    assert.equal(r.missedUnverified, 'cannot tell')
+    assert.equal(r.cannotTell.missedLabel, false)
+  }
+  const r = report({ prs, comments: { ...comments, 52: [missedMarker(2)] }, missed: [50, 52], since: '2026-10-01' })
+  assert.deepEqual(r.missedPass, { count: 0, of: 1 })
+  assert.equal(r.missedUnverified, 0)
+})
+
+test('#258 AC3: with --table and missed PASS cannot tell, every merged PR\'s missed cell is cannot tell; unmerged stays n/a', () => {
+  const r = report({ prs: [pr(1), unmerged(2)], comments: { 1: [pass()] }, missedLabel: false, table: true })
+  assert.deepEqual(r.table.map((t) => [t.pr, t.missed]), [[1, 'cannot tell'], [2, 'n/a']])
+})
+
+const answer = (round, lines, login = ME) => ({ id: 40, user: { login }, body: `<!-- macro-loop:answer round=${round} -->\n${lines.join('\n')}` })
+
+test('#258 AC4: answers counts trusted answer lines by category; untrusted ones are left out and a later answer replaces an earlier one', () => {
+  const r = report({
+    prs: [pr(1), pr(2)],
+    comments: {
+      1: [fix(), answer(1, ['- AC1 wrong: passes on main', '- S1 minor: nit']), answer(1, ['- AC1 intended: by design'])],
+      2: [fix(), answer(1, ['- AC2 wrong: trust me'], 'mallory'), answer(1, ['- F1 minor: later'])],
+    },
+  })
+  assert.deepEqual(r.answers, { wrong: 0, intended: 1, minor: 2 })
+  assert.deepEqual(r.cannotTell.answers, [])
+})
+
+test('#258 AC5: a PR with a trusted answer line of the wrong shape cannot tell, and that line is not counted', () => {
+  const r = report({ prs: [pr(1), pr(2)], comments: { 1: [answer(1, ['- AC1 fixed: done', '- AC2 wrong: passes on main'])], 2: [answer(1, ['- AC3 bogus: x'], 'mallory')] } })
+  assert.deepEqual(r.answers, { wrong: 1, intended: 0, minor: 0 })
+  assert.deepEqual(r.cannotTell.answers, [1])
 })
