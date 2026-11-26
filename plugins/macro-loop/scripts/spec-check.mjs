@@ -10,7 +10,7 @@
 // draft is never clean (ADR-0016).
 import { readFileSync } from 'node:fs'
 
-function check(draft) {
+function draftCoverage(draft) {
   const lines = draft.split('\n')
   const criteria = lines.filter((l) => /^\s*- \[[ xX]\] AC\d+/.test(l))
   const uncovered = lines
@@ -29,4 +29,4 @@ try {
   console.error(`spec-check: cannot read the draft: ${e.message}`)
   process.exit(1)
 }
-console.log(JSON.stringify(check(draft)))
+console.log(JSON.stringify(draftCoverage(draft)))

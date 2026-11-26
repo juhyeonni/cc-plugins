@@ -370,8 +370,8 @@ test('#283 AC8: a criterion run and empty security findings still open with "Thi
 })
 
 test('#283 AC9: a risky PASS opening still carries "Decide first" or "Nothing to decide first."', () => {
-  assert.match(opening(run(ok(spec(), standards(), security({ findings: [SQL] }))).stdout), / Decide first: the Security report found these/)
-  assert.match(opening(run(ok(READ_ONLY)).stdout), / Nothing to decide first\.$/)
+  assert.match(opening(run(ok(spec(), standards(), security({ findings: [SQL] }))).stdout), /^Read the Security section before you merge: .* Decide first: the Security report found these/)
+  assert.match(opening(run(ok(READ_ONLY)).stdout), /^Read the criteria before you merge: .* Nothing to decide first\.$/)
 })
 
 test('#197 AC5: no findings says "No findings"; could not run says Security did not run, with the reason, and is still posted', () => {
