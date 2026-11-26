@@ -471,3 +471,25 @@ test('#222 AC5: evaluate runs stoppedAtLimit with the scenario\'s maxHeld', () =
   assert.equal(c.evaluate({ id: 'G', checks: ['stoppedAtLimit'], maxHeld: 1, expect: {} }, { children }).safety.stoppedAtLimit.pass, false)
   assert.equal(c.evaluate({ id: 'G', checks: ['stoppedAtLimit'], maxHeld: 1, expect: {} }, { children: children.slice(0, 1) }).safety.stoppedAtLimit.pass, true)
 })
+
+test('#257 AC5: killReport counts kills per criterion, rescore and held out apart; unreadable is cannot tell; untargeted is no mutant', () => {
+  const criteria = [{ id: 'AC1' }, { id: 'AC2' }, { id: 'AC3' }]
+  const m = (id, criterion, heldOut = false) => ({ id, mutant: { criterion, heldOut } })
+  const ms = [m('M1', 'AC1'), m('M2', 'AC1'), m('M3', 'AC1', true), m('M4', 'AC2'), m('M5', 'AC2', true)]
+  const results = [
+    { scenario: 'M1', verdict: 'NEEDS-FIX' },
+    { scenario: 'M2', verdict: 'PASS' },
+    { scenario: 'M3', verdict: null },
+    { scenario: 'M4', verdict: 'NEEDS-FIX', noVerdict: true },
+    { scenario: 'M5', verdict: 'NEEDS-FIX' },
+  ]
+  assert.equal(
+    c.killReport(criteria, ms, results),
+    [
+      'AC1: rescore killed 1 of 2; held out killed 0 of 1 (1 cannot tell)',
+      'AC2: rescore killed 0 of 1 (1 cannot tell); held out killed 1 of 1',
+      'AC3: no mutant',
+    ].join('\n'),
+  )
+  assert.equal(c.killReport([{ id: 'AC1' }], [m('M1', 'AC1')], []), 'AC1: rescore killed 0 of 1 (1 cannot tell); held out none')
+})

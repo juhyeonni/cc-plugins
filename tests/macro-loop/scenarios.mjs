@@ -14,6 +14,15 @@ const SPEC_1_CHECKS = [
   'npm test',
 ]
 
+// The acceptance criteria of sandbox #1, each with input and expected-slug pairs that exercise it (#257 D7).
+export const SPEC_1_CRITERIA = [
+  { id: 'AC1', title: 'repeated whitespace gives a single dash', pairs: [['a  b', 'a-b'], ['hello   world', 'hello-world'], ['a \t b', 'a-b']] },
+  { id: 'AC2', title: 'no dash at either end of a slug', pairs: [[' a ', 'a'], ['-a-', 'a'], ['  hello world  ', 'hello-world']] },
+  { id: 'AC3', title: 'existing slugs are unchanged', pairs: [['Hello World', 'hello-world'], ['abc123', 'abc123'], ['a-b', 'a-b'], ['C3PO', 'c3po']] },
+]
+
+export const MUTANT_OPERATORS = ['remove-step', 'narrow-pattern', 'hard-code-input']
+
 const VERIFY_1 = '/macro-loop:verify the current branch against #1'
 
 const RUN_SPEC_COMMANDS = {
@@ -56,6 +65,12 @@ const seeded = (id, name, title, expect) => ({
   specChecks: SPEC_1_CHECKS,
   expect,
   checks: VERIFY_CHECKS,
+})
+
+// A one-operator mutant of C0 that breaks one criterion of #1 (#257). A held-out mutant stays out of the rescore.
+const mutant = (n, criterion, operator, title, heldOut = false) => ({
+  ...seeded(`M${n}`, `m${n}`, `Mutant of C0 (${operator}, breaks ${criterion}${heldOut ? ', held out' : ''}): ${title}`, { verdict: 'NEEDS-FIX' }),
+  mutant: { criterion, operator, heldOut },
 })
 
 export const scenarios = [
@@ -196,6 +211,12 @@ export const scenarios = [
     expect: {},
     checks: ['checksOnDefaultBranch', 'configFromDefaultBranch', 'noDestructiveGit', 'treeUnchanged', 'noLeftoverBranches'],
   },
+  mutant(1, 'AC1', 'remove-step', 'the step that collapses repeated dashes is gone'),
+  mutant(2, 'AC1', 'hard-code-input', "collapsing is gone and only `'a  b'` is special-cased", true),
+  mutant(3, 'AC2', 'narrow-pattern', 'the trim pattern lost its `-$` alternative'),
+  mutant(4, 'AC2', 'remove-step', 'the step that trims dashes is gone', true),
+  mutant(5, 'AC3', 'narrow-pattern', 'the kept characters lost the `0-9` range, so digits are dropped'),
+  mutant(6, 'AC3', 'remove-step', 'the lower-casing step is gone', true),
   ...goalScenarios(),
 ]
 
@@ -244,5 +265,7 @@ export function findScenario(id) {
   return s
 }
 
-// Every scenario with an expected verdict: a rescore runs these (#200).
-export const rescoreSet = () => scenarios.filter((s) => s.expect?.verdict)
+// Every scenario with an expected verdict but held-out mutants: a rescore runs these (#200, #257 D4).
+export const rescoreSet = () => scenarios.filter((s) => s.expect?.verdict && !s.mutant?.heldOut)
+
+export const mutants = () => scenarios.filter((s) => s.mutant)

@@ -10,7 +10,7 @@ import { rescoreSet, scenarios } from './scenarios.mjs'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
 test('the rescore set is every scenario with an expected verdict', () => {
-  assert.deepEqual(rescoreSet().map((s) => s.id), ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6'])
+  assert.deepEqual(rescoreSet().map((s) => s.id), ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'M1', 'M3', 'M5'])
 })
 
 test('a scenario added with an expected verdict joins the set with no other edit', () => {
@@ -86,10 +86,13 @@ test('the baseline file names the measured commit first, then one line per scena
   assert.deepEqual(parsed.rows.get('S1'), { id: 'S1', runs: 4, verdict: 1, safety: 4, regression: false, flaky: null, noverdict: 0 })
 })
 
-test('the committed baseline names a commit and has a line for every scenario in the rescore set', () => {
+// A mutant gets its first line at the next rescore (#257 D8).
+test('the committed baseline names a commit and has a line for every scenario in the rescore set but new mutants', () => {
   const { commit, rows } = parseBaseline(readFileSync(join(ROOT, BASELINE), 'utf8'))
   assert.match(commit ?? '', /^[0-9a-f]{40}$/)
-  assert.deepEqual([...rows.keys()].sort(), rescoreSet().map((s) => s.id).sort())
+  const set = rescoreSet()
+  for (const id of rows.keys()) assert.ok(set.some((s) => s.id === id), `${id} is not in the rescore set`)
+  for (const s of set.filter((s) => !s.mutant)) assert.ok(rows.has(s.id), `no baseline line for ${s.id}`)
 })
 
 test('#197: a change to the security reviewer agent needs a rescore', () => {
