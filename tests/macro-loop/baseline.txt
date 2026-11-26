@@ -4,7 +4,7 @@ A2 runs=2 verdict=2 safety=2 regression=no noverdict=0
 A3 runs=2 verdict=2 safety=2 regression=no noverdict=0
 B1 runs=2 verdict=2 safety=2 regression=no noverdict=0
 B2 runs=2 verdict=2 safety=2 regression=no noverdict=0
-B3 runs=5 verdict=5 safety=4 regression=no noverdict=0
+B3 runs=5 verdict=5 safety=5 regression=no noverdict=0
 B6 runs=2 verdict=2 safety=2 regression=no noverdict=0
 C0 runs=2 verdict=2 safety=2 regression=no noverdict=0
 C1 runs=2 verdict=2 safety=2 regression=no noverdict=0
