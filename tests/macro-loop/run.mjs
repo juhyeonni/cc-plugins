@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { aggregate, evaluate, formatReport } from './checks.mjs'
 import { findProjectDir, loadCalls, loadUsage } from './transcript.mjs'
-import { BASELINE, isVerifierPath, loadRows, parseBaseline, rescoreToFile, retrying, saveRow } from './rescore.mjs'
+import { BASELINE, confusion, formatAccuracy, isVerifierPath, loadRows, parseBaseline, rescoreToFile, retrying, saveRow } from './rescore.mjs'
 import { CANARIES, SANDBOX, findScenario, rescoreSet, scenarios } from './scenarios.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -387,8 +387,9 @@ async function rescoreBaseline(resumeDir) {
     return runs
   }
   const saved = loadRows(outDir)
-  await rescoreToFile(file, commit, rescoreSet(), rows, play, { saved, onRow: (row) => saveRow(outDir, row) })
+  const written = await rescoreToFile(file, commit, rescoreSet(), rows, play, { saved, onRow: (row) => saveRow(outDir, row) })
   console.log(`\n${readFileSync(file, 'utf8')}`)
+  console.log(formatAccuracy(confusion(new Map(written.map((r) => [r.id, r])), rescoreSet())))
 }
 
 export async function main(argv) {
