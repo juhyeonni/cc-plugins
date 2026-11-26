@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -15,7 +15,7 @@ const met = (id, words, judged = 'ran') => ({ id, words, result: 'met', judged }
 const spec = (over = {}) => ({
   axis: 'spec',
   issue: 12,
-  spec: 5976278327,
+  spec: SPEC_ID,
   criteria: [met('AC1', 'CSV quoted fields'), met('AC2', 'empty input', 'read')],
   manualChecks: [],
   introducedFailures: [],
@@ -33,15 +33,52 @@ const SPEC_PROSE = '| Criterion | Result |\n|---|---|\n| AC1 CSV quoted fields |
 const STANDARDS_PROSE = 'No documented standard broken. Possible Mysterious Name: `f` in src/csv.js.'
 const SECURITY_PROSE = '# Security review\n\nNo high-confidence vulnerabilities found.'
 
+// A stand-in for `gh`, as in trust.test.mjs: answers each call from a table keyed by its
+// arguments, and fails on a call the table does not have.
+const STUB = `#!/usr/bin/env node
+const fs = require('fs')
+const key = process.argv.slice(2).join(' ')
+const r = JSON.parse(fs.readFileSync(process.env.GH_STUB, 'utf8'))[key]
+if (!r) { process.stderr.write('stub: unexpected call: gh ' + key + '\\n'); process.exit(99) }
+if (r.stdout !== undefined) process.stdout.write(typeof r.stdout === 'string' ? r.stdout : JSON.stringify(r.stdout))
+if (r.stderr) process.stderr.write(r.stderr)
+process.exit(r.code ?? 0)
+`
+const SPEC_ID = 5976278327
+const SPEC_13 = 5976278400
+const comment = (id, login, body) => ({ id, user: { login }, body })
+const specBody = (...ids) => ['<!-- macro-loop:spec -->', '## Spec', '', '**Acceptance criteria**', ...ids.map((id) => `- [ ] ${id}. something · check: test`)].join('\n')
+const issueComments = (n, list) => ({ [`api --paginate --slurp repos/{owner}/{repo}/issues/${n}/comments`]: { stdout: [list] } })
+// Carol runs verify; the repo belongs to the User carol. #12's spec has AC1 and AC2, #13's AC1.
+const GH = (over = {}) => ({
+  'api user': { stdout: { login: 'carol' } },
+  'api repos/{owner}/{repo}': { stdout: { owner: { login: 'carol', type: 'User' }, default_branch: 'main' } },
+  'api repos/{owner}/{repo}/contents/.github/macro-loop.json': { stderr: 'gh: Not Found (HTTP 404)\n', code: 1 },
+  ...issueComments(12, [comment(SPEC_ID, 'carol', specBody('AC1', 'AC2'))]),
+  ...issueComments(13, [comment(SPEC_13, 'carol', specBody('AC1'))]),
+  ...over,
+})
+
+const AC1_AC3 = GH(issueComments(12, [comment(SPEC_ID, 'carol', specBody('AC1', 'AC3'))]))
+
+function ghEnv(gh) {
+  const tmp = mkdtempSync(join(tmpdir(), 'gh-'))
+  mkdirSync(join(tmp, 'bin'))
+  writeFileSync(join(tmp, 'bin', 'gh'), STUB)
+  chmodSync(join(tmp, 'bin', 'gh'), 0o755)
+  writeFileSync(join(tmp, 'stub.json'), JSON.stringify(gh))
+  return { ...process.env, PATH: `${join(tmp, 'bin')}:${dirname(process.execPath)}`, GH_STUB: join(tmp, 'stub.json') }
+}
+
 // Runs the script on report files written to a temp directory.
-function run(reports, args = ['--round', '1', '--head', HEAD, '--branch', '12-csv']) {
+function run(reports, args = ['--round', '1', '--head', HEAD, '--branch', '12-csv'], gh = GH()) {
   const dir = mkdtempSync(join(tmpdir(), 'verdict-'))
   const files = reports.map((text, k) => {
     const file = join(dir, `report-${k}.md`)
     writeFileSync(file, text)
     return file
   })
-  return spawnSync(process.execPath, [SCRIPT, ...args, ...files], { encoding: 'utf8' })
+  return spawnSync(process.execPath, [SCRIPT, ...args, ...files], { encoding: 'utf8', env: ghEnv(gh) })
 }
 
 const ok = (s = spec(), st = standards(), se = security()) => [SPEC_PROSE + block(s), STANDARDS_PROSE + block(st), SECURITY_PROSE + block(se)]
@@ -81,7 +118,7 @@ test('NEEDS-FIX: an introduced failure alone fails the verdict; in round 3 a per
 })
 
 test('a wrong criterion fails the verdict too', () => {
-  const r = run(ok(spec({ criteria: [unmet('AC1', 'CSV quoted fields', { result: 'wrong', judged: 'read' })] })))
+  const r = run(ok(spec({ criteria: [unmet('AC1', 'CSV quoted fields', { result: 'wrong', judged: 'read' }), met('AC2', 'empty input')] })))
   assert.match(r.stdout, /^## Verify: NEEDS-FIX/m)
   assert.match(r.stdout, /^- AC1 CSV quoted fields: wrong\. /m)
 })
@@ -134,7 +171,7 @@ test('PASS with broken standards lists them as S1, S2…', () => {
 })
 
 test('manual checks come first in what to do, and are listed under the paragraph', () => {
-  const r = run(ok(spec({ criteria: [met('AC1', 'CSV quoted fields'), { id: 'AC3', words: 'signed build', result: 'manual', judged: 'manual' }], manualChecks: ['AC3 signed build: open the app on macOS; needs a signed build'] })))
+  const r = run(ok(spec({ criteria: [met('AC1', 'CSV quoted fields'), { id: 'AC3', words: 'signed build', result: 'manual', judged: 'manual' }], manualChecks: ['AC3 signed build: open the app on macOS; needs a signed build'] })), undefined, AC1_AC3)
   assert.equal(r.status, 0, r.stderr)
   assert.match(r.stdout, /^\*\*Criteria:\*\* 1 ran, 0 read, 1 manual$/m)
   assert.match(r.stdout, /This PR can merge\. Do the manual checks below, read this verdict/)
@@ -143,12 +180,12 @@ test('manual checks come first in what to do, and are listed under the paragraph
 })
 
 test('no spec: judged against the Issue body', () => {
-  const r = run(ok(spec({ spec: null })))
+  const r = run(ok(spec({ spec: null })), undefined, GH(issueComments(12, [])))
   assert.match(r.stdout, /\*\*Judged against:\*\* no spec; judged against the Issue body/)
 })
 
 test('a PR that closes two Issues: one heading for the PR, one section per Issue', () => {
-  const r = run([...ok(), 'B' + block(spec({ issue: 13, criteria: [unmet('AC1', 'dots to dashes')] })), 'C' + block(standards({ issue: 13 }))])
+  const r = run([...ok(), 'B' + block(spec({ issue: 13, spec: SPEC_13, criteria: [unmet('AC1', 'dots to dashes')] })), 'C' + block(standards({ issue: 13 }))])
   assert.equal(r.status, 0, r.stderr)
   assert.match(r.stdout, /^## Verify: NEEDS-FIX \(round 1 of 3\)$/m)
   assert.match(r.stdout, /^- #13 AC1 dots to dashes: unmet\. /m)
@@ -182,7 +219,7 @@ test('AC2 (#198): an introduced failure that is a string, or lacks `failure`, `c
 })
 
 test('AC3 (#198): a met or manual criterion without `class` or `alsoAt` is accepted (guards existing behavior)', () => {
-  const r = run(ok(spec({ criteria: [met('AC1', 'CSV quoted fields'), { id: 'AC3', words: 'signed build', result: 'manual', judged: 'manual' }], manualChecks: ['AC3 signed build: open it'] })))
+  const r = run(ok(spec({ criteria: [met('AC1', 'CSV quoted fields'), { id: 'AC3', words: 'signed build', result: 'manual', judged: 'manual' }], manualChecks: ['AC3 signed build: open it'] })), undefined, AC1_AC3)
   assert.equal(r.status, 0, r.stderr)
   assert.match(r.stdout, /^## Verify: PASS/m)
 })
@@ -237,7 +274,7 @@ function runAgents(saved, ids) {
   const reports = mkdtempSync(join(tmpdir(), 'reports-'))
   for (const [id, text] of Object.entries(saved)) writeFileSync(join(reports, `${id}.md`), text)
   const args = ['--round', '1', '--head', HEAD, '--branch', '12-csv', ...ids.flatMap((id) => ['--agent', id])]
-  return { ...spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8', env: { ...process.env, MACRO_LOOP_REPORTS: reports } }), reports }
+  return { ...spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8', env: { ...ghEnv(GH()), MACRO_LOOP_REPORTS: reports } }), reports }
 }
 
 test('--agent <id> reads the saved reports, writes the same comment as from files beside them, and prints only its path and heading', () => {
@@ -306,7 +343,7 @@ test('#197 AC6: a missing or invalid security report posts nothing', () => {
 })
 
 test('#197 AC7: a PR that closes two Issues takes one security report; two are refused', () => {
-  const two = [...ok(), 'B' + block(spec({ issue: 13 })), 'C' + block(standards({ issue: 13 }))]
+  const two = [...ok(), 'B' + block(spec({ issue: 13, spec: SPEC_13 })), 'C' + block(standards({ issue: 13 }))]
   const r = run(two)
   assert.equal(r.status, 0, r.stderr)
   assert.equal(r.stdout.match(/^### Security$/gm).length, 1)
@@ -321,7 +358,7 @@ const CREEP = 'src/trust.js:8 adds `bot` to `trusted`, which the spec did not as
 const CREEP_HEAD = 'Decide first: the Spec report found behavior the spec did not ask for:'
 
 test('#254 AC1: a scope creep item opens "Decide first", on a PASS and on a NEEDS-FIX', () => {
-  for (const s of [spec({ scopeCreep: [CREEP] }), spec({ scopeCreep: [CREEP], criteria: [unmet('AC1', 'CSV quoted fields')] })]) {
+  for (const s of [spec({ scopeCreep: [CREEP] }), spec({ scopeCreep: [CREEP], criteria: [unmet('AC1', 'CSV quoted fields'), met('AC2', 'empty input', 'read')] })]) {
     const r = run(ok(s))
     assert.equal(r.status, 0, r.stderr)
     assert.ok(r.stdout.includes(`${CREEP_HEAD}\n\n- ${CREEP}\n`), r.stdout)
@@ -329,7 +366,7 @@ test('#254 AC1: a scope creep item opens "Decide first", on a PASS and on a NEED
 })
 
 test('#254 AC2: scope creep never changes the result', () => {
-  for (const s of [spec(), spec({ criteria: [unmet('AC1', 'CSV quoted fields')] })]) {
+  for (const s of [spec(), spec({ criteria: [unmet('AC1', 'CSV quoted fields'), met('AC2', 'empty input', 'read')] })]) {
     const heading = (out) => out.split('\n')[1]
     const creep = run(ok({ ...s, scopeCreep: [CREEP] })).stdout
     assert.ok(creep.includes(`- ${CREEP}\n`), 'the item is reported')
@@ -347,11 +384,61 @@ test('#254 AC3: "Decide first" lists Security, then scope creep, then Standards'
 })
 
 test('#254: on a PR that closes two Issues, each scope creep item carries its Issue number', () => {
-  const r = run([...ok(spec({ scopeCreep: [CREEP] })), 'B' + block(spec({ issue: 13 })), 'C' + block(standards({ issue: 13 }))])
+  const r = run([...ok(spec({ scopeCreep: [CREEP] })), 'B' + block(spec({ issue: 13, spec: SPEC_13 })), 'C' + block(standards({ issue: 13 }))])
   assert.equal(r.status, 0, r.stderr)
   assert.ok(r.stdout.includes(`${CREEP_HEAD}\n\n- #12 ${CREEP}\n`), r.stdout)
 })
 
 test('#254 AC4: a spec block without `scopeCreep`, or with one that is not a list of non-empty strings, posts nothing', () => {
   for (const scopeCreep of [undefined, 'none', [''], [' '], [3], [{ behavior: 'x' }]]) refused(ok(spec({ scopeCreep })), /scopeCreep/)
+})
+
+const refusedBy = (reports, gh, why) => {
+  const r = run(reports, undefined, gh)
+  assert.notEqual(r.status, 0)
+  assert.equal(r.stdout, '')
+  assert.match(r.stderr, why)
+}
+
+test('#252 AC1: `criteria: []` against a spec with AC1 and AC2 posts nothing and names both', () => {
+  refusedBy(ok(spec({ criteria: [] })), GH(), /INCONCLUSIVE: the spec report for #12 does not judge AC1, AC2 of spec comment 5976278327/)
+})
+
+test('#252 AC2: a report that leaves out AC2 posts nothing and names AC2', () => {
+  refusedBy(ok(spec({ criteria: [met('AC1', 'CSV quoted fields')] })), GH(), /does not judge AC2 of/)
+})
+
+test('#252 AC3: a report whose `spec` is null or another comment posts nothing and names the trusted spec', () => {
+  for (const other of [null, 6000000001]) refusedBy(ok(spec({ spec: other })), GH(), new RegExp(`names spec ${other}, not #12's trusted spec comment 5976278327`))
+  // A spec marker from an untrusted login is not the spec, whatever the report says.
+  const untrusted = GH(issueComments(12, [comment(SPEC_ID, 'mallory', specBody('AC1', 'AC2'))]))
+  refusedBy(ok(), untrusted, /names spec 5976278327, but #12 has no trusted spec/)
+})
+
+test('#252 AC4: no trusted spec: no criterion posts nothing; one met criterion is a PASS judged against the Issue body', () => {
+  const none = GH(issueComments(12, []))
+  refusedBy(ok(spec({ spec: null, criteria: [] })), none, /#12 has no trusted spec, and the spec report judges no criterion/)
+  const r = run(ok(spec({ spec: null, criteria: [met('AC1', 'CSV quoted fields')] })), undefined, none)
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(r.stdout, /^## Verify: PASS/m)
+  assert.match(r.stdout, /\*\*Judged against:\*\* no spec; judged against the Issue body/)
+})
+
+test('#252 AC5: full coverage gives the same comment as before, per Issue on a two-Issue PR; a failing gh call posts nothing', async () => {
+  const { verdict, parseReport } = await import(SCRIPT)
+  const args = { round: 1, head: HEAD, branch: '12-csv' }
+  for (const reports of [
+    ok(),
+    ok(spec({ criteria: [met('AC1', 'CSV quoted fields'), unmet('AC2', 'empty input')] })),
+    [...ok(), 'B' + block(spec({ issue: 13, spec: SPEC_13, criteria: [unmet('AC1', 'dots to dashes')] })), 'C' + block(standards({ issue: 13 }))],
+  ]) {
+    const r = run(reports)
+    assert.equal(r.status, 0, r.stderr)
+    assert.equal(r.stdout, verdict({ ...args, reports: reports.map((t, k) => parseReport(t, `r${k}`)) }))
+  }
+  // #13's report names #12's spec, not its own.
+  const crossed = [...ok(), 'B' + block(spec({ issue: 13, spec: SPEC_ID })), 'C' + block(standards({ issue: 13 }))]
+  refusedBy(crossed, GH(), /#13 names spec 5976278327, not #13's trusted spec comment 5976278400/)
+  refusedBy(ok(), GH({ 'api user': { stderr: 'gh: Bad credentials (HTTP 401)\n', code: 1 } }), /Bad credentials/)
+  refusedBy(ok(), GH({ 'api --paginate --slurp repos/{owner}/{repo}/issues/12/comments': { stderr: 'gh: Server Error (HTTP 500)\n', code: 1 } }), /HTTP 500/)
 })

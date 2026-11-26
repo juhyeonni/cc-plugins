@@ -5,17 +5,18 @@
 //   node outcomes.mjs [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--table]
 //
 // Run it in the repo's checkout, like status.mjs. It reads only. It prints one JSON line; every
-// share is `{count, of}`. Data it cannot read goes under `cannotTell`, never into a count (#195 D14).
+// share is `{count, of}`, or `cannot tell` when it has no signal to count (#258). Data it cannot read goes under `cannotTell`, never into a count (#195 D14).
 // --table adds `table`, one row per PR read, with `cannot tell` for a value it cannot read (#214).
 // On any failure it prints nothing and exits non-zero with the error.
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { api, list } from './stage.mjs'
-import { CLOSES, prState, trustContext } from './trust.mjs'
+import { CLOSES, answersOf, prState, trustContext } from './trust.mjs'
 
 // Each PR costs one comments call (ADR-0011), so only the most recently closed are read.
 const LIMIT = 100
+const CANNOT_TELL = 'cannot tell'
 const VERDICT = '<!-- macro-loop:verify round='
 const MISSED = /^<!-- macro-loop:missed pr=(\d+) -->/
 const REVERTS_COMMIT = /This reverts commit ([0-9a-f]{7,40})/g
@@ -40,15 +41,22 @@ function rounds(seq) {
   return { round1: pass >= 0 && needsFix === 0, round3: needsFix >= 2, reverified: pass >= 0 && pass < seq.length - 1 }
 }
 
-export function outcomes({ prs, repo, trusted, since, until, limit = LIMIT, table = false, commentsOf, commits, prsOfCommit, missedIssues }) {
+export function outcomes({ prs, repo, trusted, since, until, limit = LIMIT, table = false, commentsOf, commits, prsOfCommit, missedIssues, missedLabel = true }) {
   const inWindow = prs
     .filter((p) => p.closed_at && (!since || day(p) >= since) && (!until || day(p) <= until))
     .sort((a, b) => (b.merged_at ?? b.closed_at).localeCompare(a.merged_at ?? a.closed_at))
   const read = inWindow.slice(0, limit).map((p) => {
     const comments = commentsOf(p.number)
-    return { p, seq: results(comments, trusted), state: prState(p, comments, trusted) }
+    return { p, seq: results(comments, trusted), state: prState(p, comments, trusted), answers: answersOf(comments, trusted) }
   })
-  const cannotTell = { verdictResult: [], verdictSha: [], revertSha: [], missedMarker: [] }
+  const cannotTell = { verdictResult: [], verdictSha: [], revertSha: [], missedMarker: [], missedLabel: !missedLabel, answers: [] }
+
+  // #258 D5, D6: answers by category; a PR with an answer line of another shape cannot tell.
+  const answers = { wrong: 0, intended: 0, minor: 0 }
+  for (const r of read) {
+    for (const a of r.answers.answers) answers[a.category]++
+    if (r.answers.answerWarnings.length) cannotTell.answers.push(r.p.number)
+  }
 
   const verified = read.filter((r) => r.seq.length > 0)
   for (const r of verified) if (r.seq.includes(null)) cannotTell.verdictResult.push(r.p.number)
@@ -93,6 +101,8 @@ export function outcomes({ prs, repo, trusted, since, until, limit = LIMIT, tabl
     if (mergedPass.has(n)) missedPass++
     else missedUnverified++
   }
+  // #258 D1, D2: no label, or no valid marker naming any PR, is no signal, not a clean zero.
+  const missedUnknown = !missedLabel || missedPrs.size === 0
 
   const out = {
     window: { since: since ?? null, until: until ?? null },
@@ -107,20 +117,20 @@ export function outcomes({ prs, repo, trusted, since, until, limit = LIMIT, tabl
     mergedOnNeedsFix: share(mergedVerified.filter((r) => r.state.lastVerdictResult === 'NEEDS-FIX').length, mergedVerified.length),
     staleVerdict: share(withSha.filter((r) => r.state.lastVerdictSha !== r.state.head).length, withSha.length),
     revertedPass: share([...mergedPass.keys()].filter((n) => reverted.has(n)).length, mergedPass.size),
-    missedPass: share(missedPass, mergedPass.size),
-    missedUnverified,
+    missedPass: missedUnknown ? CANNOT_TELL : share(missedPass, mergedPass.size),
+    missedUnverified: missedUnknown ? CANNOT_TELL : missedUnverified,
+    answers,
     cannotTell,
   }
-  const withTable = table ? { ...out, table: read.map((r) => tableRow(r, { reverted, missedPrs, cannotTell })) } : out
+  const withTable = table ? { ...out, table: read.map((r) => tableRow(r, { reverted, missedPrs, missedUnknown, cannotTell })) } : out
   return inWindow.length > limit ? { ...withTable, more: inWindow.length - limit } : withTable
 }
 
-const CANNOT_TELL = 'cannot tell'
 const yesNo = (b) => (b ? 'yes' : 'no')
 
 // One PR as a table row. An unmerged PR has no stale, reverted or missed to read: `n/a`. A revert or a
 // missed marker that points at no PR could be this one, so a merged PR not known to be hit cannot tell.
-function tableRow({ p, seq, state }, { reverted, missedPrs, cannotTell }) {
+function tableRow({ p, seq, state }, { reverted, missedPrs, missedUnknown, cannotTell }) {
   const merged = Boolean(p.merged_at)
   const known = (set, unreadable) => (set.has(p.number) ? 'yes' : unreadable ? CANNOT_TELL : 'no')
   return {
@@ -129,8 +139,18 @@ function tableRow({ p, seq, state }, { reverted, missedPrs, cannotTell }) {
     merged: yesNo(merged),
     stale: !merged || seq.length === 0 ? 'n/a' : state.lastVerdictSha === null ? CANNOT_TELL : yesNo(state.lastVerdictSha !== state.head),
     reverted: merged ? known(reverted, cannotTell.revertSha.length > 0) : 'n/a',
-    missed: merged ? known(missedPrs, cannotTell.missedMarker.length > 0) : 'n/a',
+    missed: merged ? (missedUnknown ? CANNOT_TELL : known(missedPrs, cannotTell.missedMarker.length > 0)) : 'n/a',
   }
+}
+
+// #258 D3: whether the missed label exists. A 404 is "missing"; any other failure stops the script.
+function labelExists(name) {
+  const path = `repos/{owner}/{repo}/labels/${encodeURIComponent(name)}`
+  const r = spawnSync('gh', ['api', path], { encoding: 'utf8' })
+  if (r.error) throw r.error
+  if (r.status === 0) return true
+  if (/HTTP 404/.test(r.stderr)) return false
+  throw new Error(`gh api ${path} failed: ${r.stderr.trim()}`)
 }
 
 // The commit-to-PR endpoint answers 422 for a SHA GitHub does not know: that is "no PR", not a failure.
@@ -157,7 +177,8 @@ function decide(argv) {
   const repo = api(['repos/{owner}/{repo}']).full_name
   // A revert comes after the PR it reverts, so commits before --since cannot revert one in the window.
   const commits = list(`repos/{owner}/{repo}/commits?sha=${defaultBranch}&per_page=100${since ? `&since=${since}T00:00:00Z` : ''}`)
-  const missedIssues = list(`repos/{owner}/{repo}/issues?state=all&labels=${encodeURIComponent(config.labels.missed)}&per_page=100`).filter((i) => !i.pull_request)
+  const missedLabel = labelExists(config.labels.missed)
+  const missedIssues = missedLabel ? list(`repos/{owner}/{repo}/issues?state=all&labels=${encodeURIComponent(config.labels.missed)}&per_page=100`).filter((i) => !i.pull_request) : []
   return outcomes({
     prs: list('repos/{owner}/{repo}/pulls?state=closed&per_page=100'),
     repo,
@@ -169,6 +190,7 @@ function decide(argv) {
     commits,
     prsOfCommit,
     missedIssues,
+    missedLabel,
   })
 }
 

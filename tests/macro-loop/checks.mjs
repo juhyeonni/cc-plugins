@@ -403,21 +403,29 @@ export function aggregate(results) {
       citesFile: expected?.cites ?? null,
       cites: expected?.cites ? `${runs.filter((r) => r.cites).length} of ${runs.length}` : null,
       measured: Boolean(expected?.measured),
-      tokens: meanTokens(runs),
+      measures: means(runs),
     }
   })
 }
 
-// The main session's mean token use and cost over runs that recorded usage (#174), or null.
-function meanTokens(runs) {
-  const measured = runs.filter((r) => r.usage)
-  if (measured.length === 0) return null
-  const mean = (f) => measured.reduce((a, r) => a + f(r), 0) / measured.length
-  return {
-    cacheRead: mean((r) => r.usage.main.cacheRead),
-    output: mean((r) => r.usage.main.output),
-    cost: mean((r) => (r.turns ?? []).reduce((a, t) => a + (t.cost ?? 0), 0)),
+// Each measure's mean over the runs that recorded it (#174, #255), or null when none did:
+// a run without it is "cannot tell", never zero (ADR-0016).
+function means(runs) {
+  const mean = (f) => {
+    const values = runs.map(f).filter((v) => typeof v === 'number')
+    return values.length === 0 ? null : { mean: values.reduce((a, v) => a + v, 0) / values.length, runs: values.length }
   }
+  return {
+    cacheRead: mean((r) => r.usage?.main?.cacheRead),
+    output: mean((r) => r.usage?.main?.output),
+    cost: mean(lastCost),
+    ms: mean((r) => r.ms),
+  }
+}
+
+// `total_cost_usd` is cumulative over a resumed session: the last turn that reports it is the run's cost.
+function lastCost(run) {
+  return (run.turns ?? []).map((t) => t.cost).filter((c) => typeof c === 'number').at(-1)
 }
 
 export function formatReport(rows) {
@@ -427,9 +435,37 @@ export function formatReport(rows) {
       const verdicts = r.verdicts ? `, expected verdict ${r.verdicts}${r.measured ? ' (measured)' : ''}` : ''
       const cites = r.cites ? `, "Decide first" cites ${r.citesFile} ${r.cites}` : ''
       const line = `${r.scenario} ${r.model}: ${status} (safety ${r.safe} of ${r.runs}${verdicts}${cites})`
-      if (!r.tokens) return line
-      const t = r.tokens
-      return `${line}\n  main session, mean of ${r.runs} runs: cache read ${Math.round(t.cacheRead)}, output ${Math.round(t.output)}, cost $${t.cost.toFixed(2)}`
+      const { cacheRead, output, cost, ms } = r.measures
+      const show = (m, text) => (m ? `${text(m.mean)} (mean of ${m.runs} runs)` : 'cannot tell, no run recorded it')
+      return [
+        line,
+        `  main session: cache read ${show(cacheRead, Math.round)}, output ${show(output, Math.round)}`,
+        `  session total including subagents: cost ${show(cost, (v) => `$${v.toFixed(2)}`)}`,
+        `  wall-clock time per run: ${show(ms, (v) => `${Math.round(v / 1000)}s`)}`,
+      ].join('\n')
+    })
+    .join('\n')
+}
+
+// One line per criterion: how many of its mutants a verdict killed, rescore and held-out mutants apart (#257).
+// A run with no readable verdict, or no run, cannot tell: it is neither killed nor survived (ADR-0016).
+export function killReport(criteria, mutants, results) {
+  const outcome = (m) => {
+    const r = results.find((x) => x.scenario === m.id)
+    if (!r || r.noVerdict || !['PASS', 'NEEDS-FIX'].includes(r.verdict)) return 'cannot tell'
+    return r.verdict === 'NEEDS-FIX' ? 'killed' : 'survived'
+  }
+  const group = (name, ms) => {
+    if (ms.length === 0) return `${name} none`
+    const outcomes = ms.map(outcome)
+    const unread = outcomes.filter((o) => o === 'cannot tell').length
+    return `${name} killed ${outcomes.filter((o) => o === 'killed').length} of ${ms.length}${unread ? ` (${unread} cannot tell)` : ''}`
+  }
+  return criteria
+    .map((c) => {
+      const ms = mutants.filter((m) => m.mutant.criterion === c.id)
+      if (ms.length === 0) return `${c.id}: no mutant`
+      return `${c.id}: ${group('rescore', ms.filter((m) => !m.mutant.heldOut))}; ${group('held out', ms.filter((m) => m.mutant.heldOut))}`
     })
     .join('\n')
 }

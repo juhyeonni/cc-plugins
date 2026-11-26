@@ -217,6 +217,51 @@ test('AC6: no implement after a verdict, and verify posts nothing', async () => 
   assert.doesNotMatch(readFileSync(WORKFLOW, 'utf8'), /-X (POST|PATCH|PUT|DELETE)\b/)
 })
 
+const fixRound = (over = {}) => issue(8, { branch: '8-old', pr: { number: 20, head: 'old8', answersLine: null }, ...over })
+
+test('#253 AC1: a fix round fetches and switches to the PR branch, then deletes the worktree branch', async () => {
+  const { of } = await runWorkflow([fixRound()], happy)
+  const p = of(8)[0].prompt
+  assert.match(p, /`git fetch origin 8-old`/)
+  assert.match(p, /`git switch 8-old`/)
+  assert.match(p, /`git branch -D <the branch you remembered>`/)
+  assert.doesNotMatch(p, /git switch -c/)
+  assert.doesNotMatch(p, /origin\/main/)
+})
+
+test('#253 AC2: a fix round runs trust.mjs for the PR, fixes the newest verdict, and posts no answer', async () => {
+  const p = (await runWorkflow([fixRound()], happy)).of(8)[0].prompt
+  assert.match(p, /`node \/p\/scripts\/trust\.mjs --issue 8 --pr 20`/)
+  assert.match(p, /`pr\.lastVerdict`/)
+  assert.match(p, /not marked "already answered"/)
+  assert.match(p, /Post no answer comment/)
+})
+
+test("#253 AC3: a fix round whose commit is on another branch stops at implement, naming the PR's branch", async () => {
+  const { value, of } = await runWorkflow([fixRound()], (p, o) => (o.phase === 'implement' ? { status: 'committed', branch: '8-s8', head: 'h', reason: '' } : happy(p, o)))
+  assert.equal(value[0].implement.ok, false)
+  assert.match(value[0].implement.reason, /8-old/)
+  assert.deepEqual(of(8).map((c) => c.opts.phase), ['implement'])
+})
+
+test("#253 AC4: a fix round on the PR's branch is sent to open-pr, and verify judges open-pr's head", async () => {
+  // The stand-in commits on whatever branch its prompt switches to.
+  const answer = (p, o) => (o.phase === 'implement' ? { status: 'committed', branch: /`git switch (?:-c )?([^ `]+)/.exec(p)[1], head: 'impl8', reason: '' } : happy(p, o))
+  const { value, of } = await runWorkflow([fixRound()], answer)
+  const [, open, ...verify] = of(8)
+  assert.equal(open.opts.phase, 'open-pr')
+  assert.match(open.prompt, /Push branch 8-old /)
+  assert.equal(verify.length, 3)
+  for (const c of verify) assert.match(c.prompt, /^Head: pr8$/m)
+  assert.equal(value[0].verify.head, 'pr8')
+})
+
+test('#253 AC5: an Issue at implement with no PR still makes a new branch from base, then deletes the worktree branch', async () => {
+  const p = (await runWorkflow([issue(61)], happy)).of(61)[0].prompt
+  assert.match(p, /`git switch -c 61-s61 origin\/main`, then `git branch -D <the branch you remembered>`/)
+  assert.doesNotMatch(p, /trust\.mjs/)
+})
+
 test('the workflow: its name, its three phases in order, and a description that names no Issue', () => {
   const src = readFileSync(WORKFLOW, 'utf8')
   assert.match(src, /name: 'execute-run'/)

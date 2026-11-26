@@ -46,6 +46,7 @@ A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:gri
 | `agents/verifier.md` | The fresh-context verifier `verify` runs, one per axis. |
 | `agents/security-reviewer.md` | Runs Claude Code's bundled `/security-review` on the PR's diff, once per PR, for `verify` and `execute`. |
 | `scripts/trust.mjs` | Decides trust in code: the config on the default branch, the trusted logins, an Issue's spec, and a PR's author, last verdict and round. |
+| `scripts/spec-check.mjs` | Names the decisions in a spec draft that no criterion covers and no `No check:` note excuses, before `spec` publishes it. |
 | `scripts/verdict.mjs` | Decides the verdict and writes the comment `verify` and `execute` post, from the verifiers' reports. |
 | `scripts/execute.mjs` | Picks the Issues `execute` runs and the stage each starts at, and renders its report. |
 | `workflows/execute-run.js` | The saved workflow `execute` runs: implement, open-pr and verify for each Issue, at its own pace. It posts no verdict. |

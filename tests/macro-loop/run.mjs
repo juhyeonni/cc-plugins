@@ -5,6 +5,7 @@
 //   node tests/macro-loop/run.mjs --seed
 //   node tests/macro-loop/run.mjs <ID> [--model opus|haiku|sonnet] [--runs 3]
 //   node tests/macro-loop/run.mjs --rescore [--resume <results dir>]
+//   node tests/macro-loop/run.mjs --mutants
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -12,10 +13,10 @@ import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
-import { aggregate, evaluate, formatReport } from './checks.mjs'
+import { aggregate, evaluate, formatReport, killReport } from './checks.mjs'
 import { findProjectDir, loadCalls, loadUsage } from './transcript.mjs'
-import { BASELINE, isVerifierPath, loadRows, parseBaseline, rescoreToFile, retrying, saveRow } from './rescore.mjs'
-import { CANARIES, SANDBOX, findScenario, rescoreSet, scenarios } from './scenarios.mjs'
+import { BASELINE, confusion, formatAccuracy, isVerifierPath, loadRows, parseBaseline, rescoreToFile, retrying, saveRow } from './rescore.mjs'
+import { CANARIES, SANDBOX, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, scenarios } from './scenarios.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(here, '../..')
@@ -237,13 +238,20 @@ function claudeTurn(args, cwd, prompt) {
   })
 }
 
-async function play(scenario, model, sessionId, cwd, addDirs) {
+// The commit of the checkout whose plugin a run loads (#255), not the scenario repo's.
+export function pluginCommit() {
+  return git(ROOT, 'rev-parse', 'HEAD')
+}
+
+export async function play(scenario, model, sessionId, cwd, addDirs) {
   const log = []
   let resume = false
   const send = async (text) => {
+    const start = Date.now()
     const r = await claudeTurn(claudeArgs({ model, sessionId, resume, addDirs }), cwd, text)
+    const ms = Date.now() - start
     resume = true
-    log.push({ said: text, result: r.result, isError: r.is_error, denials: (r.permission_denials ?? []).length, cost: r.total_cost_usd, turns: r.num_turns })
+    log.push({ said: text, result: r.result, isError: r.is_error, denials: (r.permission_denials ?? []).length, cost: r.total_cost_usd, turns: r.num_turns, ms })
     return r.result ?? ''
   }
   let last = ''
@@ -258,6 +266,8 @@ async function play(scenario, model, sessionId, cwd, addDirs) {
 }
 
 async function runOnce(scenario, model, n, outDir) {
+  const start = Date.now()
+  const commit = pluginCommit()
   const work = join(WORK_ROOT, `${scenario.id}-${model}-${n}`)
   rmSync(work, { recursive: true, force: true })
   mkdirSync(work, { recursive: true })
@@ -302,9 +312,9 @@ async function runOnce(scenario, model, n, outDir) {
   }
   const { safety, verdict, cites, noVerdict } = evaluate(scenario, obs)
   const usage = loadUsage(transcripts, sessionId)
-  const result = { scenario: scenario.id, model, run: n, sessionId, cwd, transcripts, turns, usage, comment, safety, verdict, cites, noVerdict, expected: scenario.expect }
-  writeFileSync(join(outDir, `${scenario.id}-${model}-${n}.json`), JSON.stringify(result, null, 2))
   rmSync(work, { recursive: true, force: true })
+  const result = { scenario: scenario.id, model, run: n, commit, ms: Date.now() - start, sessionId, cwd, transcripts, turns, usage, comment, safety, verdict, cites, noVerdict, expected: scenario.expect }
+  writeFileSync(join(outDir, `${scenario.id}-${model}-${n}.json`), JSON.stringify(result, null, 2))
   return result
 }
 
@@ -378,27 +388,45 @@ async function rescoreBaseline(resumeDir) {
     return runs
   }
   const saved = loadRows(outDir)
-  await rescoreToFile(file, commit, rescoreSet(), rows, play, { saved, onRow: (row) => saveRow(outDir, row) })
+  const written = await rescoreToFile(file, commit, rescoreSet(), rows, play, { saved, onRow: (row) => saveRow(outDir, row) })
   console.log(`\n${readFileSync(file, 'utf8')}`)
+  console.log(formatAccuracy(confusion(new Map(written.map((r) => [r.id, r])), rescoreSet())))
+}
+
+// Plays every mutant once, held out included, then prints the kill report (#257 D5).
+// `runOne(scenario)` plays one run and resolves to its result.
+export async function runMutants(runOne, print = console.log) {
+  const set = mutants()
+  const results = []
+  for (const s of set) results.push(await runOne(s))
+  const report = killReport(SPEC_1_CRITERIA, set, results)
+  print(`Kill report for #1:\n${report}`)
+  return report
 }
 
 export async function main(argv) {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
-    options: { list: { type: 'boolean' }, 'dry-run': { type: 'string' }, seed: { type: 'boolean' }, rescore: { type: 'boolean' }, resume: { type: 'string' }, model: { type: 'string' }, runs: { type: 'string' } },
+    options: { list: { type: 'boolean' }, 'dry-run': { type: 'string' }, seed: { type: 'boolean' }, rescore: { type: 'boolean' }, mutants: { type: 'boolean' }, resume: { type: 'string' }, model: { type: 'string' }, runs: { type: 'string' } },
   })
   const models = values.model ? [values.model] : undefined
   if (values.list) return console.log(scenarios.map((s) => `${s.id}  ${s.title}`).join('\n'))
   if (values['dry-run']) return console.log(dryRun(findScenario(values['dry-run']), models ?? MODELS))
-  if (!values.seed && !values.rescore && positionals.length !== 1) {
-    throw new Error('usage: run.mjs --list | --dry-run <ID> | --seed | --rescore | <ID> [--model m] [--runs n]')
+  const named = !values.seed && !values.rescore && !values.mutants
+  if (named && positionals.length !== 1) {
+    throw new Error('usage: run.mjs --list | --dry-run <ID> | --seed | --rescore | --mutants | <ID> [--model m] [--runs n]')
   }
-  if (positionals.length === 1 && !values.seed && !values.rescore) assertRunnable(findScenario(positionals[0]))
+  if (named) assertRunnable(findScenario(positionals[0]))
   const unlock = lock()
   try {
     if (values.seed) return seedSandbox()
     if (values.rescore) return await rescoreBaseline(values.resume)
+    if (values.mutants) {
+      const outDir = join(RESULTS_DIR, `${new Date().toISOString().replace(/[:.]/g, '-')}-mutants`)
+      mkdirSync(outDir, { recursive: true })
+      return await runMutants((s) => runOnce(s, 'opus', 1, outDir))
+    }
     const results = await runScenario(positionals[0], models, Number(values.runs ?? 3))
     console.log(`\n${formatReport(aggregate(results))}`)
   } finally {

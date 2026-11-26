@@ -21,7 +21,7 @@ const BUDGETS = {
   'skills/next/SKILL.md': 9531,
   'skills/open-pr/SKILL.md': 14500,
   'skills/research/SKILL.md': 11500,
-  'skills/spec/SKILL.md': 19133,
+  'skills/spec/SKILL.md': 19582,
   'skills/status/SKILL.md': 6850,
   'skills/triage/SKILL.md': 14000,
   'skills/ui-placement/SKILL.md': 14000,

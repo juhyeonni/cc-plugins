@@ -93,16 +93,20 @@ Status: Accepted
 Source: #<n> D<k>
 ```
 
-Show the draft to the user and let them edit it before publishing.
+### 5. Check
 
-### 5. Publish
+Before every publish or edit, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/spec-check.mjs <file>` on the draft's file outside the checkout. Give each decision in `uncovered` a criterion naming it (`AC1 (D1).`) or a closing `No check: <reason>`, and rerun. A run that exits non-zero or prints no JSON is a gap, never clean. Read each criterion against Out of scope and fix one that contradicts it.
+
+Show the draft with any gap left, and let the user edit it. Unattended, publish nothing while a gap is left.
+
+### 6. Publish
 
 The existing spec is the comment whose id is `issue.spec` in the trust command's output.
 
 - **None:** post the draft as a new comment on the Issue.
 - **One exists:** show its URL, then edit it in place; never post a second spec. Mark each changed item `(changed: <reason>)`. GitHub keeps the edit history.
 
-### 6. Pin
+### 7. Pin
 
 Read the Issue's pinned comment (see `github.md`).
 
@@ -111,10 +115,10 @@ Read the Issue's pinned comment (see `github.md`).
 
 The pin is for people. Skills find the spec by its marker, never by the pin.
 
-### 7. Update the state
+### 8. Update the state
 
 A published spec means the Issue is clear enough to implement. If its state label is `needs-info` or `needs-decision`, offer to replace it with `ready-for-agent`, and do so if the user agrees. Leave any other state as it is.
 
-### 8. Report
+### 9. Report
 
 Give the spec comment's URL and the next step: `/macro-loop:implement`.
