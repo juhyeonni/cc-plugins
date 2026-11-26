@@ -145,7 +145,8 @@ Spec axis:
   ],
   "manualChecks": ["AC4 signed build opens: open the app on macOS; needs a signed build"],
   "introducedFailures": [{ "failure": "npm test: tsv.test.js fails", "class": "a test imports a removed export", "alsoAt": [], "answered": 6631883012 }],
-  "couldNotRun": []
+  "couldNotRun": [],
+  "scopeCreep": ["src/csv.js:9 adds a `--tsv` flag"]
 }
 ```
 
@@ -154,6 +155,7 @@ Spec axis:
 - `manualChecks`: each manual criterion once, by its ID and words, with what a person looks at and its condition. Empty when none.
 - `introducedFailures`: each test or lint failure the change introduces: `failure`, with its command, plus `class` and `alsoAt`. Pre-existing failures stay in the prose.
 - `couldNotRun`: each item of **Could not run**, with its error. Empty for "nothing".
+- `scopeCreep`: each item of step 3, with its file:line.
 - `answered`: on a finding you matched to an answer (see **Answers**), the answer comment's id. Leave it out otherwise.
 
 Standards axis:

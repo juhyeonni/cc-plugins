@@ -161,7 +161,7 @@ test('verdictComment: a marker with the judged head passes, short or full as ver
 
 test('verdictComment (#198): a comment verdict.mjs writes passes, read with trust.mjs\'s own marker and heading', async () => {
   const { verdict } = await import('../../plugins/macro-loop/scripts/verdict.mjs')
-  const spec = { axis: 'spec', issue: 1, spec: 5, criteria: [{ id: 'AC1', words: 'w', result: 'met', judged: 'ran' }], manualChecks: [], introducedFailures: [], couldNotRun: [] }
+  const spec = { axis: 'spec', issue: 1, spec: 5, criteria: [{ id: 'AC1', words: 'w', result: 'met', judged: 'ran' }], manualChecks: [], introducedFailures: [], couldNotRun: [], scopeCreep: [] }
   const reports = [{ prose: 'p', data: spec }, { prose: 's', data: { axis: 'standards', issue: 1, standardsBroken: [] } }, { prose: 'r', data: { axis: 'security', findings: [], couldNotRun: [] } }]
   const body = verdict({ round: 2, head: 'e8c8972', branch: '1-x', reports })
   assert.equal(c.verdictComment(body, { round: 2, verdict: 'PASS' }).pass, true)

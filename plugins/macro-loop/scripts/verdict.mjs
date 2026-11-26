@@ -9,7 +9,8 @@
 // Give one spec and one standards report per Issue the PR closes, and one security report for
 // the PR (#197): as `--agent <id>`, the report verifier-report.mjs saved when that agent stopped
 // (#176), or as a file. Security findings are reported first and never change the result; a
-// security report whose `couldNotRun` is not empty still gives a verdict, saying it did not run. From files
+// security report whose `couldNotRun` is not empty still gives a verdict, saying it did not run.
+// Scope creep in a spec report goes under "Decide first" and never changes the result (#254). From files
 // it prints the comment to post; from `--agent` it writes the comment to
 // `verdict-<head>.md` in the reports directory and prints that path and the heading. A missing
 // or invalid block, a missing report, or a non-empty could-not-run list prints nothing on
@@ -66,7 +67,7 @@ function validate(d, bad) {
   const wrong = d.criteria.find((c) => !isCriterion(c))
   if (wrong) bad(`has a criterion that is not {id, words, result, judged}: ${JSON.stringify(wrong)}`)
   for (const c of d.criteria.filter(isFailed)) classed(c, `${c.result} criterion ${c.id}`, bad)
-  for (const k of ['manualChecks', 'couldNotRun']) if (!strings(d[k])) bad(`needs \`${k}\`, a list of strings`)
+  for (const k of ['manualChecks', 'couldNotRun', 'scopeCreep']) if (!strings(d[k])) bad(`needs \`${k}\`, a list of strings`)
   if (!Array.isArray(d.introducedFailures)) bad('needs `introducedFailures`, a list')
   for (const f of d.introducedFailures) {
     if (!isObject(f) || !text(f.failure)) bad(`has an introduced failure that is not {failure, class, alsoAt}: ${JSON.stringify(f)}`)
@@ -125,7 +126,8 @@ function securityOf(reports) {
   return found[0]
 }
 
-// Security findings come first, then broken standards (#197).
+// Security findings come first (#197), then behavior the spec did not ask for (#254), then
+// broken standards. Neither of the first two changes the result.
 function opening(issues, security, result, round, branch) {
   const tag = (i) => (issues.length > 1 ? `#${i.number} ` : '')
   const numbered = (prefix, list) => list.map(([i, f], k) => ({ f, id: `- ${tag(i)}${prefix}${k + 1} ` }))
@@ -134,6 +136,7 @@ function opening(issues, security, result, round, branch) {
   const settled = standards.filter((s) => s.f.answered).map((s) => `${s.id}${s.f.standard}, ${answeredNote(s.f)}`)
   const groups = [
     ['the Security report found these, reported only: they do not change the result', security.data.findings.map((f) => `- ${f}`)],
+    ['the Spec report found behavior the spec did not ask for', issues.flatMap((i) => i.spec.data.scopeCreep.map((s) => `- ${tag(i)}${s}`))],
     ['the Standards report says the diff breaks these documented standards', broken],
   ].filter(([, list]) => list.length)
   const firstLine = groups.length ? `Decide first: ${groups[0][0]}:` : 'Nothing to decide first.'
