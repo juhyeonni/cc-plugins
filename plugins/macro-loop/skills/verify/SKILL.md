@@ -91,12 +91,12 @@ A script decides the verdict and writes the comment from the data block each ver
 The hook `scripts/verifier-report.mjs` saves each verifier's and the security reviewer's report when it stops. Never write a report to a file yourself. Once every agent has finished, run, in the repo's checkout and as a Bash call of its own with nothing added, one `--agent` per agent: the id the Agent tool returned for it, spec and standards of every Issue, and the security reviewer:
 
 ```sh
-node ${CLAUDE_PLUGIN_ROOT}/scripts/verdict.mjs --round <N> --head <Head from step 5> --branch <branch> --agent <id> --agent <id>...
+node ${CLAUDE_PLUGIN_ROOT}/scripts/verdict.mjs --round <N> --head <Head from step 5> --branch <branch> [--pr <pr.number>] --agent <id> --agent <id>...
 ```
 
 It writes the comment to a file beside the saved reports and prints that file's path and the heading.
 
-Per Issue, INCONCLUSIVE when a report or block is missing or invalid, `couldNotRun` is not empty (even if the diff seems to settle it), `gh` fails, the spec report misses an AC of the trusted spec it fetches, or an Issue the branch's open PR closes has no spec or no standards report. NEEDS-FIX when a criterion is unmet or wrong or a failure is introduced; else PASS. The PR is NEEDS-FIX if any Issue is. A criterion judged from the diff because running was declined is not INCONCLUSIVE. Security findings never change the result; a security review that could not run is noted in the verdict. Never decide the verdict yourself.
+Per Issue, INCONCLUSIVE when a report or block is missing or invalid, `couldNotRun` is not empty (even if the diff seems to settle it), `gh` fails, the spec report misses an AC of the trusted spec it fetches, or an Issue the PR (`--pr`, else the branch's) closes lacks a spec or standards report. NEEDS-FIX when a criterion is unmet or wrong or a failure is introduced; else PASS. The PR is NEEDS-FIX if any Issue is. A criterion judged from the diff because running was declined is not INCONCLUSIVE. Security findings never change the result; a security review that could not run is noted in the verdict. Never decide the verdict yourself.
 
 ## 7. Report the verdict
 

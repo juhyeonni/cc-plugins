@@ -4,7 +4,7 @@
 // `macro-loop-report` block (agents/verifier.md); the verdict and the opening paragraph come
 // from those blocks alone, never from the prose, which is posted under them as it is.
 //
-//   node verdict.mjs --round <n> --head <sha> --branch <name> (--agent <id> | <report file>)...
+//   node verdict.mjs --round <n> --head <sha> --branch <name> [--pr <n>] (--agent <id> | <report file>)...
 //
 // Give one spec and one standards report per Issue the PR closes, and one security report for
 // the PR (#197): as `--agent <id>`, the report verifier-report.mjs saved when that agent stopped
@@ -17,12 +17,14 @@
 // stdout, names why on stderr and exits non-zero: nothing is posted. So does a spec report that
 // does not judge every criterion of the Issue's trusted spec, which the script finds itself (#252),
 // or a trusted spec from which no criterion can be read (#271), and reports that leave out an Issue
-// the branch's open PR closes, which it also finds itself (#270).
+// the PR closes, which it also finds itself (#270): the PR `--pr` names, or else the branch's open PR (#279).
+// A trusted spec comment updated after the PR's previous verdict on the same head goes under
+// "Decide first" and never changes the result (#279).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { isMain } from './is-main.mjs'
 import { parseArgs } from 'node:util'
-import { api, closesAll, comments, specOf, trustContext } from './trust.mjs'
+import { api, closesAll, comments, specOf, trustContext, verdictMarker, verdictsOf } from './trust.mjs'
 import { reportPath, reportsDir } from './verifier-report.mjs'
 
 const TAG = '```macro-loop-report'
@@ -128,15 +130,16 @@ function securityOf(reports) {
   return found[0]
 }
 
-// Security findings come first (#197), then behavior the spec did not ask for (#254), then
-// broken standards. Neither of the first two changes the result.
-function opening(issues, security, result, round, branch) {
+// A spec edited after the previous verdict on this head comes first (#279), then security findings (#197),
+// then behavior the spec did not ask for (#254), then broken standards. None of the first three changes the result.
+function opening(issues, security, result, round, branch, specEdits) {
   const tag = (i) => (issues.length > 1 ? `#${i.number} ` : '')
   const numbered = (prefix, list) => list.map(([i, f], k) => ({ f, id: `- ${tag(i)}${prefix}${k + 1} ` }))
   const standards = numbered('S', issues.flatMap((i) => i.standards.data.standardsBroken.map((b) => [i, b])))
   const broken = standards.filter((s) => !s.f.answered).map((s) => s.id + s.f.standard)
   const settled = standards.filter((s) => s.f.answered).map((s) => `${s.id}${s.f.standard}, ${answeredNote(s.f)}`)
   const groups = [
+    ['a spec was edited after the previous verdict', specEdits.map((e) => `- ${e}`)],
     ['the Security report found these, reported only: they do not change the result', security.data.findings.map((f) => `- ${f}`)],
     ['the Spec report found behavior the spec did not ask for', issues.flatMap((i) => i.spec.data.scopeCreep.map((s) => `- ${tag(i)}${s}`))],
     ['the Standards report says the diff breaks these documented standards', broken],
@@ -176,7 +179,7 @@ function securitySection({ data, prose }) {
 
 const sections = (i) => [judgedAgainst(i), '', '### Spec', '', i.spec.prose, '', '### Standards', '', i.standards.prose]
 
-export function verdict({ round, head, branch, reports }) {
+export function verdict({ round, head, branch, reports, specEdits = [] }) {
   const security = securityOf(reports)
   const issues = byIssue(reports.filter((r) => r !== security))
   const result = issues.some((i) => resultOf(i.spec.data) === 'NEEDS-FIX') ? 'NEEDS-FIX' : 'PASS'
@@ -192,7 +195,7 @@ export function verdict({ round, head, branch, reports }) {
     `## Verify: ${result} (round ${round} of 3)`,
     `**Criteria:** ${count('ran')} ran, ${count('read')} read, ${count('manual')} manual`,
     '',
-    opening(issues, security, result, round, branch),
+    opening(issues, security, result, round, branch, specEdits),
     '',
     ...(manual.length ? manual : ['No manual checks']),
     '',
@@ -201,12 +204,11 @@ export function verdict({ round, head, branch, reports }) {
   ].join('\n').trimEnd() + '\n'
 }
 
-// The AC IDs of a spec's acceptance-criteria lines that carry `check:`.
-export const specCriteria = (body) => [...String(body ?? '').matchAll(/^\s*- \[[ xX]\] (AC\d+)\b.*\bcheck:/gm)].map((m) => m[1])
+// The AC IDs of a spec's acceptance-criteria lines, with or without `check:`, as spec-check.mjs counts them.
+export const specCriteria = (body) => [...String(body ?? '').matchAll(/^\s*- \[[ xX]\] (AC\d+)\b/gm)].map((m) => m[1])
 
 // Each Issue's trusted spec comment, or null, found as trust.mjs finds it: never from the reports.
-function trustedSpecs(numbers) {
-  const { trusted } = trustContext()
+function trustedSpecs(numbers, trusted) {
   return new Map(
     numbers.map((n) => {
       const list = comments(n)
@@ -233,9 +235,29 @@ export function checkCoverage(report, spec) {
   if (missing.length) throw new Error(`INCONCLUSIVE: the spec report for #${n} does not judge ${missing.join(', ')} of spec comment ${spec.id}`)
 }
 
-// Every Issue the branch's open PR closes, or none when the branch has no open PR (#270).
-const closedBy = (branch) =>
-  api([`repos/{owner}/{repo}/pulls?head={owner}:${encodeURIComponent(branch)}&state=open`]).flatMap((p) => closesAll(p.body))
+// The PR `--pr` names, or else the branch's open PR, or null: the branch lookup finds nothing
+// for a fork branch or one named pr-<n> (#279).
+const prOf = (number, branch) =>
+  number
+    ? api([`repos/{owner}/{repo}/pulls/${number}`])
+    : (api([`repos/{owner}/{repo}/pulls?head={owner}:${encodeURIComponent(branch)}&state=open`])[0] ?? null)
+
+// One line per trusted spec updated after the PR's previous trusted verdict, found as trust.mjs
+// finds pr.lastVerdict (ADR-0009), when that verdict judged this head or recorded no head (#279, ADR-0016).
+function specEditsOf(prComments, specs, head, trusted) {
+  const verdicts = verdictsOf(prComments, trusted)
+  const previous = verdicts.at(-1)
+  if (!previous) return []
+  const round = verdicts.length
+  const sha = verdictMarker(previous.body)?.[2]
+  if (sha && !head.startsWith(sha) && !sha.startsWith(head)) return []
+  const edited = [...specs].filter(([, s]) => s && s.updated_at > previous.created_at)
+  return edited.map(([n]) =>
+    sha
+      ? `#${n}: the spec changed since round ${round} on this head; a person confirms the edit.`
+      : `#${n}: the spec was updated after round ${round}, whose verdict recorded no head, so it cannot tell whether the spec changed on this head; a person confirms the edit.`,
+  )
+}
 
 // Each Issue the PR closes needs a spec and a standards report, or the verdict is INCONCLUSIVE.
 function checkClosed(closed, reports) {
@@ -256,22 +278,26 @@ function savedReport(id) {
 function main(argv) {
   const { values, positionals } = parseArgs({
     args: argv,
-    options: { round: { type: 'string' }, head: { type: 'string' }, branch: { type: 'string' }, agent: { type: 'string', multiple: true } },
+    options: { round: { type: 'string' }, head: { type: 'string' }, branch: { type: 'string' }, pr: { type: 'string' }, agent: { type: 'string', multiple: true } },
     allowPositionals: true,
   })
   if (!/^[1-9]\d*$/.test(values.round ?? '')) throw new Error('--round takes the round number')
   if (!/^[0-9a-f]{7,40}$/.test(values.head ?? '')) throw new Error('--head takes the commit sha the verifiers judged')
   if (!values.branch) throw new Error('--branch takes the branch name')
+  if (values.pr !== undefined && !/^[1-9]\d*$/.test(values.pr)) throw new Error('--pr takes the PR number')
   const agents = values.agent ?? []
   if (!positionals.length && !agents.length) throw new Error('no reports given')
   const reports = [
     ...positionals.map((file) => parseReport(readFileSync(file, 'utf8'), file)),
     ...agents.map((id) => parseReport(savedReport(id), `the report of verifier ${id}`)),
   ]
-  checkClosed(closedBy(values.branch), reports)
-  const comment = verdict({ round: Number(values.round), head: values.head, branch: values.branch, reports })
+  const pr = prOf(values.pr, values.branch)
+  checkClosed(pr ? closesAll(pr.body) : [], reports)
   const specReports = reports.filter((r) => r.data.axis === 'spec').map((r) => r.data)
-  const specs = trustedSpecs([...new Set(specReports.map((d) => d.issue))])
+  const { trusted } = trustContext()
+  const specs = trustedSpecs([...new Set(specReports.map((d) => d.issue))], trusted)
+  const specEdits = pr ? specEditsOf(comments(pr.number), specs, values.head, trusted) : []
+  const comment = verdict({ round: Number(values.round), head: values.head, branch: values.branch, reports, specEdits })
   for (const d of specReports) checkCoverage(d, specs.get(d.issue))
   if (!agents.length) return comment
   // From saved reports, the comment goes to a file beside them, so the session needs no

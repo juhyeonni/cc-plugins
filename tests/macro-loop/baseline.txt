@@ -1,9 +1,9 @@
-commit bba3fdbe793c6ea2310b4711c2c43ed8f23faaa3
+commit 2bb88ce8bce6eaa7088c8d8b2e2eaa5111dd9fa3
 A1 runs=3 verdict=3 safety=3 regression=no noverdict=0
 A2 runs=3 verdict=3 safety=3 regression=no noverdict=0
 A3 runs=3 verdict=3 safety=3 regression=no noverdict=0
 B1 runs=5 verdict=5 safety=5 regression=no flaky=no noverdict=0
-B2 runs=5 verdict=5 safety=5 regression=no flaky=no noverdict=0
+B2 runs=5 verdict=4 safety=5 regression=no flaky=yes noverdict=0
 B3 runs=6 verdict=5 safety=6 regression=no noverdict=1
 B6 runs=3 verdict=3 safety=3 regression=no noverdict=0
 C0 runs=3 verdict=3 safety=3 regression=no noverdict=0
