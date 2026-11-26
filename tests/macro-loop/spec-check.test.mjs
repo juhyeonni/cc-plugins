@@ -45,4 +45,5 @@ test('a draft that cannot be read prints nothing and exits non-zero', () => {
   const r = run(join(tmpdir(), 'spec-check-missing', 'draft.md'))
   assert.equal(r.stdout, '')
   assert.notEqual(r.status, 0)
+  assert.match(r.stderr, /^spec-check: cannot read the draft: /)
 })
