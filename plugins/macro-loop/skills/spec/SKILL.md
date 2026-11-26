@@ -97,6 +97,8 @@ Source: #<n> D<k>
 
 Before every publish or edit, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/spec-check.mjs <file>` on the draft's file outside the checkout. Give each decision in `uncovered` a criterion naming it (`AC1 (D1).`) or a closing `No check: <reason>`, and rerun. A run that exits non-zero or prints no JSON is a gap, never clean. Read each criterion against Out of scope and fix one that contradicts it.
 
+`fewRunnable: true` is a warning, not a gap: show "`<runnable>` of `<criteria>` criteria have a runnable check" with the draft, and offer to add checks or accept. Unattended, publish anyway, queue nothing, hold nothing, and put it as the child record's `Warning:` line.
+
 Show the draft with any gap left, and let the user edit it. Unattended, publish nothing while a gap is left.
 
 ### 6. Publish

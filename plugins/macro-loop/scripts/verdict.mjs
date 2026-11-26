@@ -10,6 +10,8 @@
 // the PR (#197): as `--agent <id>`, the report verifier-report.mjs saved when that agent stopped
 // (#176), or as a file. Security findings are reported first and never change the result; a
 // security report whose `couldNotRun` is not empty still gives a verdict, saying it did not run.
+// A PASS heading counts the criteria run over every Issue, and a PASS with security findings or
+// no criterion run opens with what to read before merging (#283).
 // Scope creep in a spec report goes under "Decide first" and never changes the result (#254). From files
 // it prints the comment to post; from `--agent` it writes the comment to
 // `verdict-<head>.md` in the reports directory and prints that path and the heading. A missing
@@ -149,10 +151,7 @@ function opening(issues, security, result, round, branch, specEdits) {
     ...groups.flatMap(([head, list], k) => [...(k ? ['', head[0].toUpperCase() + head.slice(1) + ':'] : []), '', ...list]),
     ...(settled.length ? ['', 'Standards findings already answered:', '', ...settled] : []),
   ]
-  if (result === 'PASS') {
-    const manual = issues.some((i) => i.spec.data.manualChecks.length)
-    return [`This PR can merge. ${manual ? 'Do the manual checks below, read' : 'Read'} this verdict, mark the draft "Ready for review", then merge. ${firstLine}`, ...rest].join('\n')
-  }
+  if (result === 'PASS') return [`${passOpening(issues, security)} ${firstLine}`, ...rest].join('\n')
   const items = [
     ...issues.flatMap((i) => failed(i.spec.data).map((c) => `- ${tag(i)}${finding(c, `${c.id} ${c.words}: ${c.result}`)}`)),
     ...numbered('F', issues.flatMap((i) => i.spec.data.introducedFailures.map((f) => [i, f]))).map((s) => s.id + finding(s.f, `Introduced failure: ${s.f.failure}`)),
@@ -162,6 +161,20 @@ function opening(issues, security, result, round, branch, specEdits) {
       ? `Next: run \`/macro-loop:implement ${branch}\` to fix the Spec findings; it hands back to verify.`
       : `This was round ${round} of 3: two re-verifications have not converged, so a person decides what happens next.`
   return ['This PR needs a fix:', '', ...items, '', `${next} ${firstLine}`, ...rest].join('\n')
+}
+
+// A PASS with security findings, or with no criterion run, says what to read before merging
+// instead of "This PR can merge" (#283). It reads the reports' data only, never their prose.
+function passOpening(issues, security) {
+  const manual = issues.some((i) => i.spec.data.manualChecks.length)
+  const noneRan = !issues.some((i) => i.spec.data.criteria.some((c) => c.judged === 'ran'))
+  const risks = [
+    ...(security.data.findings.length ? [['the Security section', 'the Security report has findings']] : []),
+    ...(noneRan ? [['the criteria', 'no criterion was run, each was only read or left to a manual check']] : []),
+  ]
+  if (!risks.length) return `This PR can merge. ${manual ? 'Do the manual checks below, read' : 'Read'} this verdict, mark the draft "Ready for review", then merge.`
+  const read = `Read ${risks.map(([what]) => what).join(' and ')} before you merge: ${risks.map(([, why]) => why).join(', and ')}.`
+  return `${read} ${manual ? 'Do the manual checks below, then mark' : 'Then mark'} the draft "Ready for review" and merge only if you accept that.`
 }
 
 const judgedAgainst = (i) =>
@@ -192,7 +205,7 @@ export function verdict({ round, head, branch, reports, specEdits = [] }) {
       : issues.flatMap((i) => [`## #${i.number}: ${resultOf(i.spec.data)}`, '', ...sections(i), ''])
   return [
     `<!-- macro-loop:verify round=${round} sha=${head} -->`,
-    `## Verify: ${result} (round ${round} of 3)`,
+    `## Verify: ${result} (${result === 'PASS' ? `${count('ran')} of ${criteria.length} criteria ran, ` : ''}round ${round} of 3)`,
     `**Criteria:** ${count('ran')} ran, ${count('read')} read, ${count('manual')} manual`,
     '',
     opening(issues, security, result, round, branch, specEdits),

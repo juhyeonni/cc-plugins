@@ -9,10 +9,13 @@ import { fileURLToPath } from 'node:url'
 const SCRIPT = resolve(dirname(fileURLToPath(import.meta.url)), '../../plugins/macro-loop/scripts/spec-check.mjs')
 
 const run = (path) => spawnSync(process.execPath, [SCRIPT, path], { encoding: 'utf8' })
-const check = (draft) => {
+const runDraft = (draft) => {
   const path = join(mkdtempSync(join(tmpdir(), 'spec-check-')), 'draft.md')
   writeFileSync(path, draft)
-  const r = run(path)
+  return run(path)
+}
+const check = (draft) => {
+  const r = runDraft(draft)
   assert.equal(r.status, 0, r.stderr)
   return JSON.parse(r.stdout).uncovered
 }
@@ -39,6 +42,21 @@ test('a No check note without a reason does not cover its decision', () => {
 
 test('a draft with no Decisions section has nothing uncovered', () => {
   assert.deepEqual(check('<!-- macro-loop:spec -->\n## Spec\n\n**Goal:** g\nRoute: short\n\n**Acceptance criteria**\n- [ ] AC1. b · check: test\n'), [])
+})
+
+test('#283 AC10: counts the criteria and the runnable ones; fewer than half runnable is fewRunnable', () => {
+  const three = runDraft(spec(['- D1. d: r'], ['- [ ] AC1 (D1). a · check: test', '- [ ] AC2. b · check: manual, open it', '- [ ] AC3. c']))
+  assert.equal(three.status, 0, three.stderr)
+  assert.ok(three.stdout.includes('"criteria":3,"runnable":1,"fewRunnable":true'), three.stdout)
+  const four = runDraft(spec(['- D1. d: r'], ['- [ ] AC1 (D1). a · check: test', '- [ ] AC2. b · check: cmd `true`', '- [ ] AC3. c · check: manual, look', '- [ ] AC4. d']))
+  assert.deepEqual(JSON.parse(four.stdout), { uncovered: [], criteria: 4, runnable: 2, fewRunnable: false })
+})
+
+test('#283 AC11: fewRunnable is a warning: with no uncovered decision the run exits 0 with "uncovered":[]', () => {
+  const r = runDraft(spec(['- D1. d: r'], ['- [ ] AC1 (D1). a · check: manual, look', '- [ ] AC2. b']))
+  assert.equal(r.status, 0, r.stderr)
+  assert.ok(r.stdout.includes('"uncovered":[]'), r.stdout)
+  assert.equal(JSON.parse(r.stdout).fewRunnable, true)
 })
 
 test('a draft that cannot be read prints nothing and exits non-zero', () => {

@@ -21,11 +21,11 @@ const BUDGETS = {
   'skills/next/SKILL.md': 9531,
   'skills/open-pr/SKILL.md': 14500,
   'skills/research/SKILL.md': 11500,
-  'skills/spec/SKILL.md': 19582,
+  'skills/spec/SKILL.md': 19853,
   'skills/status/SKILL.md': 7300,
   'skills/triage/SKILL.md': 14300,
   'skills/ui-placement/SKILL.md': 14000,
-  'skills/verify/SKILL.md': 13600,
+  'skills/verify/SKILL.md': 13606,
 }
 
 function fakePlugin(skillText) {

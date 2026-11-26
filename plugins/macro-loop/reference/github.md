@@ -130,6 +130,7 @@ Stage: held | spec | pr | verdict
 PR: <number, or none>
 Verdict: <PASS | NEEDS-FIX round N, or none>
 Held: <queue ids that hold it, spec not approved, or none>
+Warning: <k> of <n> criteria have a runnable check   (only when spec-check.mjs printed fewRunnable)
 Decisions settled without the person:
 - <decision> · <reason> · <source>
 ```

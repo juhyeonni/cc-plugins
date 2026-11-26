@@ -43,6 +43,12 @@ function report({ prs, comments = {}, commits = [], prsOfCommit = {}, missed = [
   })
 }
 
+test('#283 AC4: a PASS whose heading counts the criteria run is counted as a PASS', () => {
+  const counted = { user: { login: ME }, body: '<!-- macro-loop:verify round=1 sha=abc1234 -->\n## Verify: PASS (2 of 3 criteria ran, round 1 of 3)' }
+  const r = report({ prs: [pr(1)], comments: { 1: [counted] } })
+  assert.deepEqual(r.rounds.passedRound1, { count: 1, of: 1 })
+})
+
 test('AC1: round 1 means no NEEDS-FIX before the first PASS; round 3 means two or more; re-verifications after a PASS count on their own', () => {
   const r = report({
     prs: [pr(1), pr(2), pr(3), pr(4), pr(5)],
