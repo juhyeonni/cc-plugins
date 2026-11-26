@@ -11,7 +11,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { isMain } from './is-main.mjs'
 import { REVIEWERS } from './identifier-lines.mjs'
 
 // Under the user's home, not the system temp folder: on Linux that is /tmp, shared by every
@@ -44,7 +44,7 @@ function save(input) {
   writeFileSync(path, text)
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     save(JSON.parse(readFileSync(0, 'utf8')))
   } catch (e) {

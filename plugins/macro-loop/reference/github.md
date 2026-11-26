@@ -129,7 +129,7 @@ Child: #<n>
 Stage: held | spec | pr | verdict
 PR: <number, or none>
 Verdict: <PASS | NEEDS-FIX round N, or none>
-Held: <queue ids that hold it, or none>
+Held: <queue ids that hold it, spec not approved, or none>
 Decisions settled without the person:
 - <decision> · <reason> · <source>
 ```

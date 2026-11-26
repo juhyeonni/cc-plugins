@@ -23,7 +23,7 @@ An Issue that starts at `verify` whose PR is past verify's cap (`verify` step 2)
 
 ## 2. Ask everything now
 
-When the arguments carry both a `Run spec commands:` line (Issue numbers, `all` or `none`) and a `Push:` line (`yes` or `no`), take them as the two answers and ask nothing; `goal` has asked already.
+When the arguments carry both a `Run spec commands:` line (Issue numbers, `all` or `none`) and a `Push:` line (`yes` or `no`), take them as the two answers and ask nothing.
 
 Ask one message with these questions:
 

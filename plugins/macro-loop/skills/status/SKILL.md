@@ -48,6 +48,10 @@ Name one step, for the first row:
 
 Recommend the step; do not run it.
 
+## 4. Missed PASS line
+
+Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/outcomes.mjs --last 20` and end with one line: "Missed by verify: <count> of <of> PASS merges in the last 20 merged PRs", from `missedPass`. If it is `"cannot tell"`, say "cannot tell" and why: no missed label in the repo when `cannotTell.missedLabel` is true, else no trusted marker naming a PR. If the script fails, say so in that line. Name no candidate PR or Issue.
+
 ## Verdict outcomes
 
 Asked how verify's verdicts turn out, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/outcomes.mjs` instead, adding `--since`/`--until <YYYY-MM-DD>` for dates the user names. It prints one JSON line, or fails as above. Show each `{count, of}` as "<count> of <of>", `cannotTell` and a `"cannot tell"` metric as not counted, never as 0, and `more` as older PRs left out. Say that INCONCLUSIVE runs are not counted: they post no comment.

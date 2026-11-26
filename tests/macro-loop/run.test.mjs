@@ -2,18 +2,18 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { evaluate } from './checks.mjs'
-import { asksSomething, assertRunnable, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, play, pluginCommit, removeCanaries, runMutants } from './run.mjs'
+import { asksSomething, assertRunnable, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, play, pluginCommit, removeCanaries, runMutants, seedMessage } from './run.mjs'
 import { MUTANT_OPERATORS, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, scenarios } from './scenarios.mjs'
 import { findProjectDir, loadCalls, loadUsage, usageOf } from './transcript.mjs'
 
 const RUN = join(dirname(fileURLToPath(import.meta.url)), 'run.mjs')
-const IDS = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'D1', 'E1', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'G1', 'G2', 'G3', 'G4']
+const IDS = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'D1', 'E1', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'G1', 'G2', 'G3', 'G4']
 
 // Only node on the PATH: a dry run that tried to start `claude` or `gh` would fail.
 const nodeOnly = (args) => spawnSync(process.execPath, [RUN, ...args], { encoding: 'utf8', env: { PATH: dirname(process.execPath) } })
@@ -379,9 +379,38 @@ test('#257 AC6: --mutants plays every mutant once, held out included, and nothin
     played.push(s.id)
     return { scenario: s.id, verdict: 'NEEDS-FIX', noVerdict: false }
   }, (text) => printed.push(text))
-  assert.deepEqual(played, ['M1', 'M2', 'M3', 'M4', 'M5', 'M6'])
+  assert.deepEqual(played, ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'])
   assert.ok(mutants().some((m) => m.mutant.heldOut))
   assert.equal(printed.length, 1)
   assert.ok(printed[0].includes(report))
-  for (const c of ['AC1', 'AC2', 'AC3']) assert.match(report, new RegExp(`^${c}: rescore killed 1 of 1; held out killed 1 of 1$`, 'm'))
+  for (const c of ['AC1', 'AC3']) assert.match(report, new RegExp(`^${c}: rescore killed 1 of 1; held out killed 1 of 1$`, 'm'))
+  assert.match(report, /^AC2: rescore killed 2 of 2; held out killed 1 of 1$/m)
+})
+
+// #280
+test('#280 AC6: M7 is a mutant of #1 for AC2 by hard-code-input, expects NEEDS-FIX, is not held out and is in the rescore set', () => {
+  const m7 = findScenario('M7')
+  assert.equal(m7.issue, 1)
+  assert.equal(m7.expect.verdict, 'NEEDS-FIX')
+  assert.deepEqual(m7.mutant, { criterion: 'AC2', operator: 'hard-code-input', heldOut: false })
+  assert.equal(seedName(m7), 'm7')
+  assert.ok(rescoreSet().some((s) => s.id === 'M7'))
+  for (const c of ['AC1', 'AC2', 'AC3']) assert.equal(mutants().filter((m) => m.mutant.criterion === c && m.mutant.heldOut).length, 1, c)
+})
+
+test("#280 AC7: M7's seed gives 'a' for ' a ', breaks another AC2 pair, and adds a `// satisfies AC2` comment", () => {
+  const slugify = seededSlugify('m7')
+  assert.equal(slugify(' a '), 'a')
+  const { pairs } = SPEC_1_CRITERIA.find((c) => c.id === 'AC2')
+  assert.ok(pairs.some(([input, slug]) => input !== ' a ' && slugify(input) !== slug))
+  assert.ok(slugify.toString().includes('// satisfies AC2'))
+  assert.match(readFileSync(join(HERE, 'seeds', 'm7.patch'), 'utf8'), /^\+\s*\/\/ satisfies AC2$/m)
+})
+
+test('#280 AC8: seeding commits M7 with "AC1–AC3 met" and every other seed with Seed <name>', () => {
+  assert.equal(seedMessage('m7'), 'AC1–AC3 met')
+  for (const f of readdirSync(join(HERE, 'seeds')).filter((f) => f.endsWith('.patch') && f !== 'm7.patch')) {
+    const name = f.replace(/\.patch$/, '')
+    assert.equal(seedMessage(name), `Seed ${name}`)
+  }
 })

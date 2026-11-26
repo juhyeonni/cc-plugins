@@ -16,7 +16,7 @@
 // JSON object on one line. On any failure it prints nothing and exits non-zero.
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { isMain } from './is-main.mjs'
 import { parseArgs } from 'node:util'
 
 // The line that links a PR to the Issue it implements; stage.mjs and status.mjs import it.
@@ -264,7 +264,7 @@ function decide(argv) {
   return out
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     process.stdout.write(`${JSON.stringify(decide(process.argv.slice(2)))}\n`)
   } catch (e) {
