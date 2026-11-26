@@ -15,7 +15,8 @@
 // `verdict-<head>.md` in the reports directory and prints that path and the heading. A missing
 // or invalid block, a missing report, or a non-empty could-not-run list prints nothing on
 // stdout, names why on stderr and exits non-zero: nothing is posted. So does a spec report that
-// does not judge every criterion of the Issue's trusted spec, which the script finds itself (#252).
+// does not judge every criterion of the Issue's trusted spec, which the script finds itself (#252),
+// or a trusted spec from which no criterion can be read (#271).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -214,7 +215,8 @@ function trustedSpecs(numbers) {
   )
 }
 
-// A spec report that names another spec, or leaves out a criterion of the trusted one, is INCONCLUSIVE.
+// A spec report that names another spec, or leaves out a criterion of the trusted one, is INCONCLUSIVE,
+// and so is a trusted spec from which no criterion can be read (#271).
 export function checkCoverage(report, spec) {
   const n = report.issue
   if (!spec) {
@@ -223,8 +225,10 @@ export function checkCoverage(report, spec) {
     return
   }
   if (report.spec !== spec.id) throw new Error(`INCONCLUSIVE: the spec report for #${n} names spec ${report.spec}, not #${n}'s trusted spec comment ${spec.id}`)
+  const expected = specCriteria(spec.body)
+  if (!expected.length) throw new Error(`INCONCLUSIVE: no acceptance-criterion line could be read from #${n}'s spec comment ${spec.id}`)
   const judged = new Set(report.criteria.map((c) => c.id))
-  const missing = specCriteria(spec.body).filter((id) => !judged.has(id))
+  const missing = expected.filter((id) => !judged.has(id))
   if (missing.length) throw new Error(`INCONCLUSIVE: the spec report for #${n} does not judge ${missing.join(', ')} of spec comment ${spec.id}`)
 }
 
