@@ -335,18 +335,19 @@ export function stoppedAtLimit(children, { maxHeld }) {
 }
 
 // The verdict a run reached: from its verdict comment when it posted one,
-// else from the latest reply that has one. A reply to a later question, such
-// as whether to post the verdict, often has none: then from the last tool result
-// holding the verdict script's heading, its output or its saved file (#275).
+// else from the last tool result holding the verdict script's heading, its
+// output or its saved file (#275), since the script writes the verdict
+// (ADR-0015) and a reply can quote other text (#292). Only when the script
+// left none, from the latest reply that has one.
 export function readVerdict({ comment, texts = [], calls = [] }) {
-  for (const text of comment != null ? [comment] : [...texts].reverse()) {
-    const hit = verdictIn(text)
-    if (hit) return hit
-  }
-  if (comment != null) return null
+  if (comment != null) return verdictIn(comment)
   for (const c of [...calls].reverse()) {
     const m = VERDICT_HEADING.exec(String(c.result ?? ''))
     if (m) return m[1]
+  }
+  for (const text of [...texts].reverse()) {
+    const hit = verdictIn(text)
+    if (hit) return hit
   }
   return null
 }
