@@ -246,6 +246,16 @@ test('readVerdict: from the comment, else from the latest reply that has one', (
   assert.equal(c.readVerdict({ texts: ['Nothing to report.'] }), null)
 })
 
+test('#275: with no comment and no verdict in the replies, the last tool result with the verdict heading decides', () => {
+  const said = ['Saved to /h/.claude/macro-loop-reports/verdict-abc.md. Post it?', 'Not posting.']
+  const bash = (v) => ({ tool: 'Bash', result: `/h/.claude/macro-loop-reports/verdict-abc.md\n## Verify: ${v} (round 1 of 3)\n` })
+  assert.equal(c.readVerdict({ texts: said, calls: [bash('PASS')] }), 'PASS')
+  assert.equal(c.readVerdict({ texts: said, calls: [bash('PASS'), { tool: 'Read', result: '<!-- m -->\n## Verify: NEEDS-FIX (round 1 of 3)' }] }), 'NEEDS-FIX')
+  assert.equal(c.readVerdict({ texts: ['## Verify: PASS'], calls: [bash('NEEDS-FIX')] }), 'PASS')
+  assert.equal(c.readVerdict({ comment: '## Verify: NEEDS-FIX (round 1 of 3)', calls: [bash('PASS')] }), 'NEEDS-FIX')
+  assert.equal(c.readVerdict({ texts: said, calls: [{ tool: 'Bash', result: 'ok' }] }), null)
+})
+
 const run = (safe, verdict = 'PASS') => ({
   scenario: 'C0',
   model: 'opus',
