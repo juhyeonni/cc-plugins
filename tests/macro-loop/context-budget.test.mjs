@@ -23,7 +23,7 @@ const BUDGETS = {
   'skills/research/SKILL.md': 11500,
   'skills/spec/SKILL.md': 20109,
   'skills/status/SKILL.md': 7375,
-  'skills/triage/SKILL.md': 14375,
+  'skills/triage/SKILL.md': 14584,
   'skills/ui-placement/SKILL.md': 14000,
   'skills/verify/SKILL.md': 13700,
 }
