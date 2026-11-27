@@ -250,6 +250,27 @@ test('NEEDS-FIX: implement below the cap, stop at it, and the line differs by ro
   assert.deepEqual(line({ verdicts: 1 }), line({ verdicts: 1 }))
 })
 
+test('a row names the round of the verdict it describes; verify names the round to come (#309)', () => {
+  const line = (over) => stageOf(signals({ pr: pr({ sha: 'h2', ...over }) }))
+  const pass = line({ verdicts: 1, result: 'PASS' })
+  assert.equal(pass.stage, 'merge')
+  assert.match(pass.why, /\(round 1, head h2\)$/)
+  const fix = line({ verdicts: 1, result: 'NEEDS-FIX' })
+  assert.equal(fix.stage, 'implement')
+  assert.match(fix.why, /\(round 1, head h2\)$/)
+  const none = line({ verdicts: 0, sha: null })
+  assert.equal(none.stage, 'verify')
+  assert.match(none.why, /\(next round 1, head h2\)$/)
+  const stale = line({ verdicts: 1, result: 'PASS', sha: 'h1' })
+  assert.equal(stale.stage, 'verify')
+  assert.match(stale.why, /\(next round 2, head h2\)$/)
+  const stop = line({ verdicts: 3, result: 'NEEDS-FIX' })
+  assert.equal(stop.stage, 'stop')
+  assert.match(stop.why, /\(round 3, head h2\)$/)
+  assert.notDeepEqual(line({ verdicts: 1, result: 'PASS', sha: 'h1' }), line({ verdicts: 2, result: 'PASS', sha: 'h1' }))
+  assert.notDeepEqual(line({ verdicts: 0, head: 'a1b2c3d4e5' }), line({ verdicts: 0, head: 'f6e5d4c3b2' }))
+})
+
 test('skills: goal and execute keep no NEEDS-FIX rule of their own; stage.mjs decides (#193)', () => {
   const text = (n) => readFileSync(join(ROOT, `plugins/macro-loop/skills/${n}/SKILL.md`), 'utf8')
   assert.doesNotMatch(text('execute'), /after a person has read the verdict|nothing was fixed automatically/i)
