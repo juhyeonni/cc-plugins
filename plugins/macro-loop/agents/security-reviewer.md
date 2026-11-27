@@ -56,4 +56,4 @@ End your report with one fenced block tagged `macro-loop-report` holding one JSO
 - `findings`: each vulnerability the review reports, one string: file and line, what is wrong, category, severity. Only what the review reports. Empty when it reports none.
 - `couldNotRun`: why the review did not run or did not finish, from step 2 or 3. Empty when it ran.
 
-A missing or invalid block posts no verdict.
+A missing or invalid block posts nothing.

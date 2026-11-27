@@ -89,7 +89,7 @@ function run(reports, args = ['--round', '1', '--head', HEAD, '--branch', '12-cs
   return { ...r, printed: r.stdout, reportsDir, stdout: readFileSync(r.stdout.split('\n')[0], 'utf8') }
 }
 
-const ok = (s = spec(), st = standards(), se = security()) => [SPEC_PROSE + block(s), STANDARDS_PROSE + block(st), SECURITY_PROSE + block(se)]
+const ok = (s = spec(), st = standards()) => [SPEC_PROSE + block(s), STANDARDS_PROSE + block(st)]
 
 test('PASS: the marker with round and head, the heading, the counts line, then the opening paragraph', () => {
   const r = run(ok())
@@ -133,13 +133,13 @@ test('a wrong criterion fails the verdict too', () => {
 
 test('nothing to post: a missing block, an invalid block, a missing report or a could-not-run entry', () => {
   for (const [reports, why] of [
-    [[SPEC_PROSE, STANDARDS_PROSE + block(standards()), SECURITY_PROSE + block(security())], /does not end with a `macro-loop-report` block/],
-    [[SPEC_PROSE + '\n\n```macro-loop-report\n{"axis": "spec",\n```\n', STANDARDS_PROSE + block(standards()), SECURITY_PROSE + block(security())], /not valid JSON/],
+    [[SPEC_PROSE, STANDARDS_PROSE + block(standards())], /does not end with a `macro-loop-report` block/],
+    [[SPEC_PROSE + '\n\n```macro-loop-report\n{"axis": "spec",\n```\n', STANDARDS_PROSE + block(standards())], /not valid JSON/],
     [ok(spec({ criteria: [{ id: 'AC1', result: 'passed' }] })), /criterion that is not/],
     [ok(spec(), { axis: 'standards', issue: 12 }), /standardsBroken/],
-    [[SPEC_PROSE + block(spec()), SECURITY_PROSE + block(security())], /no standards report for #12/],
+    [[SPEC_PROSE + block(spec())], /no standards report for #12/],
     [ok(spec({ couldNotRun: ['AC1: npm is not installed'] })), /INCONCLUSIVE.*AC1: npm is not installed/],
-    [[SPEC_PROSE + block(spec()) + '\nA note after the block.', STANDARDS_PROSE + block(standards()), SECURITY_PROSE + block(security())], /does not end with/],
+    [[SPEC_PROSE + block(spec()) + '\nA note after the block.', STANDARDS_PROSE + block(standards())], /does not end with/],
   ]) {
     const r = run(reports)
     assert.notEqual(r.status, 0)
@@ -150,7 +150,7 @@ test('nothing to post: a missing block, an invalid block, a missing report or a 
 
 test('the block the report ends with counts, not one quoted above it', () => {
   const quoted = 'The diff adds this example:\n\n```macro-loop-report\n{"axis": "spec"}\n```\n\nMore prose.'
-  const r = run([quoted + block(spec()), STANDARDS_PROSE + block(standards()), SECURITY_PROSE + block(security())])
+  const r = run([quoted + block(spec()), STANDARDS_PROSE + block(standards())])
   assert.equal(r.status, 0, r.stderr)
   assert.ok(r.stdout.includes('More prose.'))
 })
@@ -286,8 +286,8 @@ function runAgents(saved, ids) {
 }
 
 test('--agent <id> reads the saved reports, writes the same comment as from files beside them, and prints only its path and heading', () => {
-  const [specReport, standardsReport, securityReport] = ok()
-  const byAgent = runAgents({ aspec1: specReport, astd2: standardsReport, asec3: securityReport }, ['aspec1', 'astd2', 'asec3'])
+  const [specReport, standardsReport] = ok()
+  const byAgent = runAgents({ aspec1: specReport, astd2: standardsReport }, ['aspec1', 'astd2'])
   assert.equal(byAgent.status, 0, byAgent.stderr)
   const out = join(byAgent.reports, `verdict-${HEAD}.md`)
   const comment = run(ok()).stdout
@@ -314,20 +314,75 @@ test('--agent <id> with no saved report prints nothing to post and names the id'
 
 const SQL = 'src/db.js:14 builds a SQL query from the request body (SQL injection)'
 
-test('#197 AC3: security findings come first in "Decide first", before Standards, and ### Security sits above ### Spec', () => {
-  const r = run(ok(spec(), standards({ standardsBroken: broken('ADR 0001: src/api.js calls `gh pr view`') }), security({ findings: [SQL] })))
+const AFTER_PASS = /### Security\n\nThe security review runs after a PASS, in the background, and posts its findings as a comment of its own on this PR\./
+
+test('#343 AC1: spec and standards reports alone give a PASS or a NEEDS-FIX that says the security review runs after a PASS', () => {
+  const pass = run(ok())
+  assert.equal(pass.status, 0, pass.stderr)
+  assert.match(pass.stdout, /^## Verify: PASS /m)
+  assert.match(pass.stdout, AFTER_PASS)
+  const fix = run(ok(spec({ criteria: [met('AC1', 'CSV quoted fields'), unmet('AC2', 'empty input')] })))
+  assert.equal(fix.status, 0, fix.stderr)
+  assert.match(fix.stdout, /^## Verify: NEEDS-FIX /m)
+  assert.match(fix.stdout, AFTER_PASS)
+  assert.doesNotMatch(pass.stdout, /waitBeforeMerge/)
+})
+
+test('#343: a security report given to the verdict posts nothing', () => {
+  refused([...ok(), SECURITY_PROSE + block(security())], /takes no security report/)
+})
+
+test('#343: with security.waitBeforeMerge on, the verdict says to wait for the security comment', () => {
+  const config = { content: Buffer.from(JSON.stringify({ security: { waitBeforeMerge: true } })).toString('base64') }
+  const r = run(ok(), undefined, GH({ 'api repos/{owner}/{repo}/contents/.github/macro-loop.json': { stdout: config } }))
   assert.equal(r.status, 0, r.stderr)
-  assert.match(r.stdout, /Decide first: the Security report found these, reported only: they do not change the result:\n\n- src\/db\.js:14 .*\n\nThe Standards report says the diff breaks these documented standards:\n\n- S1 ADR 0001/)
-  assert.ok(r.stdout.indexOf('### Security') < r.stdout.indexOf('### Spec'))
-  assert.match(r.stdout, /### Security\n\nReported only: these findings do not change the result\.\n\n- src\/db\.js:14 /)
+  assert.match(r.stdout, /`security\.waitBeforeMerge` is on: wait for that comment before you merge\./)
+})
+
+// Runs --security on one report file; no gh call is made.
+function runSecurity(reports, head = HEAD) {
+  const dir = mkdtempSync(join(tmpdir(), 'security-'))
+  const files = reports.map((text, k) => {
+    const file = join(dir, `report-${k}.md`)
+    writeFileSync(file, text)
+    return file
+  })
+  const r = spawnSync(process.execPath, [SCRIPT, '--security', '--head', head, ...files], { encoding: 'utf8', env: { ...ghEnv({}), MACRO_LOOP_REPORTS: join(dir, 'reports') } })
+  if (r.status !== 0) return r
+  return { ...r, printed: r.stdout, out: join(dir, 'reports', `security-${head}.md`), stdout: readFileSync(r.stdout.split('\n')[0], 'utf8') }
+}
+
+test('#343: --security writes the security comment with its marker, the findings and what to do, to security-<head>.md', () => {
+  const r = runSecurity([SECURITY_PROSE + block(security({ findings: [SQL] }))])
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(r.printed, `${r.out}\n## Security review: 1 finding\n`)
+  assert.equal(r.stdout.split('\n')[0], `<!-- macro-loop:security sha=${HEAD} -->`)
+  assert.match(r.stdout, /Fix each finding you accept: on this PR before it merges, or in a new PR after\. They never change the verdict\.\n\n- src\/db\.js:14 /)
   assert.ok(r.stdout.includes(SECURITY_PROSE))
   assert.ok(!r.stdout.includes('macro-loop-report'))
 })
 
-test('#197 AC4: security findings never change the result', () => {
-  const pass = run(ok(spec(), standards(), security({ findings: [SQL, 'a leaked token in .env.example'] })))
-  assert.equal(pass.status, 0, pass.stderr)
-  assert.match(pass.stdout, /^## Verify: PASS \(1 of 2 criteria ran, round 1 of 3\)$/m)
+test('#343: --security says "no findings", or that it did not run and why', () => {
+  const none = runSecurity([SECURITY_PROSE + block(security())])
+  assert.equal(none.status, 0, none.stderr)
+  assert.match(none.stdout, /^## Security review: no findings\n\nNo findings\. Nothing to do\./m)
+  const skipped = runSecurity([SECURITY_PROSE + block(security({ couldNotRun: ['base origin/release is not the default branch'] }))])
+  assert.equal(skipped.status, 0, skipped.stderr)
+  assert.match(skipped.stdout, /^## Security review: did not run\n\nSecurity did not run: base origin\/release is not the default branch\./m)
+})
+
+test('#343: --security takes one valid security report, or posts nothing', () => {
+  for (const [reports, why] of [
+    [[SECURITY_PROSE], /does not end with a `macro-loop-report` block/],
+    [[SECURITY_PROSE + block({ axis: 'security', findings: [] })], /couldNotRun/],
+    [[SECURITY_PROSE + block(security()), SECURITY_PROSE + block(security())], /one report, not 2/],
+    [[SPEC_PROSE + block(spec())], /not a spec report/],
+  ]) {
+    const r = runSecurity(reports)
+    assert.notEqual(r.status, 0)
+    assert.equal(r.stdout, '')
+    assert.match(r.stderr, why)
+  }
 })
 
 const opening = (stdout) => stdout.split('\n')[4]
@@ -351,14 +406,6 @@ test('#283 AC3: a NEEDS-FIX heading keeps (round r of 3) (guards existing behavi
   assert.match(r.stdout, /^## Verify: NEEDS-FIX \(round 2 of 3\)$/m)
 })
 
-test('#283 AC5: a PASS with a security finding tells you to read the Security section, not that it can merge', () => {
-  const r = run(ok(spec(), standards(), security({ findings: [SQL] })))
-  assert.equal(r.status, 0, r.stderr)
-  assert.match(r.stdout, /^## Verify: PASS /m)
-  assert.doesNotMatch(r.stdout, /This PR can merge/)
-  assert.match(opening(r.stdout), /^Read the Security section before you merge: /)
-})
-
 test('#283 AC6: a PASS where no criterion ran tells you to read the criteria, not that it can merge', () => {
   const r = run(ok(READ_ONLY))
   assert.equal(r.status, 0, r.stderr)
@@ -368,61 +415,22 @@ test('#283 AC6: a PASS where no criterion ran tells you to read the criteria, no
   assert.match(opening(r.stdout), /Do the manual checks below/)
 })
 
-test('#283 AC7: a PASS with a security finding and no criterion run names both', () => {
-  const r = run(ok(READ_ONLY, standards(), security({ findings: [SQL] })))
-  assert.equal(r.status, 0, r.stderr)
-  assert.doesNotMatch(r.stdout, /This PR can merge/)
-  assert.match(opening(r.stdout), /^Read the Security section and the criteria before you merge: /)
-})
-
-test('#283 AC8: a criterion run and empty security findings still open with "This PR can merge", whatever the security prose says (guards existing behavior)', () => {
-  const r = run([SPEC_PROSE + block(spec()), STANDARDS_PROSE + block(standards()), `# Security review\n\nOne finding: ${SQL}` + block(security())])
+test('#283 AC8: a criterion run still opens with "This PR can merge" (guards existing behavior)', () => {
+  const r = run(ok())
   assert.equal(r.status, 0, r.stderr)
   assert.match(opening(r.stdout), /^This PR can merge\. /)
 })
 
 test('#283 AC9: a risky PASS opening still carries "Decide first" or "Nothing to decide first."', () => {
-  assert.match(opening(run(ok(spec(), standards(), security({ findings: [SQL] }))).stdout), /^Read the Security section before you merge: .* Decide first: the Security report found these/)
+  assert.match(opening(run(ok(READ_ONLY, standards({ standardsBroken: broken('ADR 0001: GraphQL') }))).stdout), /^Read the criteria before you merge: .* Decide first: the Standards report/)
   assert.match(opening(run(ok(READ_ONLY)).stdout), /^Read the criteria before you merge: .* Nothing to decide first\.$/)
 })
 
-test('#197 AC5: no findings says "No findings"; could not run says Security did not run, with the reason, and is still posted', () => {
-  const none = run(ok())
-  assert.equal(none.status, 0, none.stderr)
-  assert.match(none.stdout, /### Security\n\nNo findings\.\n/)
-  assert.match(none.stdout, /Nothing to decide first\./)
-  const skipped = run(ok(spec(), standards(), security({ couldNotRun: ["the PR's base, origin/release, is not the default branch, origin/main"] })))
-  assert.equal(skipped.status, 0, skipped.stderr)
-  assert.match(skipped.stdout, /^## Verify: PASS/m)
-  assert.match(skipped.stdout, /### Security\n\nSecurity did not run: the PR's base, origin\/release, is not the default branch, origin\/main\.\n/)
-  assert.doesNotMatch(skipped.stdout, /No findings/)
-})
-
-test('#197 AC6: a missing or invalid security report posts nothing', () => {
-  const [specReport, standardsReport] = ok()
-  for (const [reports, why] of [
-    [[specReport, standardsReport], /no security report for the PR/],
-    [[specReport, standardsReport, SECURITY_PROSE], /does not end with a `macro-loop-report` block/],
-    [[specReport, standardsReport, SECURITY_PROSE + block({ axis: 'security', findings: [] })], /couldNotRun/],
-    [[specReport, standardsReport, SECURITY_PROSE + block({ axis: 'security', findings: 'none', couldNotRun: [] })], /findings/],
-  ]) {
-    const r = run(reports)
-    assert.notEqual(r.status, 0)
-    assert.equal(r.stdout, '')
-    assert.match(r.stderr, why)
-  }
-})
-
-test('#197 AC7: a PR that closes two Issues takes one security report; two are refused', () => {
-  const two = [...ok(), 'B' + block(spec({ issue: 13, spec: SPEC_13 })), 'C' + block(standards({ issue: 13 }))]
-  const r = run(two)
+test('#197 AC7: a PR that closes two Issues has one Security section, above the Issues', () => {
+  const r = run([...ok(), 'B' + block(spec({ issue: 13, spec: SPEC_13 })), 'C' + block(standards({ issue: 13 }))])
   assert.equal(r.status, 0, r.stderr)
   assert.equal(r.stdout.match(/^### Security$/gm).length, 1)
   assert.ok(r.stdout.indexOf('### Security') < r.stdout.indexOf('## #12: PASS'))
-  const twice = run([...two, SECURITY_PROSE + block(security())])
-  assert.notEqual(twice.status, 0)
-  assert.equal(twice.stdout, '')
-  assert.match(twice.stderr, /2 security reports for one PR/)
 })
 
 const CREEP = 'src/trust.js:8 adds `bot` to `trusted`, which the spec did not ask for'
@@ -445,13 +453,12 @@ test('#254 AC2: scope creep never changes the result', () => {
   }
 })
 
-test('#254 AC3: "Decide first" lists Security, then scope creep, then Standards', () => {
-  const r = run(ok(spec({ scopeCreep: [CREEP] }), standards({ standardsBroken: broken('ADR 0001: GraphQL') }), security({ findings: [SQL] })))
+test('#254 AC3: "Decide first" lists scope creep, then Standards', () => {
+  const r = run(ok(spec({ scopeCreep: [CREEP] }), standards({ standardsBroken: broken('ADR 0001: GraphQL') })))
   assert.equal(r.status, 0, r.stderr)
-  const sec = r.stdout.indexOf('Decide first: the Security report')
-  const creep = r.stdout.indexOf('The Spec report found behavior the spec did not ask for:\n\n- ' + CREEP)
+  const creep = r.stdout.indexOf(`${CREEP_HEAD}\n\n- ${CREEP}`)
   const std = r.stdout.indexOf('The Standards report says the diff breaks these documented standards:\n\n- S1 ADR 0001')
-  assert.ok(sec >= 0 && creep > sec && std > creep, r.stdout)
+  assert.ok(creep >= 0 && std > creep, r.stdout)
 })
 
 test('#254: on a PR that closes two Issues, each scope creep item carries its Issue number', () => {

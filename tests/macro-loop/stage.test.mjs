@@ -245,6 +245,35 @@ test('run: an open PR with a PASS for its head gives merge, reading pulls/<n> on
   assert.equal(r.calls.filter((call) => call === PULL5).length, 1)
 })
 
+// PR #5's PASS for its head, plus `extra` PR comments, under a config with `security`.
+const securing = (security, extra = []) => runStage(base({
+  'api repos/{owner}/{repo}/contents/.github/macro-loop.json': { stdout: { content: Buffer.from(JSON.stringify({ trusted: [], ...(security ? { security } : {}) })).toString('base64'), encoding: 'base64' } },
+  [PULLS]: { stdout: [[{ number: 5, state: 'open', merged_at: null, body: 'Closes #77', user: { login: 'carol' }, head: { sha: 'abc1234' }, base: { ref: 'main' } }]] },
+  'api --paginate --slurp repos/{owner}/{repo}/issues/5/comments': { stdout: [[{ id: 2, user: { login: 'carol' }, body: '<!-- macro-loop:verify round=1 sha=abc1234 -->\n## Verify: PASS (round 1 of 3)' }, ...extra]] },
+  [PULL5]: { stdout: { number: 5, mergeable: true } },
+}))
+const securityComment = (sha, login = 'carol') => ({ id: 3, user: { login }, body: `<!-- macro-loop:security sha=${sha} -->\n## Security review: no findings` })
+
+test('#343 AC5: with security.waitBeforeMerge true, a PASS for the head waits for its security comment, then gives merge', () => {
+  const waiting = securing({ waitBeforeMerge: true })
+  assert.equal(waiting.status, 0, waiting.stderr)
+  assert.deepEqual([waiting.out.stage, waiting.out.gate], ['wait', true])
+  assert.equal(waiting.out.why, 'the security review for this head has not reported (round 1, head abc1234)')
+  for (const extra of [[securityComment('0000000')], [securityComment('abc1234', 'mallory')]]) {
+    assert.equal(securing({ waitBeforeMerge: true }, extra).out.stage, 'wait', JSON.stringify(extra))
+  }
+  const reported = securing({ waitBeforeMerge: true }, [securityComment('abc1234')])
+  assert.deepEqual([reported.out.stage, reported.out.gate], ['merge', true])
+})
+
+test('#343 AC6: with security.waitBeforeMerge false or unset, a PASS for the head gives merge with no security comment (guards existing behavior)', () => {
+  for (const security of [{ waitBeforeMerge: false }, null]) {
+    const r = securing(security)
+    assert.equal(r.status, 0, r.stderr)
+    assert.deepEqual([r.out.stage, r.out.gate], ['merge', true])
+  }
+})
+
 test('run: an open PR that conflicts with its base gives implement naming the base, even with a PASS (#318)', () => {
   const r = passing({ stdout: { number: 5, mergeable: false } })
   assert.equal(r.status, 0, r.stderr)

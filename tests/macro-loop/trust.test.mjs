@@ -277,7 +277,7 @@ test('--pr: author, trust, head, base, last trusted verdict and round', () => {
   })
   const r = run(responses, ['--pr', '3'])
   assert.equal(r.status, 0, r.stderr)
-  assert.deepEqual(r.out.pr, { number: 3, author: 'AnpanManni', authorTrusted: false, head: 'abc123', base: 'main', closes: null, closesAll: [], lastVerdict: 13, lastVerdictResult: null, lastVerdictSha: null, round: 3, answers: [], answerWarnings: [], answersLine: 'none' })
+  assert.deepEqual(r.out.pr, { number: 3, author: 'AnpanManni', authorTrusted: false, head: 'abc123', base: 'main', closes: null, closesAll: [], lastVerdict: 13, lastVerdictResult: null, lastVerdictSha: null, round: 3, lastSecurity: null, lastSecuritySha: null, answers: [], answerWarnings: [], answersLine: 'none' })
   const listed = run({ ...responses, [CONFIG]: contents({ trusted: ['anpanmanni'] }) }, ['--pr', '3'])
   assert.equal(listed.out.pr.authorTrusted, true)
 })
@@ -341,6 +341,27 @@ test('#283 AC4: the last verdict\'s result is PASS from the heading that counts 
     'api --paginate --slurp repos/{owner}/{repo}/issues/3/comments': { stdout: [[comment(1, 'carol', body)]] },
   }), ['--pr', '3']).out.pr
   assert.equal(out.lastVerdictResult, 'PASS')
+})
+
+test('#343 AC4: --pr gives the newest trusted security comment and the head it judged, and null for both without one', () => {
+  const security = (id, login, sha) => comment(id, login, `<!-- macro-loop:security sha=${sha} -->\n## Security review: no findings`)
+  const out = (comments) => answersOf(comments)
+  assert.deepEqual(out([security(1, 'carol', 'aaaaaaa'), security(2, 'juhyeonni', 'bbbbbbb'), security(3, 'mallory', 'ccccccc')]), {
+    ...out([]),
+    lastSecurity: 2,
+    lastSecuritySha: 'bbbbbbb',
+  })
+  const none = out([security(3, 'mallory', 'ccccccc'), comment(4, 'carol', 'Looks fine. <!-- macro-loop:security sha=ddddddd -->')])
+  assert.deepEqual([none.lastSecurity, none.lastSecuritySha], [null, null])
+})
+
+test('#343: config.security.waitBeforeMerge is false by default; a value that is not true or false is refused', () => {
+  assert.deepEqual(run(base({ [CONFIG]: NOT_FOUND })).out.config.security, { waitBeforeMerge: false })
+  assert.deepEqual(run(base({ [CONFIG]: contents({ security: { waitBeforeMerge: true } }) })).out.config.security, { waitBeforeMerge: true })
+  const bad = run(base({ [CONFIG]: contents({ security: { waitBeforeMerge: 'yes' } }) }))
+  assert.notEqual(bad.status, 0)
+  assert.equal(bad.stdout, '')
+  assert.match(bad.stderr, /security\.waitBeforeMerge/)
 })
 
 test('--pr: no trusted verdict gives round 1 and no last verdict', () => {

@@ -48,11 +48,13 @@ Start the saved workflow `macro-loop:execute-run` once, with the Workflow tool's
 
 If the saved workflow is refused or not found, stop and say so with the error. Never run its script inline instead: a run that does not match the saved workflow is not the one the person approved.
 
-The run returns one entry per Issue, shaped as the workflow's header says. A stage with `ok: false` stopped that Issue, and its `reason` goes in the report. `verify` holds `{pr, head, spec, standards, security}`: the two verifiers' and the security reviewer's reports, or `null`.
+The run returns one entry per Issue, shaped as the workflow's header says. A stage with `ok: false` stopped that Issue, and its `reason` goes in the report. `verify` holds `{pr, head, spec, standards}`: the two verifiers' reports, or `null`.
 
 ## 4. Post the verdicts
 
-For each Issue that reached verify, read the round with `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --pr <pr>`, then decide and post its verdict as `verify` steps 6 and 7 do, with the `head` the run judged. The run gives reports, not agent ids, so in place of `--agent` write the run's `spec`, `standards` and `security` reports, as they came, each to its own file in a directory made with `mktemp -d`, and pass the files. Post the file the script prints, unchanged. A `null` report counts as missing: post nothing for that Issue, and report it INCONCLUSIVE.
+For each Issue that reached verify, read the round with `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --pr <pr>`, then decide and post its verdict as `verify` steps 6 and 7 do, with the `head` the run judged. The run gives reports, not agent ids, so in place of `--agent` write the run's `spec` and `standards` reports, as they came, each to its own file in a directory made with `mktemp -d`, and pass the files. Post the file the script prints, unchanged. A `null` report counts as missing: post nothing for that Issue, and report it INCONCLUSIVE.
+
+After each posted PASS, start one `macro-loop:security-reviewer`, with `isolation: "worktree"` and `run_in_background: true`, its prompt exactly the lines `Axis: security`, `Base: origin/<base>` and `Head: <head>`. When it reports, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/verdict.mjs --security --head <head> --agent <its id>` and post the file it prints, unchanged: a comment starting `<!-- macro-loop:security sha=<head> -->`. A NEEDS-FIX starts none.
 
 ## 5. Report
 

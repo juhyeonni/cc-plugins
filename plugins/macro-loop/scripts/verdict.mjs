@@ -5,13 +5,14 @@
 // from those blocks alone, never from the prose, which is posted under them as it is.
 //
 //   node verdict.mjs --round <n> --head <sha> --branch <name> [--pr <n>] (--agent <id> | <report file>)...
+//   node verdict.mjs --security --head <sha> (--agent <id> | <report file>)
 //
-// Give one spec and one standards report per Issue the PR closes, and one security report for
-// the PR (#197): as `--agent <id>`, the report verifier-report.mjs saved when that agent stopped
-// (#176), or as a file. Security findings are reported first and never change the result; a
-// security report whose `couldNotRun` is not empty still gives a verdict, saying it did not run.
-// A PASS heading counts the criteria run over every Issue, and a PASS with security findings or
-// no criterion run opens with what to read before merging (#283).
+// Give one spec and one standards report per Issue the PR closes: as `--agent <id>`, the report
+// verifier-report.mjs saved when that agent stopped (#176), or as a file. The verdict takes no
+// security report: the security review runs after a PASS and posts a comment of its own (#343),
+// which `--security` writes from the security reviewer's one report to `security-<head>.md`.
+// A PASS heading counts the criteria run over every Issue, and a PASS with no criterion run
+// opens with what to read before merging (#283).
 // Scope creep in a spec report goes under "Decide first" and never changes the result (#254). It writes
 // the comment to `verdict-<head>.md` in the reports directory, whether the reports came as files
 // or by `--agent` (#315), and prints that path and the heading. A missing
@@ -124,17 +125,9 @@ const answeredNote = (f) => `already answered ([the answer](#issuecomment-${f.an
 const where = (f) => (f.alsoAt.length ? `also at ${f.alsoAt.join(', ')}` : 'no other place in the diff')
 const finding = (f, line) => (f.answered ? `${line}, ${answeredNote(f)}` : `${line}. Class: ${f.class}; ${where(f)}`)
 
-// The one security report of the PR.
-function securityOf(reports) {
-  const found = reports.filter((r) => r.data.axis === 'security')
-  if (found.length === 0) throw new Error('no security report for the PR')
-  if (found.length > 1) throw new Error(`${found.length} security reports for one PR`)
-  return found[0]
-}
-
-// A spec edited after the previous verdict on this head comes first (#279), then security findings (#197),
-// then behavior the spec did not ask for (#254), then broken standards. None of the first three changes the result.
-function opening(issues, security, result, round, branch, specEdits) {
+// A spec edited after the previous verdict on this head comes first (#279), then behavior the spec
+// did not ask for (#254), then broken standards. Neither of the first two changes the result.
+function opening(issues, result, round, branch, specEdits) {
   const tag = (i) => (issues.length > 1 ? `#${i.number} ` : '')
   const numbered = (prefix, list) => list.map(([i, f], k) => ({ f, id: `- ${tag(i)}${prefix}${k + 1} ` }))
   const standards = numbered('S', issues.flatMap((i) => i.standards.data.standardsBroken.map((b) => [i, b])))
@@ -142,7 +135,6 @@ function opening(issues, security, result, round, branch, specEdits) {
   const settled = standards.filter((s) => s.f.answered).map((s) => `${s.id}${s.f.standard}, ${answeredNote(s.f)}`)
   const groups = [
     ['a spec was edited after the previous verdict', specEdits.map((e) => `- ${e}`)],
-    ['the Security report found these, reported only: they do not change the result', security.data.findings.map((f) => `- ${f}`)],
     ['the Spec report found behavior the spec did not ask for', issues.flatMap((i) => i.spec.data.scopeCreep.map((s) => `- ${tag(i)}${s}`))],
     ['the Standards report says the diff breaks these documented standards', broken],
   ].filter(([, list]) => list.length)
@@ -151,7 +143,7 @@ function opening(issues, security, result, round, branch, specEdits) {
     ...groups.flatMap(([head, list], k) => [...(k ? ['', head[0].toUpperCase() + head.slice(1) + ':'] : []), '', ...list]),
     ...(settled.length ? ['', 'Standards findings already answered:', '', ...settled] : []),
   ]
-  if (result === 'PASS') return [`${passOpening(issues, security)} ${firstLine}`, ...rest].join('\n')
+  if (result === 'PASS') return [`${passOpening(issues)} ${firstLine}`, ...rest].join('\n')
   const items = [
     ...issues.flatMap((i) => failed(i.spec.data).map((c) => `- ${tag(i)}${finding(c, `${c.id} ${c.words}: ${c.result}`)}`)),
     ...numbered('F', issues.flatMap((i) => i.spec.data.introducedFailures.map((f) => [i, f]))).map((s) => s.id + finding(s.f, `Introduced failure: ${s.f.failure}`)),
@@ -163,38 +155,53 @@ function opening(issues, security, result, round, branch, specEdits) {
   return ['This PR needs a fix:', '', ...items, '', `${next} ${firstLine}`, ...rest].join('\n')
 }
 
-// A PASS with security findings, or with no criterion run, says what to read before merging
-// instead of "This PR can merge" (#283). It reads the reports' data only, never their prose.
-function passOpening(issues, security) {
+// A PASS with no criterion run says what to read before merging instead of "This PR can merge"
+// (#283). It reads the reports' data only, never their prose.
+function passOpening(issues) {
   const manual = issues.some((i) => i.spec.data.manualChecks.length)
   const noneRan = !issues.some((i) => i.spec.data.criteria.some((c) => c.judged === 'ran'))
-  const risks = [
-    ...(security.data.findings.length ? [['the Security section', 'the Security report has findings']] : []),
-    ...(noneRan ? [['the criteria', 'no criterion was run, each was only read or left to a manual check']] : []),
-  ]
-  if (!risks.length) return `This PR can merge. ${manual ? 'Do the manual checks below, read' : 'Read'} this verdict, mark the draft "Ready for review", then merge.`
-  const read = `Read ${risks.map(([what]) => what).join(' and ')} before you merge: ${risks.map(([, why]) => why).join(', and ')}.`
+  if (!noneRan) return `This PR can merge. ${manual ? 'Do the manual checks below, read' : 'Read'} this verdict, mark the draft "Ready for review", then merge.`
+  const read = 'Read the criteria before you merge: no criterion was run, each was only read or left to a manual check.'
   return `${read} ${manual ? 'Do the manual checks below, then mark' : 'Then mark'} the draft "Ready for review" and merge only if you accept that.`
 }
 
 const judgedAgainst = (i) =>
   `**Judged against:** ${i.spec.data.spec === null ? 'no spec; judged against the Issue body' : `the spec comment on #${i.number}`}`
 
-function securitySection({ data, prose }) {
-  const summary = data.couldNotRun.length
-    ? `Security did not run: ${data.couldNotRun.join('; ')}.`
-    : data.findings.length
-      ? 'Reported only: these findings do not change the result.'
-      : 'No findings.'
-  const list = data.findings.map((f) => `- ${f}`)
-  return ['### Security', '', summary, ...(list.length ? ['', ...list] : []), ...(prose ? ['', prose] : []), '']
+// The security review is not part of the verdict: it runs after a PASS (#343).
+const securityNote = (wait) => [
+  '### Security',
+  '',
+  `The security review runs after a PASS, in the background, and posts its findings as a comment of its own on this PR. They never change this verdict.${wait ? ' `security.waitBeforeMerge` is on: wait for that comment before you merge.' : ''}`,
+  '',
+]
+
+// The security reviewer's comment for one head (#343): its findings, or none, and what to do with them.
+export function securityComment({ head, report }) {
+  if (report.data.axis !== 'security') throw new Error(`--security takes the security reviewer's report, not a ${report.data.axis} report`)
+  const { findings, couldNotRun } = report.data
+  const result = couldNotRun.length ? 'did not run' : findings.length ? `${findings.length} finding${findings.length > 1 ? 's' : ''}` : 'no findings'
+  const summary = couldNotRun.length
+    ? `Security did not run: ${couldNotRun.join('; ')}. Once that is fixed, ask for it again with \`/macro-loop:verify security\`.`
+    : findings.length
+      ? 'Fix each finding you accept: on this PR before it merges, or in a new PR after. They never change the verdict.'
+      : 'No findings. Nothing to do.'
+  const list = findings.map((f) => `- ${f}`)
+  return [
+    `<!-- macro-loop:security sha=${head} -->`,
+    `## Security review: ${result}`,
+    '',
+    summary,
+    ...(list.length ? ['', ...list] : []),
+    ...(report.prose ? ['', report.prose] : []),
+  ].join('\n') + '\n'
 }
 
 const sections = (i) => [judgedAgainst(i), '', '### Spec', '', i.spec.prose, '', '### Standards', '', i.standards.prose]
 
-export function verdict({ round, head, branch, reports, specEdits = [] }) {
-  const security = securityOf(reports)
-  const issues = byIssue(reports.filter((r) => r !== security))
+export function verdict({ round, head, branch, reports, specEdits = [], waitForSecurity = false }) {
+  if (reports.some((r) => r.data.axis === 'security')) throw new Error('the verdict takes no security report: the security review runs after a PASS')
+  const issues = byIssue(reports)
   const result = issues.some((i) => resultOf(i.spec.data) === 'NEEDS-FIX') ? 'NEEDS-FIX' : 'PASS'
   const criteria = issues.flatMap((i) => i.spec.data.criteria)
   const count = (how) => criteria.filter((c) => c.judged === how).length
@@ -208,11 +215,11 @@ export function verdict({ round, head, branch, reports, specEdits = [] }) {
     `## Verify: ${result} (${result === 'PASS' ? `${count('ran')} of ${criteria.length} criteria ran, ` : ''}round ${round} of 3)`,
     `**Criteria:** ${count('ran')} ran, ${count('read')} read, ${count('manual')} manual`,
     '',
-    opening(issues, security, result, round, branch, specEdits),
+    opening(issues, result, round, branch, specEdits),
     '',
     ...(manual.length ? manual : ['No manual checks']),
     '',
-    ...securitySection(security),
+    ...securityNote(waitForSecurity),
     ...body,
   ].join('\n').trimEnd() + '\n'
 }
@@ -291,33 +298,42 @@ function savedReport(id) {
 function main(argv) {
   const { values, positionals } = parseArgs({
     args: argv,
-    options: { round: { type: 'string' }, head: { type: 'string' }, branch: { type: 'string' }, pr: { type: 'string' }, agent: { type: 'string', multiple: true } },
+    options: { round: { type: 'string' }, head: { type: 'string' }, branch: { type: 'string' }, pr: { type: 'string' }, agent: { type: 'string', multiple: true }, security: { type: 'boolean' } },
     allowPositionals: true,
   })
-  if (!/^[1-9]\d*$/.test(values.round ?? '')) throw new Error('--round takes the round number')
   if (!/^[0-9a-f]{7,40}$/.test(values.head ?? '')) throw new Error('--head takes the commit sha the verifiers judged')
-  if (!values.branch) throw new Error('--branch takes the branch name')
-  if (values.pr !== undefined && !/^[1-9]\d*$/.test(values.pr)) throw new Error('--pr takes the PR number')
   const agents = values.agent ?? []
   if (!positionals.length && !agents.length) throw new Error('no reports given')
   const reports = [
     ...positionals.map((file) => parseReport(readFileSync(file, 'utf8'), file)),
     ...agents.map((id) => parseReport(savedReport(id), `the report of verifier ${id}`)),
   ]
+  if (values.security) {
+    if (reports.length !== 1) throw new Error(`--security takes one report, not ${reports.length}`)
+    return write(`security-${values.head}.md`, securityComment({ head: values.head, report: reports[0] }), 1)
+  }
+  if (!/^[1-9]\d*$/.test(values.round ?? '')) throw new Error('--round takes the round number')
+  if (!values.branch) throw new Error('--branch takes the branch name')
+  if (values.pr !== undefined && !/^[1-9]\d*$/.test(values.pr)) throw new Error('--pr takes the PR number')
   const pr = prOf(values.pr, values.branch)
   checkClosed(pr ? closesAll(pr.body) : [], reports)
   const specReports = reports.filter((r) => r.data.axis === 'spec').map((r) => r.data)
-  const { trusted } = trustContext()
+  const { trusted, config } = trustContext()
   const specs = trustedSpecs([...new Set(specReports.map((d) => d.issue))], trusted)
   const specEdits = pr ? specEditsOf(comments(pr.number), specs, values.head, trusted) : []
-  const comment = verdict({ round: Number(values.round), head: values.head, branch: values.branch, reports, specEdits })
+  const waitForSecurity = config.security?.waitBeforeMerge === true
+  const comment = verdict({ round: Number(values.round), head: values.head, branch: values.branch, reports, specEdits, waitForSecurity })
   for (const d of specReports) checkCoverage(d, specs.get(d.issue))
-  // The comment goes to a file beside the saved reports, so the session needs no directory or
-  // redirect of its own, and only the file and the heading reach its context.
+  return write(`verdict-${values.head}.md`, comment, 2)
+}
+
+// The comment goes to a file beside the saved reports, so the session needs no directory or
+// redirect of its own, and only the file and its heading reach its context.
+function write(name, comment, headingLines) {
   mkdirSync(reportsDir(), { recursive: true, mode: 0o700 })
-  const out = join(reportsDir(), `verdict-${values.head}.md`)
+  const out = join(reportsDir(), name)
   writeFileSync(out, comment)
-  return `${out}\n${comment.split('\n').slice(1, 3).join('\n')}\n`
+  return `${out}\n${comment.split('\n').slice(1, 1 + headingLines).join('\n')}\n`
 }
 
 if (isMain(import.meta.url)) {

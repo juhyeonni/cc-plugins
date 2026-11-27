@@ -2,6 +2,7 @@
   "trusted": [],
   "uiKit": null,
   "goal": { "maxHeld": 3, "maxMinutes": 180, "maxChildren": 10 },
+  "security": { "waitBeforeMerge": false },
   "labels": {
     "priority": { "P0": "P0", "P1": "P1", "P2": "P2" },
     "state": {

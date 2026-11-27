@@ -12,6 +12,8 @@ Skills never read this file themselves: `scripts/trust.mjs` prints it as `config
 
 `goal` holds the limits of one `goal` run, each a positive integer: `maxHeld` (held children, 3), `maxMinutes` (since the run started, 180) and `maxChildren` (children taken up, 10). The defaults are chosen without data.
 
+`security.waitBeforeMerge` (default `false`): with `true`, a PASS waits for the security comment `verify` posts on its head before `stage.mjs` gives `merge`; with `false`, the PR can merge first and a finding is fixed afterwards.
+
 The rest of this plugin names labels by their default strings.
 
 ## Labels

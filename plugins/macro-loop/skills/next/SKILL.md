@@ -33,7 +33,7 @@ Tell the user, in one line, what each round is about to do.
 | `open-pr` | Call `macro-loop:open-pr`. |
 | `verify` | Call `macro-loop:verify`. |
 | `resumable` | See **A person answered**. |
-| `wait` | See **Waiting for the requester**. Then stop. |
+| `wait` | On a PR, say what `why` says; `/macro-loop:verify security` starts a review if none runs. Else see **Waiting for the requester**. Then stop. |
 | `merge` | Give the PR's URL, and the manual checks the verdict lists for a person. Say that they read the verdict, mark the draft PR "Ready for review", then merge. Then stop. The merge is the person's. |
 | `stop` | Say what `why` says, and what a person decides. Then stop. |
 | `done` | Say that the Issue is done. Then stop. |

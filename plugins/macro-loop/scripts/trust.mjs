@@ -3,7 +3,8 @@
 // the default branch over the init template's defaults, the trusted logins, and, when
 // asked, an Issue's spec comment and a PR's author, last verdict (its id, result and the
 // head SHA it judged, null for a verdict written before the SHA was recorded), round and the
-// answers to its findings, each with the head its round judged, and the verifiers' Answers line.
+// answers to its findings, each with the head its round judged, and the verifiers' Answers line,
+// and its newest trusted security comment with the head it judged (#343).
 // On a tracking Issue it also lists the trusted queue items with the id of their answer
 // (`issue.queue`) and names the ones it left out (`issue.queueWarnings`), each child's record
 // (`issue.records`, `issue.recordWarnings`) and the summary comment's id (`issue.summary`).
@@ -30,6 +31,9 @@ const VERDICT = '<!-- macro-loop:verify round='
 export const VERDICT_MARKER = /^<!-- macro-loop:verify round=(\d+)(?: sha=([0-9a-f]{7,40}))? -->$/
 export const VERDICT_HEADING = /^## Verify: (PASS|NEEDS-FIX)\b/m
 export const verdictMarker = (body) => VERDICT_MARKER.exec(String(body ?? '').split(/\r?\n/)[0])
+// A security comment's first line, as `verdict.mjs --security` writes it (#343).
+const SECURITY = '<!-- macro-loop:security '
+const SECURITY_MARKER = /^<!-- macro-loop:security sha=([0-9a-f]{7,40}) -->$/
 export const CONFIG_FILE = '.github/macro-loop.json'
 const TEMPLATE = new URL('../skills/init/templates/macro-loop.json', import.meta.url)
 const CONFIG = `repos/{owner}/{repo}/contents/${CONFIG_FILE}`
@@ -91,6 +95,7 @@ export function trustContext() {
     const v = config.goal?.[key]
     if (!Number.isInteger(v) || v < 1) throw new Error(`\`goal.${key}\` in .github/macro-loop.json must be a positive integer`)
   }
+  if (typeof config.security?.waitBeforeMerge !== 'boolean') throw new Error('`security.waitBeforeMerge` in .github/macro-loop.json must be true or false')
   const me = api(['user']).login
   const repo = api(['repos/{owner}/{repo}'])
   // Who is trusted (reference/github.md): you, plus the list, or without one the owner when a person owns the repo.
@@ -110,6 +115,7 @@ export const verdictsOf = (comments, trusted) => trustedMarked(comments, trusted
 // `p` is a PR as the pulls API returns it, `comments` its comments.
 export function prState(p, comments, trusted) {
   const verdicts = verdictsOf(comments, trusted)
+  const security = trustedMarked(comments, trusted, SECURITY).at(-1)
   return {
     author: p.user.login,
     authorTrusted: trusted.includes(lower(p.user.login)),
@@ -122,6 +128,8 @@ export function prState(p, comments, trusted) {
     lastVerdictResult: VERDICT_HEADING.exec(verdicts.at(-1)?.body ?? '')?.[1] ?? null,
     lastVerdictSha: verdictMarker(verdicts.at(-1)?.body)?.[2] ?? null,
     round: verdicts.length + 1,
+    lastSecurity: security?.id ?? null,
+    lastSecuritySha: SECURITY_MARKER.exec(String(security?.body ?? '').split(/\r?\n/)[0])?.[1] ?? null,
   }
 }
 

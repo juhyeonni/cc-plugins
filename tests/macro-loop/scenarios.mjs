@@ -194,8 +194,10 @@ export const scenarios = [
     measured: true,
     cites: 'README.md',
   }),
+  // A local PASS starts no security review, so C6 asks for it after the verdict (#343 D3, D6).
   {
-    ...seeded('C6', 'c6', "Seeded branch: C0's fix plus a command injection; Security reports it and the verdict stays PASS", { verdict: 'PASS' }),
+    ...seeded('C6', 'c6', "Seeded branch: C0's fix plus a command injection; the verdict stays PASS, and the security review asked for after it reports it", { verdict: 'PASS' }),
+    say: [VERIFY_1, '/macro-loop:verify security for the current branch'],
     checks: [...VERIFY_CHECKS, 'securityReviewed'],
   },
   {
