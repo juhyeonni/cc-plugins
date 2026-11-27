@@ -284,3 +284,36 @@ test('skills: goal and execute keep no NEEDS-FIX rule of their own; stage.mjs de
   assert.doesNotMatch(text('goal'), /third NEEDS-FIX|never fix a NEEDS-FIX/i)
   assert.match(text('goal'), /stage\.mjs/)
 })
+
+// A PR whose newest verdict is NEEDS-FIX for its head, after `rounds` verdicts, with the spec last updated at `specAt` (#316).
+const specEdit = (rounds, specAt) => runStage(base({
+  [ISSUE_COMMENTS]: { stdout: [[{ ...spec, updated_at: specAt }]] },
+  [PULLS]: { stdout: [[{ number: 5, state: 'open', merged_at: null, body: 'Closes #77', user: { login: 'carol' }, head: { sha: 'abc1234' }, base: { ref: 'main' } }]] },
+  'api --paginate --slurp repos/{owner}/{repo}/issues/5/comments': {
+    stdout: [Array.from({ length: rounds }, (_, i) => ({
+      id: 10 + i,
+      user: { login: 'carol' },
+      created_at: `2026-01-0${i + 1}T00:00:00Z`,
+      body: `<!-- macro-loop:verify round=${i + 1} sha=abc1234 -->\n## Verify: NEEDS-FIX (round ${i + 1} of 3)`,
+    }))],
+  },
+}))
+
+test('run: a spec updated after the NEEDS-FIX verdict for the head gives verify, naming the spec change (#316)', () => {
+  const r = specEdit(1, '2026-01-02T00:00:00Z')
+  assert.equal(r.status, 0, r.stderr)
+  assert.deepEqual([r.out.stage, r.out.gate], ['verify', false])
+  assert.match(r.out.why, /spec changed after the NEEDS-FIX verdict \(next round 2, head abc1234\)$/)
+})
+
+test('run: a spec last updated before the NEEDS-FIX verdict still gives implement (#316)', () => {
+  const r = specEdit(1, '2025-12-31T00:00:00Z')
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(r.out.stage, 'implement')
+})
+
+test('run: three NEEDS-FIX verdicts give stop even with a spec updated after the newest (#316)', () => {
+  const r = specEdit(3, '2026-01-09T00:00:00Z')
+  assert.equal(r.status, 0, r.stderr)
+  assert.deepEqual([r.out.stage, r.out.gate], ['stop', true])
+})
