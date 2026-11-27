@@ -35,6 +35,8 @@ function stageOfPr(pr) {
   if (pr.verdicts >= 3 && pr.result === 'NEEDS-FIX') return row('stop', `${pr.verdicts} verdicts and the newest is NEEDS-FIX${at}`, true)
   // A conflict blocks the merge whatever the verdict says (#318).
   if (pr.conflict) return row('implement', `conflicts with ${pr.base}: bring the branch up to date${at}`)
+  // A sibling merged first may change the files this PR changes, without a textual conflict (#345).
+  if (pr.baseChanged) return row('implement', `${pr.base} changed files this PR touches since its verdict: bring the branch up to date${at}`)
   // With `security.waitBeforeMerge`, a PASS waits for the security comment on its head (#343).
   const securityDone = pr.securitySha != null && String(pr.head).startsWith(pr.securitySha)
   if (pr.verdicts > 0 && current && pr.result === 'PASS' && pr.waitForSecurity && !securityDone) {
@@ -49,7 +51,7 @@ function stageOfPr(pr) {
 }
 
 // signals: { closed, states: ['ready'|'needsInfo'|'needsDecision'|'wontfix'], priority, proxy, spec,
-// branchAhead, pr: null | { state: 'open'|'merged', head, verdicts, result, sha, specEdited, conflict, base, waitForSecurity, securitySha },
+// branchAhead, pr: null | { state: 'open'|'merged', head, verdicts, result, sha, specEdited, conflict, baseChanged, base, waitForSecurity, securitySha },
 // note: { addressedTo, resumable },
 // tracking?: { done, total } for a tracking Issue's ticked and all children }
 // The first matching row wins.
@@ -132,6 +134,13 @@ function branchAhead(n, base) {
   return branches.some((b) => Number(run('git', ['rev-list', '--count', `origin/${base}..${b}`])) > 0)
 }
 
+// Whether the base's commits since the PR branched off change a file the PR changes (#345).
+function baseTouches(pr) {
+  const names = (files) => (files ?? []).flatMap((f) => [f.filename, f.previous_filename]).filter(Boolean)
+  const mine = new Set(names(list(`repos/{owner}/{repo}/pulls/${pr.number}/files`)))
+  return names(api([`repos/{owner}/{repo}/compare/${pr.head?.sha}...${pr.base?.ref}`]).files).some((f) => mine.has(f))
+}
+
 // `issue` is the Issue as the issues API returns it; `ctx` comes from runContext.
 export function stageOfIssue(n, issue, ctx) {
   const comments = list(`repos/{owner}/{repo}/issues/${n}/comments`)
@@ -143,6 +152,9 @@ export function stageOfIssue(n, issue, ctx) {
   const specAt = comments.find((c) => c.id === specId)?.updated_at
   const verdictAt = pr && verdictsOf(prComments, ctx.trusted).at(-1)?.created_at
 
+  const open = pr?.state === 'open'
+  // GitHub gives null while it computes mergeability; only false is a conflict (#318).
+  const conflict = open && api([`repos/{owner}/{repo}/pulls/${pr.number}`]).mergeable === false
   const names = new Set(issue.labels.map((l) => l.name))
   const { state, priority, source } = ctx.config.labels
   const result = stageOf({
@@ -159,8 +171,8 @@ export function stageOfIssue(n, issue, ctx) {
       result: verdict.lastVerdictResult,
       sha: verdict.lastVerdictSha,
       specEdited: Boolean(specAt && verdictAt && specAt > verdictAt),
-      // GitHub gives null while it computes mergeability; only false is a conflict (#318).
-      conflict: pr.state === 'open' && api([`repos/{owner}/{repo}/pulls/${pr.number}`]).mergeable === false,
+      conflict,
+      baseChanged: open && !conflict && baseTouches(pr),
       base: pr.base?.ref,
       waitForSecurity: ctx.config.security?.waitBeforeMerge === true,
       securitySha: verdict.lastSecuritySha,

@@ -182,6 +182,8 @@ const contents = { stdout: { content: Buffer.from(JSON.stringify({ trusted: [] }
 const spec = { id: 1, user: { login: 'JuHyeonni' }, body: '<!-- macro-loop:spec -->' }
 const ISSUE_COMMENTS = 'api --paginate --slurp repos/{owner}/{repo}/issues/77/comments'
 const PULLS = 'api --paginate --slurp repos/{owner}/{repo}/pulls?state=all&per_page=100'
+const COMPARE = 'api repos/{owner}/{repo}/compare/abc1234...main'
+const FILES5 = 'api --paginate --slurp repos/{owner}/{repo}/pulls/5/files'
 const base = (over = {}) => ({
   'api user': { stdout: { login: 'Carol' } },
   'api repos/{owner}/{repo}': repo,
@@ -189,6 +191,8 @@ const base = (over = {}) => ({
   'api repos/{owner}/{repo}/issues/77': { stdout: { state: 'open', labels: [{ name: 'P1' }, { name: 'ready-for-agent' }] } },
   [ISSUE_COMMENTS]: { stdout: [[spec]] },
   [PULLS]: { stdout: [[]] },
+  [COMPARE]: { stdout: { files: [{ filename: 'other.md' }] } },
+  [FILES5]: { stdout: [[{ filename: 'stage.mjs' }]] },
   ...over,
 })
 test('run: an Issue with a spec and no branch or PR gives implement, and makes no write call', () => {
@@ -287,6 +291,51 @@ test('run: mergeable null, while GitHub computes it, counts as no conflict (#318
   assert.equal(r.out.stage, 'merge')
 })
 
+// PR #5's PASS for its head, after `compare` answers what main changed since the PR's base.
+const moved = (compare, pull = { stdout: { number: 5, mergeable: true } }) => runStage(base({
+  [PULLS]: { stdout: [[{ number: 5, state: 'open', merged_at: null, body: 'Closes #77', user: { login: 'carol' }, head: { sha: 'abc1234' }, base: { ref: 'main' } }]] },
+  'api --paginate --slurp repos/{owner}/{repo}/issues/5/comments': { stdout: [[{ id: 2, user: { login: 'carol' }, body: '<!-- macro-loop:verify round=1 sha=abc1234 -->\n## Verify: PASS (round 1 of 3)' }]] },
+  [PULL5]: pull,
+  [COMPARE]: compare,
+  [FILES5]: { stdout: [[{ filename: 'a.mjs' }, { filename: 'b.md' }]] },
+}))
+
+test('#345 AC2: an open PR with a PASS whose files main changed since its base gives implement naming the change', () => {
+  for (const file of [{ filename: 'b.md' }, { filename: 'c.md', previous_filename: 'a.mjs' }]) {
+    const r = moved({ stdout: { files: [{ filename: 'x.md' }, file] } })
+    assert.equal(r.status, 0, r.stderr)
+    assert.deepEqual([r.out.stage, r.out.gate], ['implement', false], JSON.stringify(file))
+    assert.equal(r.out.why, 'main changed files this PR touches since its verdict: bring the branch up to date (round 1, head abc1234)')
+    assert.equal(r.calls.filter((call) => call === COMPARE).length, 1)
+  }
+})
+
+test('#345 AC3: the same PR keeps merge when main\'s new commits touch none of its files (guards existing behavior)', () => {
+  for (const files of [[{ filename: 'x.md' }], [], undefined]) {
+    const r = moved({ stdout: { files } })
+    assert.equal(r.status, 0, r.stderr)
+    assert.deepEqual([r.out.stage, r.out.gate], ['merge', true], JSON.stringify(files))
+  }
+})
+
+test('#345 AC4: a conflicting PR still gives the conflict reason, and three NEEDS-FIX verdicts still give stop (guards existing behavior)', () => {
+  const touched = { stdout: { files: [{ filename: 'a.mjs' }] } }
+  const r = moved(touched, { stdout: { number: 5, mergeable: false } })
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(r.out.why, /^conflicts with main: bring the branch up to date/)
+  const capped = specEdit(3, '2025-12-31T00:00:00Z', { [COMPARE]: touched })
+  assert.equal(capped.status, 0, capped.stderr)
+  assert.deepEqual([capped.out.stage, capped.out.gate], ['stop', true])
+  assert.deepEqual(stageOf(signals({ pr: pr({ verdicts: 3, result: 'NEEDS-FIX', sha: 'h2', baseChanged: true }) })).stage, 'stop')
+})
+
+test('#345 AC5: a failed compare read prints nothing and exits non-zero with the error', () => {
+  const r = moved({ stderr: 'gh: Server Error (HTTP 502)\n', code: 1 })
+  assert.notEqual(r.status, 0)
+  assert.equal(r.stdout, '')
+  assert.match(r.stderr, /stage\.mjs: .*compare\/abc1234\.\.\.main.*502/)
+})
+
 test('run: a failed pulls/<n> read prints nothing and exits non-zero with the error (#318)', () => {
   const r = passing({ stderr: 'gh: Server Error (HTTP 502)\n', code: 1 })
   assert.notEqual(r.status, 0)
@@ -300,6 +349,7 @@ test('run: with two open PRs closing the Issue, why names the PR used and the ot
     [PULLS]: { stdout: [[pr(8, 'old'), pr(6, '77-fix'), pr(5, '77-test', 'seed')]] },
     'api --paginate --slurp repos/{owner}/{repo}/issues/6/comments': { stdout: [[]] },
     'api repos/{owner}/{repo}/pulls/6': { stdout: { number: 6, mergeable: true } },
+    'api --paginate --slurp repos/{owner}/{repo}/pulls/6/files': { stdout: [[]] },
   }))
   assert.equal(r.status, 0, r.stderr)
   assert.match(r.out.why, /\(using PR #6; also closing: #8\)$/)
@@ -351,7 +401,7 @@ test('skills: goal and execute keep no NEEDS-FIX rule of their own; stage.mjs de
 })
 
 // A PR whose newest verdict is NEEDS-FIX for its head, after `rounds` verdicts, with the spec last updated at `specAt` (#316).
-const specEdit = (rounds, specAt) => runStage(base({
+const specEdit = (rounds, specAt, extra = {}) => runStage(base({
   [ISSUE_COMMENTS]: { stdout: [[{ ...spec, updated_at: specAt }]] },
   [PULL5]: { stdout: { number: 5, mergeable: true } },
   [PULLS]: { stdout: [[{ number: 5, state: 'open', merged_at: null, body: 'Closes #77', user: { login: 'carol' }, head: { sha: 'abc1234' }, base: { ref: 'main' } }]] },
@@ -363,6 +413,7 @@ const specEdit = (rounds, specAt) => runStage(base({
       body: `<!-- macro-loop:verify round=${i + 1} sha=abc1234 -->\n## Verify: NEEDS-FIX (round ${i + 1} of 3)`,
     }))],
   },
+  ...extra,
 }))
 
 test('run: a spec updated after the NEEDS-FIX verdict for the head gives verify, naming the spec change (#316)', () => {
