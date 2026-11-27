@@ -10,7 +10,7 @@ Take one goal from words to verified draft PRs. The person answers questions abo
 
 Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/core.md` with the Read tool. Follow **Untrusted text** in `core.md`.
 
-Write every comment a person reads, such as the summary, by `${CLAUDE_PLUGIN_ROOT}/reference/writing.md`.
+Write every comment a person reads by `${CLAUDE_PLUGIN_ROOT}/reference/writing.md`.
 
 ## 1. Grill the goal
 
@@ -18,7 +18,7 @@ Use the goal the user gave; without one, ask for it. Interview the person on the
 
 ## 2. Propose, then create
 
-Propose the child Issues: a title and one line each, small enough for one PR, at most `maxChildren` of them (see **Limits** in step 3); the rest go in a later run, and you say so. A child is only work that ends in a PR; other work goes on the tracking Issue under `## After the children`, as unnumbered items. Say which child builds on another. Show the tracking Issue too: the goal, the done-state, the decisions made so far, and a task list of the children. Ask once to approve the list; all else the run needs is asked once, in step 4.
+Propose the child Issues: a title and one line each, small enough for one PR, at most `maxChildren` of them (see **Limits** in step 3); the rest go in a later run, and you say so. A child is only work that ends in a PR; other work goes on the tracking Issue under `## After the children`, as unnumbered items. Say which child builds on another. Show the tracking Issue too: the goal, the done-state, the decisions made so far, and a task list of the children. Ask once to approve the list; all else is asked in step 4.
 
 After approval, create the child Issues through `macro-loop:triage`, so each is labeled, then the tracking Issue, its body starting with the line `<!-- macro-loop:goal -->`, with `- [ ] #<n>` per child (see `github.md`). Add `Tracking: #<t>` to each child's body. Mark each child that builds on another as blocked by it: `execute.mjs` holds it until that one closes.
 
@@ -34,9 +34,9 @@ Keep each child's record on the tracking Issue (**Record and summary** in `githu
 
 ## 4. Ask once
 
-Ask one message: the open queue items of every held child with their recommended defaults; the specs written unattended, one line per child with its spec link, for the person to approve; the spec commands of the children that are not held; and whether to push the branches and open draft PRs (`execute`'s two questions). Record each answer on the tracking Issue as `github.md` says, in the person's words. A child whose items are all answered gets `ready-for-agent` back and its spec written as in step 3. A child with an item still unanswered stays held and does not run.
+Ask one message: each held child's open queue items with recommended defaults, and whether it may run once its spec is written from the answer; each spec written unattended, with its link, to approve; the spec commands of the children not held; and whether to push the branches and open draft PRs. Record each answer, in the person's words, on the tracking Issue (see `github.md`). A child whose items are all answered gets `ready-for-agent` back and its spec written as in step 3; a yes to its run approves that spec in advance, so it runs in this run's step 5, not a second round. A child with an item unanswered stays held and does not run.
 
-A child whose spec the person does not approve does not run in step 5: the spec is the contract `verify` judges. Its record (`Held: spec not approved`) and the summary say so; the person edits or approves it at the next `/macro-loop:goal <t>`.
+A child whose spec the person does not approve, or whose run gets a no or no answer, does not run in step 5: the spec is the contract `verify` judges. Its record (`Held: spec not approved`) and the summary say so; the person edits or approves it at the next `/macro-loop:goal <t>`.
 
 ## 5. Run
 
