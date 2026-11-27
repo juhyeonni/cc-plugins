@@ -6,6 +6,7 @@ import { BASELINE, isVerifierPath, parseBaseline } from '../tests/macro-loop/res
 
 const RESCORE = 'node tests/macro-loop/run.mjs --rescore'
 const DASH = '(?:—|--?)'
+const SKIP = /^Suite: skipped[ \t]*(?:(?:—|--?|:)(.*)|\((.*)\)[ \t]*)$/m
 
 // baseline: the head's parsed baseline file when the PR updates it or is a release, else null.
 // changedSince: the verifier paths changed between its commit and the head; inHistory: whether that commit is in the branch.
@@ -21,8 +22,9 @@ export function check({ touched, body = '', baseline = null, changedSince = [], 
   const paths = touched.filter(isVerifierPath)
   if (paths.length === 0) return { ok: true, message: 'no verifier path changed' }
   const text = String(body).replace(/\r/g, '')
-  const skip = new RegExp(`^Suite: skipped ${DASH}(.*)$`, 'm').exec(text)
-  if (skip && skip[1].trim()) return { ok: true, message: `rescore skipped: ${skip[1].trim()}` }
+  const skip = SKIP.exec(text)
+  const reason = skip && (skip[1] ?? skip[2]).trim()
+  if (reason) return { ok: true, message: `rescore skipped: ${reason}` }
   if (skip) return { ok: false, message: '`Suite: skipped` has no reason' }
   if (!baseline) {
     return { ok: false, message: `these paths change the verifier: ${paths.join(', ')}. Run \`${RESCORE}\` and commit ${BASELINE}, or add a body line \`Suite: skipped — <reason>\`.` }

@@ -79,7 +79,7 @@ Closes #<n>
 
 Skip all preambles and keep prose brief. Use the domain language of the repo's glossary, if it has one.
 
-Read `CLAUDE.md` and `AGENTS.md` on the default branch (`git show origin/<base>:<file>`) and files they point to for PR rules. End the body with each line they require whose condition the diff meets, filled from the diff and spec. A line needing a judgment the diff cannot settle takes the rule's skip form and a reason, as in `Suite: skipped — <reason>`.
+Read `CLAUDE.md` and `AGENTS.md` on the default branch (`git show origin/<base>:<file>`) and files they point to for PR rules. End the body with each required line whose condition the diff meets, copied from the rule with only its placeholder replaced. A line the diff cannot settle takes the rule's skip form, with a reason: `Suite: skipped — <reason>`.
 
 ### What and why, Decisions, Review focus
 
