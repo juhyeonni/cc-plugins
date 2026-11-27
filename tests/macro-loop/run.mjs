@@ -259,7 +259,8 @@ export function pluginCommit() {
   return git(ROOT, 'rev-parse', 'HEAD')
 }
 
-export async function play(scenario, model, sessionId, cwd, addDirs) {
+// `beforeRound` runs just before the reply of the rule marked `round` is sent (#302 D4).
+export async function play(scenario, model, sessionId, cwd, addDirs, beforeRound) {
   const log = []
   let resume = false
   const send = async (text) => {
@@ -277,6 +278,7 @@ export async function play(scenario, model, sessionId, cwd, addDirs) {
     const rules = used.size
     const reply = pickAnswer(scenario, last, used)
     if (reply == null) break
+    if (reply === scenario.answers?.find((a) => a.round)?.say) await beforeRound?.()
     const asked = last
     last = await send(reply)
     // No rule matched: the run needed a reply the script did not plan for.
@@ -287,24 +289,38 @@ export async function play(scenario, model, sessionId, cwd, addDirs) {
 
 const trust = (repo, ...args) => JSON.parse(sh('node', [join(PLUGIN_DIR, 'scripts/trust.mjs'), ...args], repo))
 
-// The children of the tracking Issue this run created, each with the PR the run opened for it,
-// or null when the run created no tracking Issue (#301 D7). Issues from earlier runs are left out (D8).
-function goalChildren(repo, numbersBefore) {
+// The Issues and PRs this run created, its tracking Issue (undefined when it created none, #301 D7)
+// and that Issue's children. Issues from earlier runs are left out (D8).
+function goalTracking(repo, numbersBefore) {
   const known = new Set(numbersBefore)
   const created = gh(repo, ['--paginate', 'repos/{owner}/{repo}/issues?state=all', '--jq', '.[] | {number, login: .user.login, body, pr: (.pull_request != null)}'])
     .split('\n').filter(Boolean).map((l) => JSON.parse(l)).filter((i) => !known.has(i.number))
   const trusted = new Set(trust(repo).trusted)
   const tracking = created.find((i) => !i.pr && trusted.has(i.login.toLowerCase()) && String(i.body ?? '').startsWith('<!-- macro-loop:goal -->'))
-  if (!tracking) return null
+  return { created, tracking, childNumbers: tracking ? [...tracking.body.matchAll(/^\s*- \[[ xX]\] #(\d+)/gm)].map((m) => Number(m[1])) : [] }
+}
+
+// The tracking Issue's children with their labels and comments, as `heldDoesNotStopOthers` takes them.
+function goalChildState(repo, numbersBefore) {
+  const state = githubState(repo, goalTracking(repo, numbersBefore).childNumbers)
+  return Object.entries(state).map(([n, s]) => ({ number: Number(n), ...s }))
+}
+
+// Each child of the tracking Issue with its labels and the PR the run opened for it, and the
+// tracking Issue's queue; `children` is null when the run created no tracking Issue.
+function goalChildren(repo, numbersBefore) {
+  const { created, tracking, childNumbers } = goalTracking(repo, numbersBefore)
+  if (!tracking) return { children: null, queue: [] }
   const prs = created.filter((i) => i.pr).map((i) => {
     const { state, draft } = JSON.parse(gh(repo, [`repos/{owner}/{repo}/pulls/${i.number}`, '--jq', '{state, draft}']))
     return { number: i.number, state, draft, verdict: trust(repo, '--pr', String(i.number)).pr.lastVerdictResult, closes: closesAll(i.body) }
   })
-  return [...tracking.body.matchAll(/^\s*- \[[ xX]\] #(\d+)/gm)].map((m) => {
-    const number = Number(m[1])
+  const labels = githubState(repo, childNumbers)
+  const children = childNumbers.map((number) => {
     const pr = prs.find((p) => p.closes.includes(number))
-    return { number, pr: pr ? { number: pr.number, state: pr.state, draft: pr.draft, verdict: pr.verdict } : null }
+    return { number, labels: labels[number].labels, pr: pr ? { number: pr.number, state: pr.state, draft: pr.draft, verdict: pr.verdict } : null }
   })
+  return { children, queue: trust(repo, '--issue', String(tracking.number)).issue.queue ?? [] }
 }
 
 async function runOnce(scenario, model, n, outDir) {
@@ -327,8 +343,11 @@ async function runOnce(scenario, model, n, outDir) {
   const sessionId = randomUUID()
   let turns
   let githubAfter
+  let childrenBeforeRound = []
   try {
-    turns = await play(scenario, model, sessionId, cwd, addDirs)
+    turns = await play(scenario, model, sessionId, cwd, addDirs, () => {
+      if (inGoalSandbox(scenario)) childrenBeforeRound = goalChildState(repo, numbers)
+    })
   } finally {
     githubAfter = githubState(repo, numbers)
     restoreGithub(scenario, repo, githubBefore, githubAfter)
@@ -347,7 +366,7 @@ async function runOnce(scenario, model, n, outDir) {
     comment,
     texts: turns.map((t) => t.result ?? ''),
     waits: turns.map((t) => t.result ?? '').filter(asksSomething),
-    children: (scenario.children ?? []).map((n) => ({ number: n, ...githubAfter[n] })),
+    children: inGoalSandbox(scenario) ? childrenBeforeRound : (scenario.children ?? []).map((n) => ({ number: n, ...githubAfter[n] })),
     comments: githubAfter[scenario.tracking]?.comments ?? [],
     canaries: Object.fromEntries((scenario.canaries ?? []).map((p) => [p, existsSync(p)])),
     tips: scenario.workBranch && { before: before.tip, after: after.tip, ancestor: isAncestor(repo, before.tip, after.tip) },
@@ -355,7 +374,8 @@ async function runOnce(scenario, model, n, outDir) {
       ? goalGaps({
           denials: turns.flatMap((t) => t.denials),
           extraReplies: turns.filter((t) => t.extra).map((t) => ({ asked: t.extra, said: t.said })),
-          children: goalChildren(repo, numbers),
+          ...goalChildren(repo, numbers),
+          held: scenario.held,
         })
       : [],
   }
