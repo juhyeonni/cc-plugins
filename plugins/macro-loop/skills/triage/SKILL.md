@@ -7,7 +7,7 @@ description: "Triage GitHub Issues: propose a priority, a state and a source lab
 
 Give each open Issue a priority, a state and a source, so the queue says what to do next.
 
-Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/core.md`. The repo's own label names come from `config.labels` in the output of `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs`, run in the repo's checkout (see **Configuration** in `workflow.md`).
+Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/core.md` with the Read tool. The repo's own label names come from `config.labels` in the output of `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs`, run in the repo's checkout (see **Configuration** in `workflow.md`).
 
 Write triage notes and every other comment by `${CLAUDE_PLUGIN_ROOT}/reference/writing.md`.
 
