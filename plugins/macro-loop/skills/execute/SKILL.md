@@ -52,7 +52,7 @@ The run returns one entry per Issue, shaped as the workflow's header says. A sta
 
 ## 4. Post the verdicts
 
-For each Issue that reached verify, read the round with `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --pr <pr>`, then decide and post its verdict as `verify` steps 6 and 7 do, with the `head` the run judged. The run gives reports, not agent ids, so in place of `--agent` write the run's `spec`, `standards` and `security` reports, as they came, each to its own file in a directory made with `mktemp -d`, and pass the files; the script then prints the comment, so redirect it to a file in that directory and post that file. Remove the directory afterwards. A `null` report counts as missing: post nothing for that Issue, and report it INCONCLUSIVE.
+For each Issue that reached verify, read the round with `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --pr <pr>`, then decide and post its verdict as `verify` steps 6 and 7 do, with the `head` the run judged. The run gives reports, not agent ids, so in place of `--agent` write the run's `spec`, `standards` and `security` reports, as they came, each to its own file in a directory made with `mktemp -d`, and pass the files. Post the file the script prints, unchanged. A `null` report counts as missing: post nothing for that Issue, and report it INCONCLUSIVE.
 
 ## 5. Report
 
@@ -78,7 +78,5 @@ Under the table, list:
 
 - each verdict's URL;
 - any worktree or branch left behind (`git worktree list`, `git branch --list "worktree-*"`), and why.
-
-Remove the directory afterwards.
 
 Nothing is fixed in this run. For an Issue with NEEDS-FIX, `stage.mjs --issue <n>` says what comes next: `implement` means `/macro-loop:execute <n>` runs it again, `stop` means a person decides. A run that was stopped can also be started again the same way: `execute.mjs` gives the stage to resume at.

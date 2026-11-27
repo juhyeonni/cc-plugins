@@ -12,9 +12,9 @@
 // security report whose `couldNotRun` is not empty still gives a verdict, saying it did not run.
 // A PASS heading counts the criteria run over every Issue, and a PASS with security findings or
 // no criterion run opens with what to read before merging (#283).
-// Scope creep in a spec report goes under "Decide first" and never changes the result (#254). From files
-// it prints the comment to post; from `--agent` it writes the comment to
-// `verdict-<head>.md` in the reports directory and prints that path and the heading. A missing
+// Scope creep in a spec report goes under "Decide first" and never changes the result (#254). It writes
+// the comment to `verdict-<head>.md` in the reports directory, whether the reports came as files
+// or by `--agent` (#315), and prints that path and the heading. A missing
 // or invalid block, a missing report, or a non-empty could-not-run list prints nothing on
 // stdout, names why on stderr and exits non-zero: nothing is posted. So does a spec report that
 // does not judge every criterion of the Issue's trusted spec, which the script finds itself (#252),
@@ -22,7 +22,7 @@
 // the PR closes, which it also finds itself (#270): the PR `--pr` names, or else the branch's open PR (#279).
 // A trusted spec comment updated after the PR's previous verdict on the same head goes under
 // "Decide first" and never changes the result (#279).
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { isMain } from './is-main.mjs'
 import { parseArgs } from 'node:util'
@@ -312,9 +312,9 @@ function main(argv) {
   const specEdits = pr ? specEditsOf(comments(pr.number), specs, values.head, trusted) : []
   const comment = verdict({ round: Number(values.round), head: values.head, branch: values.branch, reports, specEdits })
   for (const d of specReports) checkCoverage(d, specs.get(d.issue))
-  if (!agents.length) return comment
-  // From saved reports, the comment goes to a file beside them, so the session needs no
-  // directory or redirect of its own, and only the file and the heading reach its context.
+  // The comment goes to a file beside the saved reports, so the session needs no directory or
+  // redirect of its own, and only the file and the heading reach its context.
+  mkdirSync(reportsDir(), { recursive: true, mode: 0o700 })
   const out = join(reportsDir(), `verdict-${values.head}.md`)
   writeFileSync(out, comment)
   return `${out}\n${comment.split('\n').slice(1, 3).join('\n')}\n`

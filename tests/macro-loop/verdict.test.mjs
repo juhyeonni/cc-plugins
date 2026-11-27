@@ -74,7 +74,8 @@ function ghEnv(gh) {
   return { ...process.env, PATH: `${join(tmp, 'bin')}:${dirname(process.execPath)}`, GH_STUB: join(tmp, 'stub.json') }
 }
 
-// Runs the script on report files written to a temp directory.
+// Runs the script on report files written to a temp directory. On success `stdout` holds the
+// comment from the file the script printed, and `printed` what it printed.
 function run(reports, args = ['--round', '1', '--head', HEAD, '--branch', '12-csv'], gh = GH()) {
   const dir = mkdtempSync(join(tmpdir(), 'verdict-'))
   const files = reports.map((text, k) => {
@@ -82,7 +83,10 @@ function run(reports, args = ['--round', '1', '--head', HEAD, '--branch', '12-cs
     writeFileSync(file, text)
     return file
   })
-  return spawnSync(process.execPath, [SCRIPT, ...args, ...files], { encoding: 'utf8', env: ghEnv(gh) })
+  const reportsDir = join(dir, 'reports')
+  const r = spawnSync(process.execPath, [SCRIPT, ...args, ...files], { encoding: 'utf8', env: { ...ghEnv(gh), MACRO_LOOP_REPORTS: reportsDir } })
+  if (r.status !== 0) return r
+  return { ...r, printed: r.stdout, reportsDir, stdout: readFileSync(r.stdout.split('\n')[0], 'utf8') }
 }
 
 const ok = (s = spec(), st = standards(), se = security()) => [SPEC_PROSE + block(s), STANDARDS_PROSE + block(st), SECURITY_PROSE + block(se)]
@@ -290,6 +294,14 @@ test('--agent <id> reads the saved reports, writes the same comment as from file
   assert.equal(readFileSync(out, 'utf8'), comment)
   assert.equal(byAgent.stdout, `${out}\n${comment.split('\n').slice(1, 3).join('\n')}\n`)
   assert.match(byAgent.stdout, /^.+\n## Verify: PASS \(1 of 2 criteria ran, round 1 of 3\)\n\*\*Criteria:\*\*/)
+})
+
+test('#315 AC1: from report files, it writes the comment to verdict-<head>.md in the reports directory and prints that path and the heading', () => {
+  const r = run(ok())
+  assert.equal(r.status, 0, r.stderr)
+  const out = join(r.reportsDir, `verdict-${HEAD}.md`)
+  assert.equal(r.printed, `${out}\n${r.stdout.split('\n').slice(1, 3).join('\n')}\n`)
+  assert.match(r.stdout, /^<!-- macro-loop:verify round=1 /)
 })
 
 test('--agent <id> with no saved report prints nothing to post and names the id', () => {
