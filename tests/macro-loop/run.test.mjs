@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { evaluate, goalGaps } from './checks.mjs'
-import { asksSomething, assertRunnable, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, play, pluginCommit, githubState, removeCanaries, resetGoalSandbox, restoreGithub, runMutants, seedMessage, sh } from './run.mjs'
+import { asksSomething, assertRunnable, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, play, pluginCommit, githubSnapshot, githubState, removeCanaries, resetGoalSandbox, restoreGithub, runMutants, seedMessage, sh } from './run.mjs'
 import { GOAL_SANDBOX, MUTANT_OPERATORS, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, scenarios } from './scenarios.mjs'
 import { findProjectDir, loadCalls, loadUsage, usageOf } from './transcript.mjs'
 
@@ -705,6 +705,29 @@ test('#329 AC3: with no failed read the snapshot holds every number with its lab
     6: { labels: ['p6'], comments: [{ id: 60, body: 'c6' }] },
     7: { labels: ['p7'], comments: [{ id: 70, body: 'c7' }] },
   })
+})
+
+const snapshotCalls = (scenario) => {
+  const calls = []
+  const call = stateGh()
+  githubSnapshot(scenario, '.', [6, 7], (repo, args) => (calls.push(args.join(' ')), call(repo, args)))
+  return calls
+}
+
+test('#339 AC1: a goal-sandbox run reads no Issue\'s labels or comments for its snapshot', () => {
+  for (const s of scenarios.filter((s) => s.sandbox === GOAL_SANDBOX)) assert.deepEqual(snapshotCalls(s), [], s.id)
+  const src = readFileSync(RUN, 'utf8')
+  const body = src.slice(src.indexOf('async function runOnce'))
+  assert.doesNotMatch(body, /githubState\(/)
+  assert.ok(body.indexOf('githubSnapshot(scenario, repo, numbers)') < body.indexOf('await play('))
+})
+
+test('#339 AC2: a suite-sandbox run still snapshots labels and comments before its first turn', () => {
+  const calls = snapshotCalls(findScenario('C0'))
+  for (const n of [6, 7]) {
+    assert.ok(calls.some((c) => c.includes(`issues/${n}/labels`)), `labels of ${n}`)
+    assert.ok(calls.some((c) => c.includes(`issues/${n}/comments`)), `comments of ${n}`)
+  }
 })
 
 // #330: the step 2 proposals and step 4 rounds of the real G5 and G6 runs, as the sessions sent them.
