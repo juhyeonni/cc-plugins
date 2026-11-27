@@ -36,7 +36,8 @@ function stageOfPr(pr) {
   // A conflict blocks the merge whatever the verdict says (#318).
   if (pr.conflict) return row('implement', `conflicts with ${pr.base}: bring the branch up to date${at}`)
   // A sibling merged first may change the files this PR changes, without a textual conflict (#345).
-  if (pr.baseChanged) return row('implement', `${pr.base} changed files this PR touches since its verdict: bring the branch up to date${at}`)
+  if (pr.baseChanged === 'unknown') return row('implement', `cannot tell which files ${pr.base} changed since this PR branched off: bring the branch up to date${at}`)
+  if (pr.baseChanged) return row('implement', `${pr.base} changed files this PR touches since it branched off: bring the branch up to date${at}`)
   // With `security.waitBeforeMerge`, a PASS waits for the security comment on its head (#343).
   const securityDone = pr.securitySha != null && String(pr.head).startsWith(pr.securitySha)
   if (pr.verdicts > 0 && current && pr.result === 'PASS' && pr.waitForSecurity && !securityDone) {
@@ -135,10 +136,15 @@ function branchAhead(n, base) {
 }
 
 // Whether the base's commits since the PR branched off change a file the PR changes (#345).
+// GitHub's compare lists at most 300 files; a missing or full list cannot tell, so it is 'unknown',
+// never "main touched nothing" (ADR-0016).
+const COMPARE_FILE_CAP = 300
 function baseTouches(pr) {
-  const names = (files) => (files ?? []).flatMap((f) => [f.filename, f.previous_filename]).filter(Boolean)
+  const names = (files) => files.flatMap((f) => [f.filename, f.previous_filename]).filter(Boolean)
+  const changed = api([`repos/{owner}/{repo}/compare/${pr.head?.sha}...${pr.base?.ref}`]).files
+  if (!Array.isArray(changed) || changed.length >= COMPARE_FILE_CAP) return 'unknown'
   const mine = new Set(names(list(`repos/{owner}/{repo}/pulls/${pr.number}/files`)))
-  return names(api([`repos/{owner}/{repo}/compare/${pr.head?.sha}...${pr.base?.ref}`]).files).some((f) => mine.has(f))
+  return names(changed).some((f) => mine.has(f))
 }
 
 // `issue` is the Issue as the issues API returns it; `ctx` comes from runContext.

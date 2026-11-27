@@ -305,16 +305,25 @@ test('#345 AC2: an open PR with a PASS whose files main changed since its base g
     const r = moved({ stdout: { files: [{ filename: 'x.md' }, file] } })
     assert.equal(r.status, 0, r.stderr)
     assert.deepEqual([r.out.stage, r.out.gate], ['implement', false], JSON.stringify(file))
-    assert.equal(r.out.why, 'main changed files this PR touches since its verdict: bring the branch up to date (round 1, head abc1234)')
+    assert.equal(r.out.why, 'main changed files this PR touches since it branched off: bring the branch up to date (round 1, head abc1234)')
     assert.equal(r.calls.filter((call) => call === COMPARE).length, 1)
   }
 })
 
 test('#345 AC3: the same PR keeps merge when main\'s new commits touch none of its files (guards existing behavior)', () => {
-  for (const files of [[{ filename: 'x.md' }], [], undefined]) {
+  for (const files of [[{ filename: 'x.md' }], []]) {
     const r = moved({ stdout: { files } })
     assert.equal(r.status, 0, r.stderr)
     assert.deepEqual([r.out.stage, r.out.gate], ['merge', true], JSON.stringify(files))
+  }
+})
+
+test('#345 S1: a missing or capped compare file list cannot tell, so it gives implement, never merge (ADR-0016)', () => {
+  for (const files of [undefined, Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}.md` }))]) {
+    const r = moved({ stdout: { files } })
+    assert.equal(r.status, 0, r.stderr)
+    assert.deepEqual([r.out.stage, r.out.gate], ['implement', false], String(files?.length))
+    assert.match(r.out.why, /^cannot tell which files main changed since this PR branched off/)
   }
 })
 
