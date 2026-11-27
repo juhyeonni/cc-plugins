@@ -19,6 +19,7 @@ node tests/macro-loop/run.mjs C0 --model opus --runs 1
 node tests/macro-loop/run.mjs D1                     # C0 to C3, with Opus and Haiku, three runs each
 node tests/macro-loop/run.mjs --mutants              # every mutant once on Opus, then the kill report
 node tests/macro-loop/run.mjs G5                     # one real goal run on Opus, in the goal sandbox
+node tests/macro-loop/run.mjs G6                     # the same, with one child held on a domain question
 node --test tests/macro-loop/checks.test.mjs tests/macro-loop/run.test.mjs
 ```
 
@@ -123,6 +124,12 @@ rm -rf /tmp/goal-sandbox
 ```
 
 The `gh` account needs push access to it, as to the suite sandbox.
+
+### G6: a goal run with a held child
+
+G6 is G5 with one child held on a domain question (#302), in the same sandbox, with the same allowances and gap list. Its goal has two children: underscores become dashes, and a title with no Latin letters (`"日本語"`) gets a slug. No source decides the second one, so the interview leaves it open and the run should hold that child with a queue item. Step 4's round is the only reply after the interview: it answers the queued question with "keep the characters", approves the specs, allows the spec commands, and allows push with draft PRs.
+
+G6's gaps add three to G5's: no queue item on the tracking Issue, a queue item with no `queue-answer` comment, and a held child that did not get `ready-for-agent` back after the answer. G6 also runs `heldDoesNotStopOthers` on the children as they stand just before step 4's reply is sent. Like G5, it runs with Opus, once per invocation, and restores nothing.
 
 ## Fixtures
 

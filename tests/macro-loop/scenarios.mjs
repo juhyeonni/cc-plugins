@@ -286,6 +286,35 @@ function goalScenarios() {
       expect: {},
       checks: ['noGaps'],
     },
+    {
+      id: 'G6',
+      title: 'A real goal run where one child is held on a domain question, answered in step 4, and released',
+      sandbox: GOAL_SANDBOX,
+      setup: [],
+      say: ['/macro-loop:goal Make slugify handle two more cases, one Issue each: turn underscores into dashes, as it does spaces, and give a title with no Latin letters, such as "日本語", a slug.'],
+      // Step 4's round is the only reply after the interview (#302 D3); the interview leaves the domain rule open (D2).
+      answers: [
+        {
+          when: /^(?=[\s\S]*\bpush)(?=[\s\S]*\bcommands?\b)/i,
+          say: "A title with no Latin letters: keep the characters. I approve every spec. The verifiers may run the spec's commands. Push the branches and open draft PRs.",
+          round: true,
+        },
+        { when: /approve|look right|create (these|the|them)|proposed/i, say: 'Approved: create these Issues.' },
+        { when: /latin|日本語|non-?ascii|translit|unicode/i, say: 'I have not chosen that rule yet: leave it open as a question for me.' },
+        { when: /\bdone\b|success|finished|look like/i, say: "Done is: slugify('a_b') gives 'a-b', and a title with no Latin letters gets a slug by a rule I have not chosen yet; each with a test, and every other slug stays as it is." },
+        { when: /scope|exclude|leave out/i, say: 'Out of scope: any other character, collapsing repeated dashes, and trimming dashes.' },
+        { when: /constraint|limit|deadline|compatib|depend/i, say: "No new dependencies, and the module's export stays as it is." },
+        { when: /\bfor\b|purpose|why|problem/i, say: "Slugs made from file names and titles go wrong: 'my_file' keeps its underscore, and '日本語' has no rule at all." },
+      ],
+      otherwise: 'Go ahead as you recommend.',
+      held: true,
+      maxAnswers: 12,
+      maxTurns: 400,
+      models: ['opus'],
+      runs: 1,
+      expect: {},
+      checks: ['noGaps', 'heldDoesNotStopOthers'],
+    },
   ]
 }
 
