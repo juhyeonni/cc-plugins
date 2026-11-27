@@ -48,6 +48,19 @@ test('passes with a skip line that has a reason, fails when the reason is empty'
   assert.equal(check({ touched: [VERIFIER], body: 'Suite: skipped —' }).ok, false)
 })
 
+test('accepts a colon, parentheses or a hyphen in place of the dash, and still needs a reason (#317)', () => {
+  for (const body of ['Suite: skipped: x', 'Suite: skipped (x)', 'Suite: skipped — x', 'Suite: skipped - x', 'Suite: skipped -- x']) {
+    const r = check({ touched: [VERIFIER], body })
+    assert.equal(r.ok, true, body)
+    assert.equal(r.message, 'rescore skipped: x', body)
+  }
+  for (const body of ['Suite: skipped:', 'Suite: skipped ()', 'Suite: skipped —', 'Suite: skipped ( )\nmore']) {
+    const r = check({ touched: [VERIFIER], body })
+    assert.equal(r.ok, false, body)
+    assert.match(r.message, /has no reason/, body)
+  }
+})
+
 test('passes an updated baseline when no verifier path changed since its commit, fails when one did', () => {
   const touched = [VERIFIER, BASELINE]
   assert.equal(check({ touched, baseline: baseline(), inHistory: true, changedSince: [] }).ok, true)
