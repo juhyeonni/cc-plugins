@@ -126,10 +126,18 @@ export function dryRun(scenario, models = MODELS) {
   ].join('\n')
 }
 
-function sh(cmd, args, cwd, input) {
-  const r = spawnSync(cmd, args, { cwd, input, encoding: 'utf8', maxBuffer: 64 << 20 })
-  if (r.status !== 0) throw new Error(`${cmd} ${args.join(' ')} failed in ${cwd}: ${r.stderr || r.stdout}`)
-  return r.stdout.trim()
+const TRANSIENT = /timeout|timed out|TLS handshake|connection reset|ECONNRESET|HTTP 5\d\d/i
+const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+
+// A network blip on `gh` is retried three times; any other failure throws at once (#297).
+export function sh(cmd, args, cwd, input, { run = spawnSync, wait = pause } = {}) {
+  for (let i = 0; ; i++) {
+    const r = run(cmd, args, { cwd, input, encoding: 'utf8', maxBuffer: 64 << 20 })
+    if (r.status === 0) return r.stdout.trim()
+    const out = r.stderr || r.stdout
+    if (cmd !== 'gh' || i >= 3 || !TRANSIENT.test(out)) throw new Error(`${cmd} ${args.join(' ')} failed in ${cwd}: ${out}`)
+    wait(1000 * 2 ** i)
+  }
 }
 
 const git = (cwd, ...args) => sh('git', args, cwd)
