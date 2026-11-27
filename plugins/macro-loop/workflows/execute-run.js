@@ -36,9 +36,11 @@ async function implement(s) {
   if (!runs(s, 'implement')) return s
   const i = s.i
   // An open PR at implement means its head got NEEDS-FIX: the fix round goes on the PR's branch (#253).
+  // No worktree keeps an Issue's branch checked out, and a fix round works detached on the pushed tip,
+  // so an earlier run's worktree never stands in its way (#295).
   const switchTo = i.pr
-    ? `\`git fetch origin ${i.branch}\`, \`git branch --show-current\` (remember it), \`git switch ${i.branch}\`, then \`git branch -D <the branch you remembered>\`. Never create or reset ${i.branch}; if the switch fails, stop.`
-    : `\`git fetch origin ${args.base}\`, \`git branch --show-current\` (remember it), \`git switch -c ${i.number}-${i.slug} origin/${args.base}\`, then \`git branch -D <the branch you remembered>\`.`
+    ? `\`git fetch origin ${i.branch}\`, \`git branch --show-current\` (remember it), \`git switch --detach origin/${i.branch}\`, then \`git branch -D <the branch you remembered>\`. That last one deletes the worktree-* branch this worktree started on. Commit on that detached HEAD and never switch to ${i.branch}: another worktree may have it checked out. Never create or reset ${i.branch}; if the fetch or the switch fails, stop. Report ${i.branch} as the branch.`
+    : `\`git fetch origin ${args.base}\`, \`git branch --show-current\` (remember it), \`git switch -c ${i.number}-${i.slug} origin/${args.base}\`, then \`git branch -D <the branch you remembered>\`. That last one deletes the worktree-* branch this worktree started on. Once you have committed, run \`git switch --detach\`, so that this worktree no longer holds ${i.number}-${i.slug} and a later fix round can reach it.`
   const fixRound = i.pr
     ? `\n7. This is a fix round for PR #${i.pr.number}. Run \`node ${args.pluginRoot}/scripts/trust.mjs --issue ${i.number} --pr ${i.pr.number}\` and read the verdict comment whose id is \`pr.lastVerdict\`. Fix each of its findings that is not marked "already answered", at every place its class covers, as step 1 of the implement skill says. Post no answer comment: nobody can approve one during this run.`
     : ''
@@ -46,7 +48,7 @@ async function implement(s) {
 
 1. ${READ} Then follow steps 3 (Build) and 4 (Commit) of ${args.pluginRoot}/skills/implement/SKILL.md, and skip its other steps.
 2. The contract is the spec comment ${i.spec} on Issue #${i.number}: \`gh api repos/{owner}/{repo}/issues/comments/${i.spec} --jq .body\`.
-3. Each in a Bash call of its own: ${switchTo} That last one deletes the worktree-* branch this worktree started on.
+3. Each in a Bash call of its own: ${switchTo}
 4. The spec's \`check: cmd\` commands: ${i.runSpecCommands ? 'the person approved them; you may run them as written.' : 'the person did not approve them; do not run them.'} The repo's own tests need no approval.
 5. Never push, never open a PR, never post or edit anything on GitHub, and never edit the spec.
 6. If the spec is wrong or incomplete, or you cannot finish, stop and report why with status "stopped".${fixRound}
@@ -56,18 +58,23 @@ Return status "committed" with the branch name and the commit's full sha, or "st
   if (!r) return stop(s, 'implement', 'the agent returned no result')
   if (r.status !== 'committed') return stop(s, 'implement', r.reason || 'stopped')
   if (i.pr && r.branch !== i.branch) return stop(s, 'implement', `the commit is on ${r.branch || 'no branch'}, not on the PR's branch ${i.branch}`)
-  return { ...s, branch: r.branch, out: { ...s.out, implement: { ok: true, branch: r.branch, head: r.head } } }
+  return { ...s, branch: r.branch, head: r.head, out: { ...s.out, implement: { ok: true, branch: r.branch, head: r.head } } }
 }
 
 async function openPr(s) {
   if (!runs(s, 'open-pr')) return s
   const i = s.i
-  if (!i.push) return stop(s, 'openPr', `the push was declined: run /macro-loop:open-pr ${s.branch} to push it`)
+  // A fix round's commit sits on a detached HEAD, not on the local branch: push it by sha (#295).
+  const detached = Boolean(i.pr && s.out.implement)
+  if (!i.push) return stop(s, 'openPr', detached ? `the push was declined: push ${s.head} to ${s.branch} with \`git push origin ${s.head}:refs/heads/${s.branch}\`` : `the push was declined: run /macro-loop:open-pr ${s.branch} to push it`)
+  const pushBy = detached
+    ? `This is a fix round: its commit ${s.head} is not on the local branch ${s.branch}, which another worktree may have checked out. Push with \`git push origin ${s.head}:refs/heads/${s.branch}\` in place of \`git push -u origin ${s.branch}\`, never with force, and check the branch by that commit, not by the local branch.`
+    : 'Push it by name.'
   const r = await agent(`Push branch ${s.branch} and open its draft PR for GitHub Issue #${i.number}.
 
 1. ${READ}
 2. Follow steps 2 to 5 of ${args.pluginRoot}/skills/open-pr/SKILL.md for branch ${s.branch} against ${args.base}. The person approved the push up front, and execute passed that approval into this run, so push without asking.
-3. Never check out or switch a branch: push it by name. Never post or edit anything else on GitHub.
+3. ${pushBy} Never check out or switch a branch, and never post or edit anything else on GitHub.
 
 Return status "opened" with the PR number and its head sha, or "stopped" with the reason (pr 0 and head "" when there is none).`,
     { label: `#${i.number} ${i.slug}`, phase: 'open-pr', schema: OPENED })
