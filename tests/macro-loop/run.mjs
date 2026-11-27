@@ -209,6 +209,12 @@ export function githubState(repo, numbers, call = gh) {
   }))
 }
 
+// The labels and comments restoreGithub puts back. A goal sandbox run restores nothing (#301 D8),
+// so it reads no Issue, not even one its reset just moved (#339).
+export function githubSnapshot(scenario, repo, numbers, call = gh) {
+  return inGoalSandbox(scenario) ? {} : githubState(repo, numbers, call)
+}
+
 // Every Issue and PR in the sandbox: a run may comment on one its scenario does not name.
 function sandboxNumbers(repo) {
   return gh(repo, ['--paginate', 'repos/{owner}/{repo}/issues?state=all', '--jq', '.[].number']).split('\n').filter(Boolean).map(Number)
@@ -366,7 +372,7 @@ async function runOnce(scenario, model, n, outDir) {
   const addDirs = (scenario.addDirs ?? []).map((d) => resolve(repo, d))
   const numbers = sandboxNumbers(repo)
   const before = snapshot(scenario, repo, cwd)
-  const githubBefore = githubState(repo, numbers)
+  const githubBefore = githubSnapshot(scenario, repo, numbers)
   const sessionId = randomUUID()
   let turns
   let githubAfter
@@ -376,7 +382,7 @@ async function runOnce(scenario, model, n, outDir) {
       if (inGoalSandbox(scenario)) childrenBeforeRound = goalChildState(repo, numbers)
     })
   } finally {
-    githubAfter = githubState(repo, numbers)
+    githubAfter = githubSnapshot(scenario, repo, numbers)
     restoreGithub(scenario, repo, githubBefore, githubAfter)
   }
   const after = snapshot(scenario, repo, cwd)
