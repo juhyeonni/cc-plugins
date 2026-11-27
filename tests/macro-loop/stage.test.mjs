@@ -123,6 +123,13 @@ test('trackingOf: the marker and a trusted author make a tracking Issue; the tic
   assert.equal(trackingOf({ body: '<!-- macro-loop:goal -->\nno list', user: { login: 'carol' } }, ['carol']), null)
 })
 
+test('trackingOf: items under After the children are no children and never block the merge (#308)', () => {
+  const body = '<!-- macro-loop:goal -->\n- [x] #1\n- [x] #2\n\n## After the children\n- [ ] Judge the earlier runs\n- [ ] Record the outcomes on #9'
+  const tracking = trackingOf({ body, user: { login: 'carol' } }, ['carol'])
+  assert.deepEqual(tracking, { done: 2, total: 2 })
+  assert.deepEqual(pick({ tracking, priority: false }), ['merge', true])
+})
+
 // A stand-in for `gh`, as in trust.test.mjs: answers each call from a table keyed by its
 // arguments, logs every call, and fails on a call the table does not have.
 const STUB = `#!/usr/bin/env node

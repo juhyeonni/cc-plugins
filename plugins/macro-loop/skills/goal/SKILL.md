@@ -18,7 +18,7 @@ Use the goal the user gave; without one, ask for it. Interview the person on the
 
 ## 2. Propose, then create
 
-Propose the child Issues: a title and one line each, small enough for one PR, at most `maxChildren` of them (see **Limits** in step 3); the rest go in a later run, and you say so. Show the tracking Issue too: the goal, the done-state, the decisions made so far, and a task list of the children. Ask once to approve the list. Everything else the run needs from you is asked once, in step 4.
+Propose the child Issues: a title and one line each, small enough for one PR, at most `maxChildren` of them (see **Limits** in step 3); the rest go in a later run, and you say so. A child is only work that ends in a PR; other work goes on the tracking Issue under `## After the children`, as unnumbered `- [ ] <task>` items. Show the tracking Issue too: the goal, the done-state, the decisions made so far, and a task list of the children. Ask once to approve the list. Everything else the run needs from you is asked once, in step 4.
 
 After approval, create the child Issues through `macro-loop:triage`, so each is labeled, then the tracking Issue, its body starting with the line `<!-- macro-loop:goal -->`, with `- [ ] #<n>` per child (see `github.md`; the body goes in a file). Add `Tracking: #<t>` to each child's body.
 
@@ -52,12 +52,12 @@ Stop for a person at: a domain decision, the merge, a `stop` from `stage.mjs`, a
 
 ## 7. Summarize
 
-Post one comment on the tracking Issue under its marker, or edit it in place when one exists (see `github.md`), written for a person who was not watching: per child, its PR and verdict; the decisions you settled without the person, each with its reason; what the person must still do. Tick the children whose PR passed.
+Post one comment on the tracking Issue under its marker, or edit it in place when one exists (see `github.md`), written for a person who was not watching: per child, its PR and verdict; the decisions you settled without the person, each with its reason; what the person must still do, the `## After the children` items included, unticked first. Tick the children whose PR passed.
 
 ## Resume
 
 Given the number of a tracking Issue (a trusted author's Issue whose body starts with `<!-- macro-loop:goal -->`; `stage.mjs` gives it the stage `goal`), do not interview the goal and create no Issues. Read its task list and take each child that is not ticked and not closed. Find each one's stage with `node ${CLAUDE_PLUGIN_ROOT}/scripts/stage.mjs --issue <n>` and carry it on from there with steps 3 to 7, the same stops and the same summary as a new run.
 
-Write the specs of the children that have none (step 3), then ask step 4's round once: approvals from an earlier session do not carry over. A child waiting on a decision or an answer is handled as in a new run: its open items go in the round, and the answer is recorded as in step 4.
+Write the specs of the children that have none (step 3), then ask step 4's round once: approvals from an earlier session do not carry over. A child waiting on a decision or an answer is handled as in a new run.
 
-An Issue without the marker is not guessed at. If its body has a task list of Issues, say that it looks like a tracking Issue without the marker, and add the line only after the person agrees.
+An Issue without the marker is not guessed at: if its body has a task list of Issues, offer to add the marker, and add it only after the person agrees.
