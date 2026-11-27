@@ -13,10 +13,11 @@ import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
-import { aggregate, evaluate, formatReport, killReport } from './checks.mjs'
+import { aggregate, evaluate, formatReport, goalGaps, killReport } from './checks.mjs'
 import { findProjectDir, loadCalls, loadUsage } from './transcript.mjs'
 import { BASELINE, confusion, formatAccuracy, formatPass3, isVerifierPath, loadRows, parseBaseline, rescoreToFile, retrying, saveRow } from './rescore.mjs'
-import { CANARIES, SANDBOX, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, scenarios } from './scenarios.mjs'
+import { closesAll } from '../../plugins/macro-loop/scripts/trust.mjs'
+import { CANARIES, GOAL_SANDBOX, SANDBOX, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, scenarios } from './scenarios.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(here, '../..')
@@ -28,6 +29,8 @@ const MODELS = ['opus', 'haiku']
 const MAX_ANSWERS = 4
 
 // Pushing and opening PRs are blocked: a blocked push is the user declining it.
+// Only a scenario in the goal sandbox may push, open PRs and start workflows (#301 D4).
+const GOAL_ALLOWED = ['Workflow', 'Bash(git push:*)', 'Bash(gh api -X POST repos/{owner}/{repo}/pulls:*)']
 const DISALLOWED = ['Bash(git push:*)', 'Bash(gh pr:*)', 'Bash(gh api -X POST repos/{owner}/{repo}/pulls:*)']
 const ALLOWED = [
   'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Skill', 'Agent', 'TodoWrite',
@@ -39,8 +42,8 @@ const ALLOWED = [
 
 export function assertSandbox(remoteUrl) {
   const normalized = String(remoteUrl).trim().replace(/\.git$/, '')
-  if (!/^(https:\/\/github\.com\/|git@github\.com:)juhyeonni\/macro-loop-sandbox$/.test(normalized)) {
-    throw new Error(`refusing to run: ${remoteUrl} is not the sandbox ${SANDBOX}`)
+  if (!/^(https:\/\/github\.com\/|git@github\.com:)juhyeonni\/macro-loop-(goal-)?sandbox$/.test(normalized)) {
+    throw new Error(`refusing to run: ${remoteUrl} is neither ${SANDBOX} nor ${GOAL_SANDBOX}`)
   }
 }
 
@@ -48,16 +51,19 @@ export function removeCanaries(paths) {
   for (const p of paths) rmSync(p, { force: true })
 }
 
-export function claudeArgs({ model, sessionId, resume, addDirs = [], pluginDir = PLUGIN_DIR }) {
+const inGoalSandbox = (scenario) => scenario.sandbox === GOAL_SANDBOX
+
+export function claudeArgs({ model, sessionId, resume, addDirs = [], pluginDir = PLUGIN_DIR, scenario = {} }) {
+  const goal = inGoalSandbox(scenario)
   return [
     '-p', '--plugin-dir', pluginDir, '--model', model,
     resume ? '--resume' : '--session-id', sessionId,
-    '--output-format', 'json', '--permission-mode', 'acceptEdits', '--max-turns', '80',
+    '--output-format', 'json', '--permission-mode', 'acceptEdits', '--max-turns', String(scenario.maxTurns ?? 80),
     // The person's own MCP servers and plugins would fill most of the context and differ by machine (#174).
     '--strict-mcp-config', '--setting-sources', 'project,local',
     ...addDirs.flatMap((d) => ['--add-dir', d]),
-    '--disallowedTools', ...DISALLOWED,
-    '--allowedTools', ...ALLOWED,
+    ...(goal ? [] : ['--disallowedTools', ...DISALLOWED]),
+    '--allowedTools', ...ALLOWED, ...(goal ? GOAL_ALLOWED : []),
   ]
 }
 
@@ -88,7 +94,7 @@ export function assertRunnable(scenario) {
   }
 }
 
-export function dryRun(scenario, models = MODELS) {
+export function dryRun(scenario, models = scenario.models ?? MODELS) {
   if (scenario.plan) {
     return [
       `${scenario.id}: ${scenario.title}`,
@@ -103,15 +109,15 @@ export function dryRun(scenario, models = MODELS) {
   const quote = (a) => (/^[\w@%+=:,./-]+$/.test(a) ? a : `'${a.replace(/'/g, `'\\''`)}'`)
   return [
     `${scenario.id}: ${scenario.title}`,
-    `Models: ${models.join(', ')}; three runs each.`,
+    `Models: ${models.join(', ')}; ${scenario.runs ?? 3} run(s) each.`,
     '',
     `Setup, in ${repo}:`,
-    `  git clone -q https://github.com/${SANDBOX} ${repo}`,
+    `  git clone -q https://github.com/${scenario.sandbox ?? SANDBOX} ${repo}`,
     `  remove ${CANARIES.join(' and ')}`,
     ...scenario.setup.map((c) => `  ${c}`),
     '',
     `Claude runs in ${cwd}:`,
-    `  claude ${claudeArgs({ model: models[0], sessionId: '<session id>', resume: false, addDirs }).map(quote).join(' ')}`,
+    `  claude ${claudeArgs({ model: models[0], sessionId: '<session id>', resume: false, addDirs, scenario }).map(quote).join(' ')}`,
     '  later turns use --resume <session id> with the same flags',
     '',
     'Scripted turns:',
@@ -204,12 +210,14 @@ function sandboxNumbers(repo) {
 }
 
 // Puts labels back and deletes comments the run added, so every run starts alike.
-function restoreGithub(repo, before, after) {
+// A goal sandbox run keeps everything as its evidence (#301 D8).
+export function restoreGithub(scenario, repo, before, after, call = gh) {
+  if (inGoalSandbox(scenario)) return
   for (const n of Object.keys(before)) {
     const known = new Set(before[n].comments.map((c) => c.id))
-    for (const c of after[n].comments) if (!known.has(c.id)) gh(repo, ['-X', 'DELETE', `repos/{owner}/{repo}/issues/comments/${c.id}`])
+    for (const c of after[n].comments) if (!known.has(c.id)) call(repo, ['-X', 'DELETE', `repos/{owner}/{repo}/issues/comments/${c.id}`])
     if (JSON.stringify(before[n].labels) !== JSON.stringify(after[n].labels)) {
-      gh(repo, ['-X', 'PUT', `repos/{owner}/{repo}/issues/${n}/labels`, '--input', '-'], JSON.stringify({ labels: before[n].labels }))
+      call(repo, ['-X', 'PUT', `repos/{owner}/{repo}/issues/${n}/labels`, '--input', '-'], JSON.stringify({ labels: before[n].labels }))
     }
   }
 }
@@ -256,21 +264,47 @@ export async function play(scenario, model, sessionId, cwd, addDirs) {
   let resume = false
   const send = async (text) => {
     const start = Date.now()
-    const r = await claudeTurn(claudeArgs({ model, sessionId, resume, addDirs }), cwd, text)
+    const r = await claudeTurn(claudeArgs({ model, sessionId, resume, addDirs, scenario }), cwd, text)
     const ms = Date.now() - start
     resume = true
-    log.push({ said: text, result: r.result, isError: r.is_error, denials: (r.permission_denials ?? []).length, cost: r.total_cost_usd, turns: r.num_turns, ms })
+    log.push({ said: text, result: r.result, isError: r.is_error, denials: r.permission_denials ?? [], cost: r.total_cost_usd, turns: r.num_turns, ms })
     return r.result ?? ''
   }
   let last = ''
   for (const text of scenario.say) last = await send(text)
   const used = new Set()
-  for (let i = 0; i < MAX_ANSWERS && asksSomething(last); i++) {
+  for (let i = 0; i < (scenario.maxAnswers ?? MAX_ANSWERS) && asksSomething(last); i++) {
+    const rules = used.size
     const reply = pickAnswer(scenario, last, used)
     if (reply == null) break
+    const asked = last
     last = await send(reply)
+    // No rule matched: the run needed a reply the script did not plan for.
+    if (used.size === rules) log.at(-1).extra = asked
   }
   return log
+}
+
+const trust = (repo, ...args) => JSON.parse(sh('node', [join(PLUGIN_DIR, 'scripts/trust.mjs'), ...args], repo))
+
+// The children of the tracking Issue this run created, each with the PR the run opened for it,
+// or null when the run created no tracking Issue (#301 D7). Issues from earlier runs are left out (D8).
+function goalChildren(repo, numbersBefore) {
+  const known = new Set(numbersBefore)
+  const created = gh(repo, ['--paginate', 'repos/{owner}/{repo}/issues?state=all', '--jq', '.[] | {number, login: .user.login, body, pr: (.pull_request != null)}'])
+    .split('\n').filter(Boolean).map((l) => JSON.parse(l)).filter((i) => !known.has(i.number))
+  const trusted = new Set(trust(repo).trusted)
+  const tracking = created.find((i) => !i.pr && trusted.has(i.login.toLowerCase()) && String(i.body ?? '').startsWith('<!-- macro-loop:goal -->'))
+  if (!tracking) return null
+  const prs = created.filter((i) => i.pr).map((i) => {
+    const { state, draft } = JSON.parse(gh(repo, [`repos/{owner}/{repo}/pulls/${i.number}`, '--jq', '{state, draft}']))
+    return { number: i.number, state, draft, verdict: trust(repo, '--pr', String(i.number)).pr.lastVerdictResult, closes: closesAll(i.body) }
+  })
+  return [...tracking.body.matchAll(/^\s*- \[[ xX]\] #(\d+)/gm)].map((m) => {
+    const number = Number(m[1])
+    const pr = prs.find((p) => p.closes.includes(number))
+    return { number, pr: pr ? { number: pr.number, state: pr.state, draft: pr.draft, verdict: pr.verdict } : null }
+  })
 }
 
 async function runOnce(scenario, model, n, outDir) {
@@ -280,9 +314,9 @@ async function runOnce(scenario, model, n, outDir) {
   rmSync(work, { recursive: true, force: true })
   mkdirSync(work, { recursive: true })
   const repo = join(work, 'repo')
-  git(work, 'clone', '-q', `https://github.com/${SANDBOX}`, repo)
+  git(work, 'clone', '-q', `https://github.com/${scenario.sandbox ?? SANDBOX}`, repo)
   assertSandbox(git(repo, 'remote', 'get-url', 'origin'))
-  blockPushes(repo)
+  if (!inGoalSandbox(scenario)) blockPushes(repo)
   removeCanaries(CANARIES)
   for (const command of scenario.setup) sh('bash', ['-c', command], repo)
   const cwd = resolve(repo, scenario.cwd ?? '.')
@@ -297,7 +331,7 @@ async function runOnce(scenario, model, n, outDir) {
     turns = await play(scenario, model, sessionId, cwd, addDirs)
   } finally {
     githubAfter = githubState(repo, numbers)
-    restoreGithub(repo, githubBefore, githubAfter)
+    restoreGithub(scenario, repo, githubBefore, githubAfter)
   }
   const after = snapshot(scenario, repo, cwd)
   const known = new Set((githubBefore[scenario.pr]?.comments ?? []).map((c) => c.id))
@@ -317,11 +351,18 @@ async function runOnce(scenario, model, n, outDir) {
     comments: githubAfter[scenario.tracking]?.comments ?? [],
     canaries: Object.fromEntries((scenario.canaries ?? []).map((p) => [p, existsSync(p)])),
     tips: scenario.workBranch && { before: before.tip, after: after.tip, ancestor: isAncestor(repo, before.tip, after.tip) },
+    gaps: inGoalSandbox(scenario)
+      ? goalGaps({
+          denials: turns.flatMap((t) => t.denials),
+          extraReplies: turns.filter((t) => t.extra).map((t) => ({ asked: t.extra, said: t.said })),
+          children: goalChildren(repo, numbers),
+        })
+      : [],
   }
   const { safety, verdict, cites, noVerdict } = evaluate(scenario, obs)
   const usage = loadUsage(transcripts, sessionId)
   rmSync(work, { recursive: true, force: true })
-  const result = { scenario: scenario.id, model, run: n, commit, ms: Date.now() - start, sessionId, cwd, transcripts, turns, usage, comment, safety, verdict, cites, noVerdict, expected: scenario.expect }
+  const result = { scenario: scenario.id, model, run: n, commit, ms: Date.now() - start, sessionId, cwd, transcripts, turns, usage, comment, safety, verdict, cites, noVerdict, expected: scenario.expect, ...(inGoalSandbox(scenario) ? { gaps: obs.gaps } : {}) }
   writeFileSync(join(outDir, `${scenario.id}-${model}-${n}.json`), JSON.stringify(result, null, 2))
   return result
 }
@@ -337,8 +378,8 @@ async function runScenario(id, models, runs) {
   const outDir = join(RESULTS_DIR, `${new Date().toISOString().replace(/[:.]/g, '-')}-${scenario.id}`)
   mkdirSync(outDir, { recursive: true })
   const results = []
-  for (const model of models ?? MODELS) {
-    for (let n = 1; n <= runs; n++) {
+  for (const model of models ?? scenario.models ?? MODELS) {
+    for (let n = 1; n <= (runs ?? scenario.runs ?? 3); n++) {
       const r = await runOnce(scenario, model, n, outDir)
       console.log(`${r.scenario} ${model} run ${n}: verdict ${r.verdict ?? 'none'}; ${Object.entries(r.safety).map(([k, v]) => `${k} ${v.pass ? 'ok' : 'FAIL'}`).join(', ')}`)
       results.push(r)
@@ -426,7 +467,7 @@ export async function main(argv) {
   })
   const models = values.model ? [values.model] : undefined
   if (values.list) return console.log(scenarios.map((s) => `${s.id}  ${s.title}`).join('\n'))
-  if (values['dry-run']) return console.log(dryRun(findScenario(values['dry-run']), models ?? MODELS))
+  if (values['dry-run']) return console.log(dryRun(findScenario(values['dry-run']), models))
   const named = !values.seed && !values.rescore && !values.mutants
   if (named && positionals.length !== 1) {
     throw new Error('usage: run.mjs --list | --dry-run <ID> | --seed | --rescore | --mutants | <ID> [--model m] [--runs n]')
@@ -441,7 +482,7 @@ export async function main(argv) {
       mkdirSync(outDir, { recursive: true })
       return await runMutants((s) => runOnce(s, 'opus', 1, outDir))
     }
-    const results = await runScenario(positionals[0], models, Number(values.runs ?? 3))
+    const results = await runScenario(positionals[0], models, values.runs && Number(values.runs))
     console.log(`\n${formatReport(aggregate(results))}`)
   } finally {
     unlock()

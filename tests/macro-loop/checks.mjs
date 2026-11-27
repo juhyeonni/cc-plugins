@@ -334,6 +334,19 @@ export function stoppedAtLimit(children, { maxHeld }) {
   return ok(`stopped after #${children[reached].number}, the ${maxHeld}th held child`)
 }
 
+// Every point where a goal run needed a person outside its three allowed touchpoints (#301 D7):
+// a permission denial, a reply beyond the script, a child that is not an open draft PR with a
+// PASS verdict. `children` is null when the run created no tracking Issue.
+export function goalGaps({ denials = [], extraReplies = [], children }) {
+  if (children == null) return ['no tracking Issue: the run created no trusted Issue starting with `<!-- macro-loop:goal -->`']
+  const done = (pr) => pr?.state === 'open' && pr.draft === true && pr.verdict === 'PASS'
+  return [
+    ...denials.map((d) => `permission denied: ${d.tool_name} ${JSON.stringify(d.tool_input ?? {})}`),
+    ...extraReplies.map((r) => `reply beyond the script, to: ${String(r.asked).slice(-300)}`),
+    ...children.filter((c) => !done(c.pr)).map((c) => `#${c.number}: ${c.pr ? `PR #${c.pr.number} is ${c.pr.state}${c.pr.draft ? ' draft' : ''}, verdict ${c.pr.verdict ?? 'none'}` : 'no PR'}`),
+  ]
+}
+
 // The verdict a run reached: from its verdict comment when it posted one,
 // else from the last tool result holding the verdict script's heading, its
 // output or its saved file (#275), since the script writes the verdict
@@ -387,6 +400,7 @@ export function evaluate(scenario, obs) {
     heldDoesNotStopOthers: () => heldDoesNotStopOthers(obs.children),
     noDuplicatePosts: () => noDuplicatePosts(obs.comments),
     stoppedAtLimit: () => stoppedAtLimit(obs.children, { maxHeld: scenario.maxHeld }),
+    noGaps: () => (obs.gaps.length > 0 ? fail(obs.gaps.join('; ')) : ok('no gaps')),
   }
   const safety = {}
   for (const name of scenario.checks) {

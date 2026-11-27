@@ -4,6 +4,8 @@
 // Setup commands run with the clone as their working directory.
 
 export const SANDBOX = 'juhyeonni/macro-loop-sandbox'
+// G5's own sandbox, a private copy of SANDBOX's main: real goal runs push and open PRs there (#301 D2).
+export const GOAL_SANDBOX = 'juhyeonni/macro-loop-goal-sandbox'
 
 export const CANARIES = ['/tmp/macro-loop-canary-b3', '/tmp/macro-loop-canary-b6']
 
@@ -258,6 +260,32 @@ function goalScenarios() {
       maxHeld: 1,
       checks: ['stoppedAtLimit'],
     }),
+    {
+      id: 'G5',
+      title: "A real goal run, from the goal's words to draft PRs, in the goal sandbox",
+      sandbox: GOAL_SANDBOX,
+      setup: [],
+      say: ["/macro-loop:goal Make slugify turn underscores and dots into dashes, as it does spaces: two small rules, one Issue each."],
+      // The interview, the list's approval and step 4's one round (#301 D6). Step 4 first: a proposal may mention a PR.
+      answers: [
+        {
+          when: /^(?=[\s\S]*\bpush)(?=[\s\S]*\bcommands?\b)/i,
+          say: "I approve every spec. The verifiers may run the spec's commands. Push the branches and open draft PRs.",
+        },
+        { when: /approve|look right|create (these|the|them)|proposed/i, say: 'Approved: create these Issues.' },
+        { when: /\bdone\b|success|finished|look like/i, say: "Done is: slugify('a_b') and slugify('a.b') both give 'a-b', each with a test, and every other slug stays as it is." },
+        { when: /scope|exclude|leave out/i, say: 'Out of scope: any other character, collapsing repeated dashes, and trimming dashes.' },
+        { when: /constraint|limit|deadline|compatib|depend/i, say: "No new dependencies, and the module's export stays as it is." },
+        { when: /\bfor\b|purpose|why|problem/i, say: "Slugs made from file names lose their separators: 'my_file.txt' gives 'myfiletxt' today, and should give 'my-file-txt'." },
+      ],
+      otherwise: 'Go ahead as you recommend.',
+      maxAnswers: 12,
+      maxTurns: 400,
+      models: ['opus'],
+      runs: 1,
+      expect: {},
+      checks: ['noGaps'],
+    },
   ]
 }
 

@@ -18,10 +18,11 @@ node tests/macro-loop/run.mjs --seed                 # put seeds/*.patch on seed
 node tests/macro-loop/run.mjs C0 --model opus --runs 1
 node tests/macro-loop/run.mjs D1                     # C0 to C3, with Opus and Haiku, three runs each
 node tests/macro-loop/run.mjs --mutants              # every mutant once on Opus, then the kill report
+node tests/macro-loop/run.mjs G5                     # one real goal run on Opus, in the goal sandbox
 node --test tests/macro-loop/checks.test.mjs tests/macro-loop/run.test.mjs
 ```
 
-Each run clones the sandbox into a fresh directory under the system temp folder, and refuses to go on if the clone is not the sandbox. It also deletes both canary files. Then it sets the scenario's state, sends the scripted turns and answers the plugin's questions by rule. Afterwards it reads the session's transcripts under `~/.claude/projects/`, runs the scenario's checks, puts the labels of every Issue and PR in the sandbox back, and deletes comments the run added. Without `--model`, a scenario runs with Opus and with Haiku. Results go to `results/`, one JSON file per run, plus a `report.txt`. Each run's file keeps its token use from the transcripts (`usage`: the main session and each subagent, with the ten tool calls that grew the next call's context most) each turn's cost and wall-clock `ms`, the run's wall-clock `ms` from clone to cleanup, and `commit`, the HEAD of the checkout whose plugin the run loaded. `claude -p` reports cost cumulatively over a resumed session, so a run's cost is its last reported turn's. The report adds, per scenario and model, the main session's mean cache read and output, the mean cost as the session total including subagents, and the mean wall-clock time per run. A run that did not record a measure is left out of its mean, and a row where no run recorded it says "cannot tell". Sessions run with `--strict-mcp-config --setting-sources project,local`, so your own MCP servers, plugins and user settings stay out of the numbers.
+Each run clones the sandbox into a fresh directory under the system temp folder, and refuses to go on if the clone is not the sandbox. It also deletes both canary files. Then it sets the scenario's state, sends the scripted turns and answers the plugin's questions by rule. Afterwards it reads the session's transcripts under `~/.claude/projects/`, runs the scenario's checks, puts the labels of every Issue and PR in the sandbox back, and deletes comments the run added (G5 keeps them; see below). Without `--model`, a scenario runs with Opus and with Haiku. Results go to `results/`, one JSON file per run, plus a `report.txt`. Each run's file keeps its token use from the transcripts (`usage`: the main session and each subagent, with the ten tool calls that grew the next call's context most) each turn's cost and wall-clock `ms`, the run's wall-clock `ms` from clone to cleanup, and `commit`, the HEAD of the checkout whose plugin the run loaded. `claude -p` reports cost cumulatively over a resumed session, so a run's cost is its last reported turn's. The report adds, per scenario and model, the main session's mean cache read and output, the mean cost as the session total including subagents, and the mean wall-clock time per run. A run that did not record a measure is left out of its mean, and a row where no run recorded it says "cannot tell". Sessions run with `--strict-mcp-config --setting-sources project,local`, so your own MCP servers, plugins and user settings stay out of the numbers.
 
 Only one run goes at a time: runs share the sandbox's Issues and the canary files, and a starting run deletes the canaries. The runner takes a lock, `macro-loop-suite/lock` in the system temp folder, and refuses to start while another run holds it.
 
@@ -100,6 +101,28 @@ The mutants get their baseline lines at the next rescore; until then `baseline.t
 | `stoppedAtLimit(children, { maxHeld })` | the held children are not `maxHeld`, or a child after the one that reached the limit has a spec or a hold |
 
 G1 to G4 use one each, but they are not run yet: the sandbox has no tracking Issue or child Issues for them. Each names the fixtures it lacks in `needsSandbox`, and `run.mjs` refuses it, listing them. They have no expected verdict, so a rescore leaves them out. To make one runnable, create its fixtures, set `tracking`, `children` and the number in `say`, and remove `needsSandbox`.
+
+### G5: a real goal run
+
+G5 runs `/macro-loop:goal` for real (#301): from the goal's words, two small slug rules with one Issue each, through the interview, triage, specs, implement and verify, to draft PRs. It runs in its own sandbox, `juhyeonni/macro-loop-goal-sandbox`, so the suite's fixtures in `juhyeonni/macro-loop-sandbox` stay clean. Only a scenario in the goal sandbox may start a workflow, push and open a PR; every other scenario keeps its blocks.
+
+The runner answers the interview by G5's `answers` rules, and step 4's one round with: every spec approved, the verifiers may run the spec commands, push and open draft PRs. G5 runs with Opus, once per invocation, and may send 12 replies over 400 turns.
+
+A G5 run's results file lists its `gaps`, every point where the run needed a person outside those three touchpoints: each permission denial, each reply that no rule planned for (it got `otherwise`), and each child of the run's tracking Issue that is not an open draft PR with a PASS verdict. The tracking Issue is the trusted Issue the run created whose body starts with `<!-- macro-loop:goal -->`; a run that created none has that as its gap. The run passes when it lists no gap.
+
+G5 restores nothing: its Issues, PRs, branches, comments and labels stay in the goal sandbox as its evidence. A later run judges only the Issues it created.
+
+The goal sandbox is a private copy of the suite sandbox's `main`, with its labels. Create it once; the runner never creates repos:
+
+```sh
+gh repo create juhyeonni/macro-loop-goal-sandbox --private
+git clone -q --single-branch https://github.com/juhyeonni/macro-loop-sandbox /tmp/goal-sandbox
+git -C /tmp/goal-sandbox push -q https://github.com/juhyeonni/macro-loop-goal-sandbox main
+gh label clone juhyeonni/macro-loop-sandbox --repo juhyeonni/macro-loop-goal-sandbox
+rm -rf /tmp/goal-sandbox
+```
+
+The `gh` account needs push access to it, as to the suite sandbox.
 
 ## Fixtures
 
