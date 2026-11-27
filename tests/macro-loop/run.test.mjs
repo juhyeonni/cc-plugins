@@ -706,3 +706,21 @@ test('#329 AC3: with no failed read the snapshot holds every number with its lab
     7: { labels: ['p7'], comments: [{ id: 70, body: 'c7' }] },
   })
 })
+
+// #330: the step 2 proposals and step 4 rounds of the real G5 and G6 runs, as the sessions sent them.
+// G5 on 5c836a4 stopped before its first turn (#329), so it left no text.
+const ROUNDS = JSON.parse(readFileSync(join(dirname(RUN), 'step4-rounds.json'), 'utf8'))
+const step4Rule = (id) => findScenario(id).answers[0].when
+
+test('#330 AC1: the step 4 rule matches every recorded step 4 round, "checks run during verify" included', () => {
+  assert.ok(ROUNDS.step4.some((r) => /checks run during verify/.test(r.text)))
+  for (const { run, text } of ROUNDS.step4) assert.match(text, step4Rule('G5'), run)
+})
+
+test('#330 AC2: the step 4 rule matches none of the recorded step 2 proposals', () => {
+  for (const { run, text } of ROUNDS.step2) assert.doesNotMatch(text, step4Rule('G5'), run)
+})
+
+test('#330 AC3: G5 and G6 use the same rule object for step 4', () => {
+  assert.equal(step4Rule('G5'), step4Rule('G6'))
+})

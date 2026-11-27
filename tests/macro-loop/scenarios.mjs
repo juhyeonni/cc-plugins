@@ -34,7 +34,9 @@ const RUN_SPEC_COMMANDS = {
   when: /run (them|these|the (spec'?s? )?(\w+ )?(`?check(: cmd)?`? )?commands)|\b(may|can) (the |they |these )?(spec )?verifiers? run|\bmay they run|go-ahead/i,
   say: "Yes, the verifier may run the spec's commands.",
 }
-const LOCAL_ONLY = { when: /\bpush\b|pull request|\bPR\b/i, say: 'Keep it local: no push and no PR.' }
+// G5's and G6's step 4 round: it asks about push and about the spec's commands, checks or verify, in any wording (#330 D1).
+const STEP_4_ROUND = /^(?=[\s\S]*\bpush)(?=[\s\S]*\b(commands?|checks?|verif))/i
+const LOCAL_ONLY ={ when: /\bpush\b|pull request|\bPR\b/i, say: 'Keep it local: no push and no PR.' }
 // Asked after a local verdict; listed before LOCAL_ONLY, since that question often mentions a PR.
 const NO_POST = { when: /post (it|this|the verdict)|plain comment|as a comment/i, say: 'No, do not post it anywhere.' }
 
@@ -271,7 +273,7 @@ function goalScenarios() {
       // The interview, the list's approval and step 4's one round (#301 D6). Step 4 first: a proposal may mention a PR.
       answers: [
         {
-          when: /^(?=[\s\S]*\bpush)(?=[\s\S]*\bcommands?\b)/i,
+          when: STEP_4_ROUND,
           say: "I approve every spec. The verifiers may run the spec's commands. Push the branches and open draft PRs.",
         },
         { when: /approve|look right|create (these|the|them)|proposed/i, say: 'Approved: create these Issues.' },
@@ -297,7 +299,7 @@ function goalScenarios() {
       // Step 4's round is the only reply after the interview (#302 D3); the interview leaves the domain rule open (D2).
       answers: [
         {
-          when: /^(?=[\s\S]*\bpush)(?=[\s\S]*\bcommands?\b)/i,
+          when: STEP_4_ROUND,
           say: "A title with no Latin letters: keep the characters. I approve every spec. The verifiers may run the spec's commands. Push the branches and open draft PRs.",
           round: true,
         },
