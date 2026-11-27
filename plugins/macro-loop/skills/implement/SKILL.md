@@ -27,7 +27,7 @@ Note the spec comment's `updated_at` (`gh api repos/{owner}/{repo}/issues/commen
 
 If the branch you will work on (step 2) has an open PR, read the comment whose id is `pr.lastVerdict`. If that verdict is NEEDS-FIX, its Spec findings are the work for this round.
 
-If that PR conflicts with its base (`stage.mjs` says "conflicts with <base>"), do this before any other fix: merge `origin/<base>` into the branch, resolve the conflict keeping both sides' intent, run the repo's tests, and commit. Then hand over to `verify` as usual: the merged head needs a verdict.
+If that PR conflicts with its base or the base changed its files (`stage.mjs` says "conflicts with <base>", "changed files this PR touches" or "cannot tell which files"), do this before any other fix: merge `origin/<base>` into the branch, resolve any conflict keeping both sides' intent, run the repo's tests, and commit. Then hand over to `verify` as usual: the merged head needs a verdict.
 
 A finding marked "already answered" is settled: neither fix it nor draft another answer. Fix each other finding at every place its class covers in the diff, the places listed after "also at" included, not only the cited line: otherwise the next round finds the same mistake elsewhere.
 

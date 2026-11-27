@@ -119,6 +119,8 @@ test('run: pull requests in the Issues list are skipped, an unlinked PR is liste
 const labelled = (number, updated, ...names) => ({ ...issue(number, updated), state: 'open', labels: names.map((name) => ({ name })) })
 const SPEC = { id: 1, user: { login: 'carol' }, body: '<!-- macro-loop:spec -->' }
 const PASS = { id: 2, user: { login: 'carol' }, body: '<!-- macro-loop:verify round=1 sha=abc1234 -->\n## Verify: PASS (round 1 of 3)' }
+const FILES5 = 'api --paginate --slurp repos/{owner}/{repo}/pulls/5/files'
+const COMPARE = 'api repos/{owner}/{repo}/compare/abc1234...main'
 const threeIssues = (over = {}) => shared({
   [ISSUES]: { stdout: [[
     labelled(1, '2026-10-03T00:00:00Z', 'P1', 'ready-for-agent'),
@@ -135,6 +137,8 @@ const threeIssues = (over = {}) => shared({
   [COMMENTS(3)]: { stdout: [[SPEC]] },
   [COMMENTS(5)]: { stdout: [[PASS]] },
   [PULL(5)]: { stdout: { number: 5, mergeable: true } },
+  [FILES5]: { stdout: [[{ filename: 'a.mjs' }]] },
+  [COMPARE]: { stdout: { files: [] } },
   ...over,
 })
 
@@ -147,10 +151,10 @@ test('run: what every Issue shares is read once, and each Issue costs only its c
     ['issue', 2, 'grilling'],
     ['issue', 1, 'implement'],
   ])
-  for (const call of [ISSUES, USER, REPO, CONFIG, PULLS, COMMENTS(1), COMMENTS(2), COMMENTS(3), COMMENTS(5), PULL(5)]) {
+  for (const call of [ISSUES, USER, REPO, CONFIG, PULLS, COMMENTS(1), COMMENTS(2), COMMENTS(3), COMMENTS(5), PULL(5), FILES5, COMPARE]) {
     assert.equal(r.calls.filter((c) => c === call).length, 1, call)
   }
-  assert.equal(r.calls.length, 10, r.calls.join('\n'))
+  assert.equal(r.calls.length, 12, r.calls.join('\n'))
 })
 
 test('run: when what every Issue shares cannot be read, nothing is printed and the run fails', () => {

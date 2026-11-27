@@ -52,7 +52,7 @@ Stop for a person at: a domain decision, the merge, a `stop` from `stage.mjs`, a
 
 ## 7. Summarize
 
-Post one comment on the tracking Issue under its marker, or edit it in place when one exists (see `github.md`), written for a person who was not watching: per child, its PR and verdict, or `Waits for: #<n>`; the decisions you settled without the person, each with its reason; what the person must still do, with the open `## After the children` items. Tick the children whose PR passed.
+Post one comment on the tracking Issue under its marker, or edit it in place when one exists (see `github.md`), written for a person who was not watching: per child, its PR and verdict, or `Waits for: #<n>`; the decisions you settled without the person, each with its reason; what the person must still do, with the open `## After the children` items; the merge order for the children with a PASS, one at a time: blocked children after their blocker, the rest by Issue number. Tick the children whose PR passed.
 
 ## Resume
 
