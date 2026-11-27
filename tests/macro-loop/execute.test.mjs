@@ -219,11 +219,11 @@ test('AC6: no implement after a verdict, and verify posts nothing', async () => 
 
 const fixRound = (over = {}) => issue(8, { branch: '8-old', pr: { number: 20, head: 'old8', answersLine: null }, ...over })
 
-test('#253 AC1: a fix round fetches and switches to the PR branch, then deletes the worktree branch', async () => {
+test("#253 AC1: a fix round fetches the PR branch and detaches at its pushed tip, then deletes the worktree branch", async () => {
   const { of } = await runWorkflow([fixRound()], happy)
   const p = of(8)[0].prompt
   assert.match(p, /`git fetch origin 8-old`/)
-  assert.match(p, /`git switch 8-old`/)
+  assert.match(p, /`git switch --detach origin\/8-old`/)
   assert.match(p, /`git branch -D <the branch you remembered>`/)
   assert.doesNotMatch(p, /git switch -c/)
   assert.doesNotMatch(p, /origin\/main/)
@@ -246,7 +246,7 @@ test("#253 AC3: a fix round whose commit is on another branch stops at implement
 
 test("#253 AC4: a fix round on the PR's branch is sent to open-pr, and verify judges open-pr's head", async () => {
   // The stand-in commits on whatever branch its prompt switches to.
-  const answer = (p, o) => (o.phase === 'implement' ? { status: 'committed', branch: /`git switch (?:-c )?([^ `]+)/.exec(p)[1], head: 'impl8', reason: '' } : happy(p, o))
+  const answer = (p, o) => (o.phase === 'implement' ? { status: 'committed', branch: /Report (\S+) as the branch/.exec(p)[1], head: 'impl8', reason: '' } : happy(p, o))
   const { value, of } = await runWorkflow([fixRound()], answer)
   const [, open, ...verify] = of(8)
   assert.equal(open.opts.phase, 'open-pr')
@@ -254,6 +254,41 @@ test("#253 AC4: a fix round on the PR's branch is sent to open-pr, and verify ju
   assert.equal(verify.length, 3)
   for (const c of verify) assert.match(c.prompt, /^Head: pr8$/m)
   assert.equal(value[0].verify.head, 'pr8')
+})
+
+test('#295 AC1: a fix round never switches to the PR branch, which another worktree may hold, and open-pr pushes its commit by sha', async () => {
+  const answer = (p, o) => (o.phase === 'implement' ? { status: 'committed', branch: '8-old', head: 'impl8', reason: '' } : happy(p, o))
+  const { value, of } = await runWorkflow([fixRound()], answer)
+  const [impl, open] = of(8)
+  assert.doesNotMatch(impl.prompt, /`git switch 8-old`/)
+  assert.match(impl.prompt, /Commit on that detached HEAD and never switch to 8-old: another worktree may have it checked out/)
+  assert.match(open.prompt, /`git push origin impl8:refs\/heads\/8-old`/)
+  assert.match(open.prompt, /never with force/)
+  assert.doesNotMatch(open.prompt, /push it by name/i)
+  assert.deepEqual(value[0].implement, { ok: true, branch: '8-old', head: 'impl8' })
+})
+
+test('#295 AC1: a new branch is left detached once committed, so no worktree holds it, and open-pr pushes it by name', async () => {
+  const { of } = await runWorkflow([issue(61)], happy)
+  const [impl, open] = of(61)
+  assert.match(impl.prompt, /Once you have committed, run `git switch --detach`, so that this worktree no longer holds 61-s61/)
+  assert.match(open.prompt, /Push it by name\./)
+  assert.doesNotMatch(open.prompt, /refs\/heads/)
+})
+
+test('#295 AC1: a fix round whose push was declined names the detached commit to push', async () => {
+  const answer = (p, o) => (o.phase === 'implement' ? { status: 'committed', branch: '8-old', head: 'impl8', reason: '' } : happy(p, o))
+  const { value } = await runWorkflow([fixRound({ push: false })], answer)
+  assert.match(value[0].openPr.reason, /`git push origin impl8:refs\/heads\/8-old`/)
+})
+
+test('#295 AC2: a fix round still never creates or resets the PR branch, and stops when it cannot reach the pushed tip', async () => {
+  const p = (await runWorkflow([fixRound()], happy)).of(8)[0].prompt
+  assert.match(p, /Never create or reset 8-old; if the fetch or the switch fails, stop\./)
+  assert.doesNotMatch(p, /git switch -c|git branch -f|git reset/)
+  const { value, of } = await runWorkflow([fixRound()], (q, o) => (o.phase === 'implement' ? { status: 'stopped', branch: '', head: '', reason: 'fetch failed' } : happy(q, o)))
+  assert.deepEqual(value[0].implement, { ok: false, reason: 'fetch failed' })
+  assert.deepEqual(of(8).map((c) => c.opts.phase), ['implement'])
 })
 
 test('#253 AC5: an Issue at implement with no PR still makes a new branch from base, then deletes the worktree branch', async () => {
