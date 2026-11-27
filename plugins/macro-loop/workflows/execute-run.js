@@ -4,7 +4,7 @@ export const meta = {
   phases: [
     { title: 'implement', detail: "build each Issue's spec in its own worktree and commit" },
     { title: 'open-pr', detail: 'push each branch and open a draft PR, with the approval passed in' },
-    { title: 'verify', detail: 'two macro-loop:verifier agents per Issue, spec and standards, and one macro-loop:security-reviewer per PR' },
+    { title: 'verify', detail: 'two macro-loop:verifier agents per Issue, spec and standards' },
   ],
 }
 
@@ -98,16 +98,9 @@ async function verify(s) {
   ].join('\n')
   const verifier = (axis) => () =>
     agent(lines(axis), { label: `#${i.number} ${i.slug} · ${axis}`, phase: 'verify', agentType: 'macro-loop:verifier', isolation: 'worktree' })
-  // Each Issue here has a PR of its own, so this is the PR's one security reviewer (#197).
-  const reviewer = () =>
-    agent(['Axis: security', `Base: origin/${args.base}`, `Head: ${s.head}`].join('\n'), {
-      label: `#${i.number} ${i.slug} · security`,
-      phase: 'verify',
-      agentType: 'macro-loop:security-reviewer',
-      isolation: 'worktree',
-    })
-  const [spec, standards, security] = await parallel([verifier('spec'), verifier('standards'), reviewer])
-  return { ...s, out: { ...s.out, verify: { pr: s.pr, head: s.head, spec: spec ?? null, standards: standards ?? null, security: security ?? null } } }
+  // No security reviewer here: execute starts it in the background after it posts a PASS (#343).
+  const [spec, standards] = await parallel([verifier('spec'), verifier('standards')])
+  return { ...s, out: { ...s.out, verify: { pr: s.pr, head: s.head, spec: spec ?? null, standards: standards ?? null } } }
 }
 
 const results = await pipeline(args.issues, (i) => implement(begin(i)), openPr, verify)

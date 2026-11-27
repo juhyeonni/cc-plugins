@@ -1,23 +1,24 @@
 ---
 name: verify
-description: "Verify a pull request against its GitHub Issue's spec in a fresh context and post a PASS / NEEDS-FIX verdict on the PR. Judges two axes, Spec and Standards, in verifier subagents that get identifiers only, and reports Claude Code's /security-review findings; asks before running a spec's commands or an untrusted author's tests; stops after two re-verifications. Use when the user asks to verify a PR or a branch, or when implement hands over."
+description: "Verify a pull request against its GitHub Issue's spec in a fresh context and post a PASS / NEEDS-FIX verdict on the PR. Judges two axes, Spec and Standards, in verifier subagents that get identifiers only, then /security-review once after a PASS; asks before running a spec's commands or an untrusted author's tests; stops after two re-verifications. Use when the user asks to verify a PR or a branch, or when implement hands over."
 ---
 
 # Verify
 
 Judge the change against what its Issue asked for, in a context that did not write it, and post the verdict on the PR.
 
-Two axes, reported side by side, and a security review reported above them:
+Two axes, each in its own `macro-loop:verifier` subagent (step 5):
 
 - **Spec:** does the diff do what the Issue's spec asks? This axis decides the verdict.
 - **Standards:** does the code follow this repo's documented standards? Reported, never a reason to fail.
-- **Security:** Claude Code's bundled `/security-review` on the diff, once per PR. Reported first, never a reason to fail.
 
-Each axis runs in its own `macro-loop:verifier` subagent, and the security review in a `macro-loop:security-reviewer` subagent (step 5).
+The security review (Claude Code's `/security-review`) runs once per PR, after a PASS, and never changes the verdict (step 9).
 
 Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/core.md` with the Read tool. Trust, the Issue, the spec and the round come from one command, run in the repo's checkout: `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --pr <n>` when there is a PR, which finds the Issue from the PR's body itself, else `node ${CLAUDE_PLUGIN_ROOT}/scripts/trust.mjs --issue <n>`. **Trust and trust.mjs** in `core.md` says what it prints.
 
 ## 1. Find the branch, the PR, the Issue and the spec
+
+Given the word `security`, only find the branch and the PR, pin the diff (step 3) and do step 9, waiting for it.
 
 - **Branch:** judge the branch given by name, by the user or by `implement`. With no branch named, use the current branch, resolved to its name with `git branch --show-current` first, so no step refers to `HEAD`.
 - **PR:** the one the user named, else the open PR for the branch. Without a PR, verify the branch against the default branch and print the verdict in the terminal instead of posting it.
@@ -49,9 +50,9 @@ List the `check: cmd` commands of a trusted spec comment and note its `updated_a
 
 An approval of the same commands earlier in this session, such as `implement`'s, holds while `updated_at` is unchanged: say so. Read `updated_at` again just before step 5; if it changed, show the new list and ask.
 
-## 5. Identifiers only: start the verifiers and the security reviewer
+## 5. Identifiers only: start the verifiers
 
-Spawn both `macro-loop:verifier` subagents for each Issue, and one `macro-loop:security-reviewer` for the PR, in one message, each Agent call with `isolation: "worktree"`: only that keeps one out of this checkout when agent teams are on. Each prompt is exactly these lines:
+Spawn both `macro-loop:verifier` subagents for each Issue, and no security reviewer, in one message, each Agent call with `isolation: "worktree"`: only that keeps one out of this checkout when agent teams are on. Each prompt is exactly these lines:
 
 ```text
 Axis: spec
@@ -74,12 +75,6 @@ Head: <sha of the branch>
 Answers: none | <answers line>
 ```
 
-```text
-Axis: security
-Base: origin/<base>
-Head: <sha of the branch>
-```
-
 `Also closes` is the rest of `pr.closesAll`, or `none`. `Answers` is `pr.answersLine` from the trust command, the same for both axes: each answer comment in `pr.answers` as `<comment>@<sha>`, leaving out answers whose `sha` is `null`, since the verifier then cannot tell whether the code changed. Without a PR, `none`. Anything else goes to the user, never in a prompt: `verifier-flags.mjs` refuses other lines; start again with the lines alone.
 
 Never run a spec's checks yourself, or offer to. Never continue a verifier with `SendMessage`: its worktree is gone, and `verifier-worktree.mjs` refuses its commands.
@@ -88,7 +83,7 @@ Never run a spec's checks yourself, or offer to. Never continue a verifier with 
 
 A script decides the verdict and writes the comment from the data block each verifier's report ends with, so the session that wrote the change never writes what a person reads first.
 
-The hook `scripts/verifier-report.mjs` saves each verifier's and the security reviewer's report when it stops. Never write a report to a file yourself. Once every agent has finished, run, in the repo's checkout and as a Bash call of its own with nothing added, one `--agent` per agent: the id the Agent tool returned for it, spec and standards of every Issue, and the security reviewer:
+The hook `scripts/verifier-report.mjs` saves each verifier's report when it stops. Never write a report to a file yourself. Once every verifier has finished, run, in the repo's checkout and as a Bash call of its own with nothing added, one `--agent` per verifier: the id the Agent tool returned for it, spec and standards of every Issue:
 
 ```sh
 node ${CLAUDE_PLUGIN_ROOT}/scripts/verdict.mjs --round <N> --head <Head from step 5> --branch <branch> [--pr <pr.number>] --agent <id> --agent <id>...
@@ -96,7 +91,7 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/verdict.mjs --round <N> --head <Head from ste
 
 It writes the comment to a file beside the saved reports and prints that file's path and the heading.
 
-Per Issue, INCONCLUSIVE when a report or block is missing or invalid, `couldNotRun` is not empty (even if the diff seems to settle it), `gh` fails, the spec report misses an AC of the trusted spec it fetches, or an Issue the PR (`--pr`, else the branch's) closes lacks a spec or standards report. NEEDS-FIX when a criterion is unmet or wrong or a failure is introduced; else PASS. The PR is NEEDS-FIX if any Issue is. A criterion judged from the diff because running was declined is not INCONCLUSIVE. Security findings never change the result; a security review that could not run is noted in the verdict. Never decide the verdict yourself.
+Per Issue, INCONCLUSIVE when a report or block is missing or invalid, `couldNotRun` is not empty (even if the diff seems to settle it), `gh` fails, the spec report misses an AC of the trusted spec it fetches, or an Issue the PR (`--pr`, else the branch's) closes lacks a spec or standards report. NEEDS-FIX when a criterion is unmet or wrong or a failure is introduced; else PASS. The PR is NEEDS-FIX if any Issue is. A criterion judged from the diff because running was declined is not INCONCLUSIVE. Never decide the verdict yourself.
 
 ## 7. Report the verdict
 
@@ -108,8 +103,20 @@ The comment starts with the marker `<!-- macro-loop:verify round=N sha=<head> --
 
 ## 8. Next step
 
-- **PASS:** the PR is ready for a person: read the verdict, mark the draft "Ready for review", then merge.
+- **PASS:** the PR is ready for a person: read the verdict, mark the draft "Ready for review", then merge. A posted PASS starts step 9; a NEEDS-FIX or a PASS only printed starts none.
 - **NEEDS-FIX in round 1 or 2:** tell the person to run `/macro-loop:implement <branch>`, with this branch's name, to fix the Spec findings; it hands back to verify. You never start it yourself: verify changes nothing in the checkout.
 - **NEEDS-FIX in round 3:** stop. Two re-verifications have not converged, and a person decides what happens next.
 - **Standards findings** (`S1`, `S2`…, on PASS too): say a person can answer each as wrong, intended or minor, in the format under **Markers and trust** in `github.md`. An answer never changes the verdict.
 - **INCONCLUSIVE:** fix what kept the checks from running, then verify again; the round number stays the same.
+
+## 9. Security review
+
+Start one `macro-loop:security-reviewer` for the head, with `isolation: "worktree"` and `run_in_background: true`, its prompt exactly these lines:
+
+```text
+Axis: security
+Base: origin/<base>
+Head: <sha of the branch>
+```
+
+When it reports, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/verdict.mjs --security --head <Head> --agent <its id>` alone, and post the file it prints as in step 7: a comment starting `<!-- macro-loop:security sha=<head> -->`. Without a PR, show it. If the script fails, post nothing and say why.

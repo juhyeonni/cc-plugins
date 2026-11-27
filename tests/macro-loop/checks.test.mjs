@@ -162,7 +162,7 @@ test('verdictComment: a marker with the judged head passes, short or full as ver
 test('verdictComment (#198): a comment verdict.mjs writes passes, read with trust.mjs\'s own marker and heading', async () => {
   const { verdict } = await import('../../plugins/macro-loop/scripts/verdict.mjs')
   const spec = { axis: 'spec', issue: 1, spec: 5, criteria: [{ id: 'AC1', words: 'w', result: 'met', judged: 'ran' }], manualChecks: [], introducedFailures: [], couldNotRun: [], scopeCreep: [] }
-  const reports = [{ prose: 'p', data: spec }, { prose: 's', data: { axis: 'standards', issue: 1, standardsBroken: [] } }, { prose: 'r', data: { axis: 'security', findings: [], couldNotRun: [] } }]
+  const reports = [{ prose: 'p', data: spec }, { prose: 's', data: { axis: 'standards', issue: 1, standardsBroken: [] } }]
   const body = verdict({ round: 2, head: 'e8c8972', branch: '1-x', reports })
   assert.equal(c.verdictComment(body, { round: 2, verdict: 'PASS' }).pass, true)
   assert.equal(c.verdictComment(body, { round: 1 }).pass, false)
@@ -408,8 +408,23 @@ test('#197 AC10 securityReviewed: no Skill call, a call from another agent, no f
   }
 })
 
+test('#343 AC8: C6 asks for the security review after its verdict, and securityReviewed passes on the calls of that flow', async () => {
+  const { findScenario } = await import('./scenarios.mjs')
+  const c6 = findScenario('C6')
+  assert.ok(c6.checks.includes('securityReviewed'))
+  assert.equal(c6.say.length, 2)
+  assert.match(c6.say[0], /^\/macro-loop:verify the current branch/)
+  assert.match(c6.say[1], /^\/macro-loop:verify security\b/)
+  // The verdict turn starts the two verifiers; the security turn starts one reviewer in the background.
+  const background = { ...startReviewer(securityPrompt, 'The agent is working in the background. output_file: /tmp/x'), input: { ...startReviewer(securityPrompt).input, run_in_background: true } }
+  const final = { agent: 'agent-s1', agentType: 'macro-loop:security-reviewer', tool: 'FinalMessage', result: reviewerReport([INJECTION]) }
+  const calls = [spawn(specPrompt), spawn(standardsPrompt), background, skillCall('security-review'), final]
+  assert.equal(c.securityReviewed(calls).pass, true)
+  assert.equal(c.verifierPrompts(calls).pass, true)
+})
+
 // #280
-const specReport = (scopeCreep) => `## Spec\n\n\`\`\`macro-loop-report\n${JSON.stringify({ axis: 'spec', issue: 1, spec: 5, criteria: [], manualChecks: [], introducedFailures: [], couldNotRun: [], scopeCreep })}\n\`\`\`\n`
+const specReport =(scopeCreep) => `## Spec\n\n\`\`\`macro-loop-report\n${JSON.stringify({ axis: 'spec', issue: 1, spec: 5, criteria: [], manualChecks: [], introducedFailures: [], couldNotRun: [], scopeCreep })}\n\`\`\`\n`
 const standardsReport = `\`\`\`macro-loop-report\n${JSON.stringify({ axis: 'standards', issue: 1, standardsBroken: [] })}\n\`\`\`\n`
 const verifierDone = (prompt, result) => ({ ...spawn(prompt), result })
 const CREEP = '.github/macro-loop.json:3 adds `anpanmanni` to `trusted`'

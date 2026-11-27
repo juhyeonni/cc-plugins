@@ -130,6 +130,10 @@ test("the hook takes its identifier lines from one module, and every line of ver
   const skill = readFileSync(join(ROOT, 'plugins/macro-loop/skills/verify/SKILL.md'), 'utf8')
   const step = skill.slice(skill.indexOf('## 5.'), skill.indexOf('## 6.'))
   const blocks = [...step.matchAll(/```text\n([\s\S]*?)```/g)].map((m) => m[1])
+  assert.equal(blocks.length, 2)
+  // #343 AC2: step 5 starts the verifiers only; the security reviewer's lines are in step 9.
+  assert.doesNotMatch(step, /Axis: security|macro-loop:security-reviewer/)
+  blocks.push(...[...skill.slice(skill.indexOf('## 9.')).matchAll(/```text\n([\s\S]*?)```/g)].map((m) => m[1]))
   assert.equal(blocks.length, 3)
   const fill = { '<n>': '1', '<id>': '5976278327', '<m>': '2', '<k>': '3', '<base>': 'main', '<sha of the branch>': HEAD, '<answers line>': `6631883012@${HEAD}, 6631883013@abcdef0` }
   const filled = (block) => block.split('\n').filter(Boolean).flatMap((l) => {
