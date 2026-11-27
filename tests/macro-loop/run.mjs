@@ -403,6 +403,7 @@ async function runOnce(scenario, model, n, outDir) {
           extraReplies: turns.filter((t) => t.extra).map((t) => ({ asked: t.extra, said: t.said })),
           ...goalChildren(repo, numbers),
           held: scenario.held,
+          pluginRoot: PLUGIN_DIR,
         })
       : [],
   }
