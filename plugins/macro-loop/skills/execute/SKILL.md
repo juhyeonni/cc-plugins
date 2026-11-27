@@ -65,19 +65,19 @@ Write the results to a file in a directory made with `mktemp -d`, as a JSON list
 
 A stage that stopped is `{ "ok": false, "reason": "..." }`. Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/execute.mjs --report <file>` and show its table as it is.
 
-Then remove the verifiers' and security reviewers' worktrees that are still there. For each worktree under `.claude/worktrees/wf_*` that `git worktree list --porcelain` shows detached at a head a verifier judged in step 4:
+Then remove the run's worktrees still there (implement's too, detached at its pushed commit, #295). For each worktree under `.claude/worktrees/wf_*` that `git worktree list --porcelain` shows detached at a head a verifier judged in step 4:
 
 1. Run `git worktree remove --force --force <path>`.
 2. Delete its branch `worktree-<name>` only when `git rev-list -n 1 refs/heads/worktree-<name> --not --remotes` prints nothing. Otherwise keep the branch and say why.
 
 Then delete the run's `worktree-wf_<run>-*` branches whose worktree is already gone (the run id is in the Workflow tool's result), each only when `git rev-list -n 1 refs/heads/<branch> --not --remotes` prints nothing. A verifier's worktree can go while its branch stays.
 
-Leave every other worktree and branch alone: one on an Issue's branch holds that Issue's commits.
+Leave every other worktree and branch alone.
 
 Under the table, list:
 
 - each verdict's URL;
-- any worktree or branch left behind (`git worktree list`, `git branch --list "worktree-*"`): a worktree with an Issue's commits stays until its PR is merged.
+- any worktree or branch left behind (`git worktree list`, `git branch --list "worktree-*"`), and why.
 
 Remove the directory afterwards.
 
