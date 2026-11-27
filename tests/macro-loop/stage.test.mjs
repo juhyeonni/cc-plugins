@@ -78,6 +78,16 @@ test('verdicts: the cap holds after a push; a verdict for an older head sends th
   assert.equal(stageOf(signals({ pr: pr({ verdicts: 1, result: 'PASS', sha: 'old' }) })).stage, 'verify')
 })
 
+test('conflict: implement ahead of every verdict row but the cap; no conflict keeps today\'s stage (#318)', () => {
+  const at = (over) => stageOf(signals({ pr: pr({ base: 'main', ...over }) }))
+  for (const v of [{}, { verdicts: 1, result: 'PASS', sha: 'h2' }, { verdicts: 1, result: 'NEEDS-FIX', sha: 'h2' }, { verdicts: 1, result: 'PASS', sha: 'old' }]) {
+    assert.equal(at({ ...v, conflict: true }).stage, 'implement', JSON.stringify(v))
+    assert.match(at({ ...v, conflict: true }).why, /^conflicts with main: bring the branch up to date/)
+    assert.deepEqual(at({ ...v, conflict: false }), at(v))
+  }
+  assert.equal(at({ verdicts: 3, result: 'NEEDS-FIX', sha: 'h2', conflict: true }).stage, 'stop')
+})
+
 test('verdicts: a verdict with no SHA counts as judging the current head', () => {
   assert.equal(stageOf(signals({ pr: pr({ verdicts: 1, result: 'PASS', sha: null }) })).stage, 'merge')
 })
@@ -220,14 +230,39 @@ test('run: a local branch ahead of the default branch gives open-pr', () => {
   assert.equal(r.out.stage, 'open-pr')
 })
 
-test('run: an open PR with a PASS for its head gives merge, taking the PR from the list without reading it again', () => {
-  const r = runStage(base({
-    [PULLS]: { stdout: [[{ number: 5, state: 'open', merged_at: null, body: 'Closes #77', user: { login: 'carol' }, head: { sha: 'abc1234' }, base: { ref: 'main' } }]] },
-    'api --paginate --slurp repos/{owner}/{repo}/issues/5/comments': { stdout: [[{ id: 2, user: { login: 'carol' }, body: '<!-- macro-loop:verify round=1 sha=abc1234 -->\n## Verify: PASS (round 1 of 3)' }]] },
-  }))
+const PULL5 = 'api repos/{owner}/{repo}/pulls/5'
+// An open PR #5 on main whose verdict is PASS for its head, with `pulls/5` answering `pull`.
+const passing = (pull) => runStage(base({
+  [PULLS]: { stdout: [[{ number: 5, state: 'open', merged_at: null, body: 'Closes #77', user: { login: 'carol' }, head: { sha: 'abc1234' }, base: { ref: 'main' } }]] },
+  'api --paginate --slurp repos/{owner}/{repo}/issues/5/comments': { stdout: [[{ id: 2, user: { login: 'carol' }, body: '<!-- macro-loop:verify round=1 sha=abc1234 -->\n## Verify: PASS (round 1 of 3)' }]] },
+  [PULL5]: pull,
+}))
+
+test('run: an open PR with a PASS for its head gives merge, reading pulls/<n> once for mergeable', () => {
+  const r = passing({ stdout: { number: 5, mergeable: true } })
   assert.equal(r.status, 0, r.stderr)
   assert.deepEqual([r.out.stage, r.out.gate], ['merge', true])
-  assert.equal(r.calls.includes('api repos/{owner}/{repo}/pulls/5'), false)
+  assert.equal(r.calls.filter((call) => call === PULL5).length, 1)
+})
+
+test('run: an open PR that conflicts with its base gives implement naming the base, even with a PASS (#318)', () => {
+  const r = passing({ stdout: { number: 5, mergeable: false } })
+  assert.equal(r.status, 0, r.stderr)
+  assert.deepEqual([r.out.stage, r.out.gate], ['implement', false])
+  assert.match(r.out.why, /^conflicts with main: bring the branch up to date \(round 1, head abc1234\)$/)
+})
+
+test('run: mergeable null, while GitHub computes it, counts as no conflict (#318)', () => {
+  const r = passing({ stdout: { number: 5, mergeable: null } })
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(r.out.stage, 'merge')
+})
+
+test('run: a failed pulls/<n> read prints nothing and exits non-zero with the error (#318)', () => {
+  const r = passing({ stderr: 'gh: Server Error (HTTP 502)\n', code: 1 })
+  assert.notEqual(r.status, 0)
+  assert.equal(r.stdout, '')
+  assert.match(r.stderr, /stage\.mjs: .*pulls\/5.*502/)
 })
 
 test('run: with two open PRs closing the Issue, why names the PR used and the other one', () => {
@@ -235,6 +270,7 @@ test('run: with two open PRs closing the Issue, why names the PR used and the ot
   const r = runStage(base({
     [PULLS]: { stdout: [[pr(8, 'old'), pr(6, '77-fix'), pr(5, '77-test', 'seed')]] },
     'api --paginate --slurp repos/{owner}/{repo}/issues/6/comments': { stdout: [[]] },
+    'api repos/{owner}/{repo}/pulls/6': { stdout: { number: 6, mergeable: true } },
   }))
   assert.equal(r.status, 0, r.stderr)
   assert.match(r.out.why, /\(using PR #6; also closing: #8\)$/)
@@ -288,6 +324,7 @@ test('skills: goal and execute keep no NEEDS-FIX rule of their own; stage.mjs de
 // A PR whose newest verdict is NEEDS-FIX for its head, after `rounds` verdicts, with the spec last updated at `specAt` (#316).
 const specEdit = (rounds, specAt) => runStage(base({
   [ISSUE_COMMENTS]: { stdout: [[{ ...spec, updated_at: specAt }]] },
+  [PULL5]: { stdout: { number: 5, mergeable: true } },
   [PULLS]: { stdout: [[{ number: 5, state: 'open', merged_at: null, body: 'Closes #77', user: { login: 'carol' }, head: { sha: 'abc1234' }, base: { ref: 'main' } }]] },
   'api --paginate --slurp repos/{owner}/{repo}/issues/5/comments': {
     stdout: [Array.from({ length: rounds }, (_, i) => ({
