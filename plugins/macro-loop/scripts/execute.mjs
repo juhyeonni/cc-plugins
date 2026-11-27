@@ -29,14 +29,19 @@ export function uiState(body) {
   return /^Placement:\s*\S/m.test(text) ? 'placed' : 'missing'
 }
 
-// rows: {number, stage, why, prAuthor, ui?}. given: Issue numbers in the order the user named them.
+// The open Issues among a row's blockers (#307): a blocker's Issue closes when its PR merges.
+const waitsFor = (r) => (r.blockers ?? []).filter((b) => b.state === 'open').map((b) => `#${b.number}`)
+
+// rows: {number, stage, why, prAuthor, ui?, blockers?: [{number, state}]}. given: Issue numbers in the order the user named them.
 export function candidates(rows, { trusted, given = null }) {
   const by = new Map(rows.map((r) => [r.number, r]))
   const picked = given ? given.map((n) => by.get(n) ?? { number: n, stage: null }) : rows.filter((r) => START.includes(r.stage))
   const run = []
   const left = []
   for (const r of picked) {
+    const waits = waitsFor(r)
     if (r.stage === null) left.push({ number: r.number, stage: null, reason: 'not an open Issue that status checked' })
+    else if (waits.length) left.push({ number: r.number, stage: r.stage, reason: `waits for ${waits.join(', ')} to merge` })
     else if (!START.includes(r.stage)) left.push({ number: r.number, stage: r.stage, reason: `stage ${r.stage} needs a person: ${r.why}` })
     else if (r.prAuthor && !trusted.includes(lower(r.prAuthor))) left.push({ number: r.number, stage: r.stage, reason: UNTRUSTED })
     else if (r.stage === 'implement' && r.ui === 'missing') left.push({ number: r.number, stage: r.stage, reason: NO_PLACEMENT })
@@ -84,6 +89,9 @@ function git(args) {
 // The local branch `implement` made for Issue n: named <n>-*, newest first.
 const branchOf = (n) => git(['for-each-ref', '--sort=-committerdate', '--format=%(refname:short)', `refs/heads/${n}-*`]).split('\n').filter(Boolean)[0] ?? null
 
+// GitHub's "blocked by" Issue dependencies; a failed read throws, so no Issue runs on a guess.
+const blockersOf = (n) => list(`repos/{owner}/{repo}/issues/${n}/dependencies/blocked_by?per_page=100`).map((i) => ({ number: i.number, state: i.state }))
+
 function decide(argv) {
   const { values, positionals } = parseArgs({ args: argv, options: { report: { type: 'string' } }, allowPositionals: true })
   if (values.report) return report(JSON.parse(readFileSync(values.report, 'utf8')))
@@ -107,7 +115,8 @@ function decide(argv) {
     .map((r) => {
       const pr = findPr(r.number, ctx.prs, ctx.defaultBranch)
       const ui = r.stage === 'implement' ? uiState(specOfIssue(r.number).body) : 'none'
-      return { number: r.number, stage: r.stage, why: r.why, prAuthor: pr?.state === 'open' ? pr.user?.login : null, ui }
+      const blockers = given || START.includes(r.stage) ? blockersOf(r.number) : []
+      return { number: r.number, stage: r.stage, why: r.why, prAuthor: pr?.state === 'open' ? pr.user?.login : null, ui, blockers }
     })
   const { run, left } = candidates(rows, { trusted: ctx.trusted, given })
   for (const r of run) {

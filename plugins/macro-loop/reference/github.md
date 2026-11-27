@@ -10,6 +10,7 @@ The `gh api` commands this plugin uses. The rules for every call, such as REST o
 | Create an Issue | `gh api -X POST repos/{owner}/{repo}/issues -f title='<title>' -F body=@<file> --jq '.number'` |
 | Close as won't do | `gh api -X PATCH repos/{owner}/{repo}/issues/<n> -f state=closed -f state_reason=not_planned` |
 | Close as a duplicate | `gh api -X PATCH repos/{owner}/{repo}/issues/<n> -f state=closed -f state_reason=duplicate` |
+| Mark `<n>` blocked by `<m>` | `gh api -X POST repos/{owner}/{repo}/issues/<n>/dependencies/blocked_by -F issue_id=<m's .id>` |
 
 List open Issues, one JSON object per line. Add `&labels=<label>` to the query to list only Issues with that label:
 
@@ -130,6 +131,7 @@ Stage: held | spec | pr | verdict
 PR: <number, or none>
 Verdict: <PASS | NEEDS-FIX round N, or none>
 Held: <queue ids that hold it, spec not approved, or none>
+Waits for: <#m, the open Issues it is blocked by, or none>
 Warning: <k> of <n> criteria have a runnable check   (only when spec-check.mjs printed fewRunnable)
 Decisions settled without the person:
 - <decision> · <reason> · <source>

@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -87,6 +89,87 @@ test('#115 AC2: a UI Issue with no placement is left out with its reason; a plac
   assert.equal(left[0].stage, 'implement')
   assert.match(left[0].reason, /Placement:/)
   assert.match(left[0].reason, /\/macro-loop:ui-placement/)
+})
+
+test('#307 AC1: an Issue with an open blocker is left out naming each one, whatever its stage; one whose blockers are all closed runs', () => {
+  const open = (number) => ({ number, state: 'open' })
+  const closed = (number) => ({ number, state: 'closed' })
+  const rows = [
+    row(1, 'implement', { blockers: [open(5), closed(6), open(7)] }),
+    row(2, 'implement', { blockers: [closed(5)] }),
+    row(3, 'verify', { prAuthor: 'juhyeonni', blockers: [open(5)] }),
+    row(4, 'grilling', { blockers: [open(5)] }),
+  ]
+  const { run, left } = candidates(rows, { trusted: TRUSTED, given: [1, 2, 3, 4] })
+  assert.deepEqual(run.map((r) => [r.number, r.start]), [[2, 'implement']])
+  assert.deepEqual(left, [
+    { number: 1, stage: 'implement', reason: 'waits for #5, #7 to merge' },
+    { number: 3, stage: 'verify', reason: 'waits for #5 to merge' },
+    { number: 4, stage: 'grilling', reason: 'waits for #5 to merge' },
+  ])
+})
+
+test('#307 AC2: an Issue with no blockers runs exactly as before', () => {
+  const rows = [row(1, 'implement', { blockers: [] }), row(2, 'open-pr')]
+  const { run, left } = candidates(rows, { trusted: TRUSTED })
+  assert.deepEqual(run, [{ ...rows[0], start: 'implement' }, { ...rows[1], start: 'open-pr' }])
+  assert.deepEqual(left, [])
+})
+
+// A stand-in for `gh`, as in stage.test.mjs: answers each call from a table keyed by its arguments.
+const STUB = `#!/usr/bin/env node
+const fs = require('fs')
+const key = process.argv.slice(2).join(' ')
+fs.appendFileSync(process.env.GH_LOG, key + '\\n')
+const r = JSON.parse(fs.readFileSync(process.env.GH_STUB, 'utf8'))[key]
+if (!r) { process.stderr.write('stub: unexpected call: gh ' + key + '\\n'); process.exit(99) }
+if (r.stdout !== undefined) process.stdout.write(JSON.stringify(r.stdout))
+if (r.stderr) process.stderr.write(r.stderr)
+process.exit(r.code ?? 0)
+`
+const BLOCKED_BY = 'api --paginate --slurp repos/{owner}/{repo}/issues/77/dependencies/blocked_by?per_page=100'
+
+function runExecute(blockedBy) {
+  const tmp = mkdtempSync(join(tmpdir(), 'execute-'))
+  mkdirSync(join(tmp, 'bin'))
+  writeFileSync(join(tmp, 'bin', 'gh'), STUB)
+  chmodSync(join(tmp, 'bin', 'gh'), 0o755)
+  const spec = { id: 1, user: { login: 'carol' }, body: '<!-- macro-loop:spec -->' }
+  writeFileSync(join(tmp, 'stub.json'), JSON.stringify({
+    'api user': { stdout: { login: 'carol' } },
+    'api repos/{owner}/{repo}': { stdout: { owner: { login: 'carol', type: 'User' }, default_branch: 'main' } },
+    'api repos/{owner}/{repo}/contents/.github/macro-loop.json': { stderr: 'gh: Not Found (HTTP 404)', code: 1 },
+    'api --paginate --slurp repos/{owner}/{repo}/pulls?state=all&per_page=100': { stdout: [[]] },
+    'api --paginate --slurp repos/{owner}/{repo}/issues?state=open&per_page=100': { stdout: [[{ number: 77, state: 'open', labels: [{ name: 'P1' }, { name: 'ready-for-agent' }], body: '', user: { login: 'carol' } }]] },
+    'api --paginate --slurp repos/{owner}/{repo}/issues/77/comments': { stdout: [[spec]] },
+    'api repos/{owner}/{repo}/issues/comments/1': { stdout: spec },
+    [BLOCKED_BY]: blockedBy,
+  }))
+  const cwd = join(tmp, 'checkout')
+  mkdirSync(cwd)
+  spawnSync('git', ['init', '-q', cwd])
+  const env = { PATH: `${join(tmp, 'bin')}:${dirname(process.execPath)}:/usr/bin:/bin`, GH_STUB: join(tmp, 'stub.json'), GH_LOG: join(tmp, 'calls.log') }
+  writeFileSync(env.GH_LOG, '')
+  const r = spawnSync(process.execPath, [join(ROOT, 'plugins/macro-loop/scripts/execute.mjs')], { cwd, env, encoding: 'utf8' })
+  return { ...r, calls: readFileSync(env.GH_LOG, 'utf8').split('\n').filter(Boolean), out: r.status === 0 ? JSON.parse(r.stdout) : null }
+}
+
+test("#307 AC3: execute.mjs reads each Issue's blockers from dependencies/blocked_by", () => {
+  const waiting = runExecute({ stdout: [[{ number: 76, state: 'open' }]] })
+  assert.equal(waiting.status, 0, waiting.stderr)
+  assert.ok(waiting.calls.includes(BLOCKED_BY))
+  assert.deepEqual(waiting.out.run, [])
+  assert.deepEqual(waiting.out.left, [{ number: 77, stage: 'implement', reason: 'waits for #76 to merge' }])
+  const free = runExecute({ stdout: [[{ number: 76, state: 'closed' }]] })
+  assert.equal(free.status, 0, free.stderr)
+  assert.deepEqual(free.out.run.map((r) => r.number), [77])
+})
+
+test('#307 AC3: a failed blocker read prints nothing and exits non-zero with the error', () => {
+  const r = runExecute({ stderr: 'gh: Server Error (HTTP 500)', code: 1 })
+  assert.notEqual(r.status, 0)
+  assert.equal(r.stdout, '')
+  assert.match(r.stderr, /execute\.mjs: .*blocked_by.*HTTP 500/)
 })
 
 test('AC7: one row per Issue with the stages as columns and what a person does', () => {
