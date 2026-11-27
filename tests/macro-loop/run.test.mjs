@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { evaluate, goalGaps } from './checks.mjs'
-import { asksSomething, assertRunnable, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, play, pluginCommit, removeCanaries, resetGoalSandbox, restoreGithub, runMutants, seedMessage, sh } from './run.mjs'
+import { asksSomething, assertRunnable, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, play, pluginCommit, githubState, removeCanaries, resetGoalSandbox, restoreGithub, runMutants, seedMessage, sh } from './run.mjs'
 import { GOAL_SANDBOX, MUTANT_OPERATORS, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, scenarios } from './scenarios.mjs'
 import { findProjectDir, loadCalls, loadUsage, usageOf } from './transcript.mjs'
 
@@ -681,4 +681,28 @@ test('#324: runOnce resets the sandbox right after the clone, before setup and t
   assert.ok(at('resetGoalSandbox(scenario, repo)') > at('assertSandbox('))
   assert.ok(at('resetGoalSandbox(scenario, repo)') < at('scenario.setup'))
   assert.ok(at('resetGoalSandbox(scenario, repo)') < at('await play('))
+})
+
+// A stubbed `gh`: Issues 6 and 7 with a label and a comment each; `fail` makes one read throw as `sh` does.
+const stateGh = (fail) => (_, args) => {
+  const n = Number(args.join(' ').match(/issues\/(\d+)\//)[1])
+  if (fail?.(args)) throw new Error(`gh api ${args.join(' ')} failed in .: ${fail(args)}`)
+  return args[0] === '--paginate' ? JSON.stringify({ id: n * 10, body: `c${n}` }) : JSON.stringify([`p${n}`])
+}
+const commentsOf6 = (msg) => (a) => a[0] === '--paginate' && a[1].includes('/issues/6/') && msg
+
+test('#329 AC1: a number whose read answers 404 is left out of the snapshot', () => {
+  const state = githubState('.', [6, 7], stateGh(commentsOf6('gh: Not Found (HTTP 404)')))
+  assert.deepEqual(state, { 7: { labels: ['p7'], comments: [{ id: 70, body: 'c7' }] } })
+})
+
+test('#329 AC2: any other failed read still stops the snapshot with its error', () => {
+  assert.throws(() => githubState('.', [6, 7], stateGh(commentsOf6('gh: Bad Gateway (HTTP 502)'))), /issues\/6\/comments .*HTTP 502/)
+})
+
+test('#329 AC3: with no failed read the snapshot holds every number with its labels and comments', () => {
+  assert.deepEqual(githubState('.', [6, 7], stateGh()), {
+    6: { labels: ['p6'], comments: [{ id: 60, body: 'c6' }] },
+    7: { labels: ['p7'], comments: [{ id: 70, body: 'c7' }] },
+  })
 })

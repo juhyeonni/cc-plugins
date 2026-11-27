@@ -191,17 +191,22 @@ function isAncestor(repo, old, tip) {
   return r.status === 0
 }
 
-function githubState(repo, numbers) {
-  return Object.fromEntries(
-    numbers.map((n) => [
-      n,
-      {
-        labels: JSON.parse(gh(repo, [`repos/{owner}/{repo}/issues/${n}/labels`, '--jq', '[.[].name]'])),
-        comments: gh(repo, ['--paginate', `repos/{owner}/{repo}/issues/${n}/comments`, '--jq', '.[] | {id, body}'])
-          .split('\n').filter(Boolean).map((l) => JSON.parse(l)),
-      },
-    ]),
-  )
+// A number that answers 404 left the sandbox, as an Issue the reset just moved can still be
+// listed for a moment: it is left out. Any other failure stops the run (#329).
+export function githubState(repo, numbers, call = gh) {
+  const read = (n) => ({
+    labels: JSON.parse(call(repo, [`repos/{owner}/{repo}/issues/${n}/labels`, '--jq', '[.[].name]'])),
+    comments: call(repo, ['--paginate', `repos/{owner}/{repo}/issues/${n}/comments`, '--jq', '.[] | {id, body}'])
+      .split('\n').filter(Boolean).map((l) => JSON.parse(l)),
+  })
+  return Object.fromEntries(numbers.flatMap((n) => {
+    try {
+      return [[n, read(n)]]
+    } catch (e) {
+      if (/HTTP 404/.test(e.message)) return []
+      throw e
+    }
+  }))
 }
 
 // Every Issue and PR in the sandbox: a run may comment on one its scenario does not name.
@@ -214,6 +219,7 @@ function sandboxNumbers(repo) {
 export function restoreGithub(scenario, repo, before, after, call = gh) {
   if (inGoalSandbox(scenario)) return
   for (const n of Object.keys(before)) {
+    if (!after[n]) continue
     const known = new Set(before[n].comments.map((c) => c.id))
     for (const c of after[n].comments) if (!known.has(c.id)) call(repo, ['-X', 'DELETE', `repos/{owner}/{repo}/issues/comments/${c.id}`])
     if (JSON.stringify(before[n].labels) !== JSON.stringify(after[n].labels)) {
@@ -338,7 +344,7 @@ function goalChildren(repo, numbersBefore) {
   const labels = githubState(repo, childNumbers)
   const children = childNumbers.map((number) => {
     const pr = prs.find((p) => p.closes.includes(number))
-    return { number, labels: labels[number].labels, pr: pr ? { number: pr.number, state: pr.state, draft: pr.draft, verdict: pr.verdict } : null }
+    return { number, labels: labels[number]?.labels ?? [], pr: pr ? { number: pr.number, state: pr.state, draft: pr.draft, verdict: pr.verdict } : null }
   })
   return { children, queue: trust(repo, '--issue', String(tracking.number)).issue.queue ?? [] }
 }
