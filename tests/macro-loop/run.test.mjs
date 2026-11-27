@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { evaluate } from './checks.mjs'
-import { asksSomething, assertRunnable, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, play, pluginCommit, removeCanaries, runMutants, seedMessage } from './run.mjs'
+import { asksSomething, assertRunnable, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, play, pluginCommit, removeCanaries, runMutants, seedMessage, sh } from './run.mjs'
 import { MUTANT_OPERATORS, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, scenarios } from './scenarios.mjs'
 import { findProjectDir, loadCalls, loadUsage, usageOf } from './transcript.mjs'
 
@@ -413,4 +413,32 @@ test('#280 AC8: seeding commits M7 with "AC1–AC3 met" and every other seed wit
     const name = f.replace(/\.patch$/, '')
     assert.equal(seedMessage(name), `Seed ${name}`)
   }
+})
+
+const failing = (stderr) => ({ status: 1, stdout: '', stderr })
+const scripted = (...results) => {
+  const calls = []
+  const run = (cmd) => { calls.push(cmd); return results.shift() }
+  return { calls, run, wait: () => {} }
+}
+
+test('a gh call that fails once with a TLS timeout is retried and returns its output', () => {
+  const s = scripted(failing('net/http: TLS handshake timeout'), { status: 0, stdout: 'ok\n', stderr: '' })
+  assert.equal(sh('gh', ['api', 'x'], '.', undefined, s), 'ok')
+  assert.equal(s.calls.length, 2)
+})
+
+test('a gh call that keeps failing with a transient error throws after its last try', () => {
+  const s = scripted(...Array.from({ length: 4 }, () => failing('HTTP 502: Bad Gateway')))
+  assert.throws(() => sh('gh', ['api', 'x'], '.', undefined, s), /HTTP 502: Bad Gateway/)
+  assert.equal(s.calls.length, 4)
+})
+
+test('a gh 404 and a failing non-gh command are tried once and throw', () => {
+  const notFound = scripted(failing('HTTP 404: Not Found'))
+  assert.throws(() => sh('gh', ['api', 'x'], '.', undefined, notFound), /HTTP 404/)
+  assert.equal(notFound.calls.length, 1)
+  const git = scripted(failing('fatal: connection reset'))
+  assert.throws(() => sh('git', ['fetch'], '.', undefined, git), /connection reset/)
+  assert.equal(git.calls.length, 1)
 })
