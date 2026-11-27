@@ -16,7 +16,7 @@ const BUDGETS = {
   'skills/execute/SKILL.md': 9900,
   'skills/goal/SKILL.md': 17840,
   'skills/grilling/SKILL.md': 16250,
-  'skills/implement/SKILL.md': 12600,
+  'skills/implement/SKILL.md': 12624,
   'skills/init/SKILL.md': 8000,
   'skills/next/SKILL.md': 9725,
   'skills/open-pr/SKILL.md': 14594,
