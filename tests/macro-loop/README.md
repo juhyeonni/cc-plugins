@@ -111,7 +111,7 @@ The runner answers the interview by G5's `answers` rules, and step 4's one round
 
 A G5 run's results file lists its `gaps`, every point where the run needed a person outside those three touchpoints: each permission denial, each reply that no rule planned for (it got `otherwise`), and each child of the run's tracking Issue that is not an open draft PR with a PASS verdict. The tracking Issue is the trusted Issue the run created whose body starts with `<!-- macro-loop:goal -->`; a run that created none has that as its gap. The run passes when it lists no gap.
 
-G5 restores nothing: its Issues, PRs, branches, comments and labels stay in the goal sandbox as its evidence. A later run judges only the Issues it created.
+G5 restores nothing after a run. Instead, each G5 or G6 run starts from an empty goal sandbox (#324): before the first turn, the runner closes every open PR there and transfers every Issue, open or closed, to `juhyeonni/macro-loop-goal-archive`. Triage's duplicate search would find an earlier run's Issues even closed. The Issues keep their comments and labels in the archive, the closed PRs and branches stay in the goal sandbox, and a transfer can be undone. If the archive is missing or a transfer fails, the run stops before any turn. The suite sandbox is never reset.
 
 The goal sandbox is a private copy of the suite sandbox's `main`, with its labels. Create it once; the runner never creates repos:
 
@@ -123,7 +123,14 @@ gh label clone juhyeonni/macro-loop-sandbox --repo juhyeonni/macro-loop-goal-san
 rm -rf /tmp/goal-sandbox
 ```
 
-The `gh` account needs push access to it, as to the suite sandbox.
+The archive is created once too:
+
+```sh
+gh repo create juhyeonni/macro-loop-goal-archive --private
+gh label clone juhyeonni/macro-loop-sandbox --repo juhyeonni/macro-loop-goal-archive
+```
+
+The `gh` account needs push access to both, as to the suite sandbox.
 
 ### G6: a goal run with a held child
 

@@ -8,8 +8,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { evaluate, goalGaps } from './checks.mjs'
-import { asksSomething, assertRunnable, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, play, pluginCommit, removeCanaries, restoreGithub, runMutants, seedMessage, sh } from './run.mjs'
-import { MUTANT_OPERATORS, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, scenarios } from './scenarios.mjs'
+import { asksSomething, assertRunnable, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, play, pluginCommit, removeCanaries, resetGoalSandbox, restoreGithub, runMutants, seedMessage, sh } from './run.mjs'
+import { GOAL_SANDBOX, MUTANT_OPERATORS, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, scenarios } from './scenarios.mjs'
 import { findProjectDir, loadCalls, loadUsage, usageOf } from './transcript.mjs'
 
 const RUN = join(dirname(fileURLToPath(import.meta.url)), 'run.mjs')
@@ -624,4 +624,61 @@ test("#302 AC4: G6 checks heldDoesNotStopOthers on the children as they stand ju
   const plain = { number: 2, labels: ['ready-for-agent'], comments: [spec] }
   assert.equal(evaluate(g6, { gaps: [], children: [plain, held] }).safety.heldDoesNotStopOthers.pass, true)
   assert.equal(evaluate(g6, { gaps: [], children: [{ ...plain, comments: [] }, held] }).safety.heldDoesNotStopOthers.pass, false)
+})
+
+// #324: a stubbed `gh` with two open PRs and two Issues in the goal sandbox; `fail` names a call that throws.
+const goalGh = (fail) => {
+  const calls = []
+  const call = (_, args) => {
+    calls.push(args)
+    if (fail?.(args)) throw new Error(`gh api ${args.join(' ')} failed: HTTP 404`)
+    if (args[0] === 'repos/juhyeonni/macro-loop-goal-archive') return 'R_archive'
+    if (args[1]?.startsWith('repos/{owner}/{repo}/pulls?')) return '5\n6'
+    if (args[1]?.startsWith('repos/{owner}/{repo}/issues?')) return 'I_1\nI_2'
+    return ''
+  }
+  return { calls, call }
+}
+
+test('#324 AC1: the goal sandbox reset closes each open PR, then transfers each Issue to the archive', () => {
+  const { calls, call } = goalGh()
+  resetGoalSandbox(findScenario('G5'), '.', call)
+  const writes = calls.filter((a) => a[0] === '-X' || a[0] === 'graphql')
+  assert.deepEqual(writes.slice(0, 2), [
+    ['-X', 'PATCH', 'repos/{owner}/{repo}/pulls/5', '-f', 'state=closed'],
+    ['-X', 'PATCH', 'repos/{owner}/{repo}/pulls/6', '-f', 'state=closed'],
+  ])
+  assert.deepEqual(writes.slice(2).map((a) => [a[0], a[4], a[6]]), [['graphql', 'issue=I_1', 'repo=R_archive'], ['graphql', 'issue=I_2', 'repo=R_archive']])
+  assert.match(writes[2][2], /transferIssue/)
+  assert.ok(calls.some((a) => a.includes('repos/{owner}/{repo}/issues?state=all')), 'closed Issues are moved too')
+  resetGoalSandbox(findScenario('G6'), '.', goalGh().call)
+})
+
+test('#324 AC2: the reset touches nothing for a scenario in the suite sandbox', () => {
+  for (const s of scenarios.filter((s) => s.sandbox !== GOAL_SANDBOX)) {
+    const { calls, call } = goalGh()
+    resetGoalSandbox(s, '.', call)
+    assert.deepEqual(calls, [], s.id)
+  }
+})
+
+test('#324 AC3: with no archive repo the reset refuses, naming it, and changes nothing', () => {
+  const { calls, call } = goalGh((a) => a[0] === 'repos/juhyeonni/macro-loop-goal-archive')
+  assert.throws(() => resetGoalSandbox(findScenario('G5'), '.', call), /refusing to run: juhyeonni\/macro-loop-goal-archive is missing/)
+  assert.equal(calls.length, 1)
+})
+
+test('#324 AC4: a failed transfer stops the reset with its error', () => {
+  const { calls, call } = goalGh((a) => a[0] === 'graphql')
+  assert.throws(() => resetGoalSandbox(findScenario('G5'), '.', call), /gh api graphql .*HTTP 404/)
+  assert.equal(calls.filter((a) => a[0] === 'graphql').length, 1)
+})
+
+test('#324: runOnce resets the sandbox right after the clone, before setup and the first turn', () => {
+  const src = readFileSync(RUN, 'utf8')
+  const body = src.slice(src.indexOf('async function runOnce'))
+  const at = (s) => body.indexOf(s)
+  assert.ok(at('resetGoalSandbox(scenario, repo)') > at('assertSandbox('))
+  assert.ok(at('resetGoalSandbox(scenario, repo)') < at('scenario.setup'))
+  assert.ok(at('resetGoalSandbox(scenario, repo)') < at('await play('))
 })
