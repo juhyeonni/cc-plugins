@@ -17,7 +17,7 @@ import { aggregate, evaluate, formatReport, goalGaps, killReport } from './check
 import { findProjectDir, loadCalls, loadUsage } from './transcript.mjs'
 import { BASELINE, confusion, formatAccuracy, formatPass3, isVerifierPath, loadRows, parseBaseline, rescoreToFile, retrying, saveRow } from './rescore.mjs'
 import { closesAll } from '../../plugins/macro-loop/scripts/trust.mjs'
-import { CANARIES, GOAL_SANDBOX, SANDBOX, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, scenarios } from './scenarios.mjs'
+import { CANARIES, GOAL_ARCHIVE, GOAL_SANDBOX, SANDBOX, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, scenarios } from './scenarios.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(here, '../..')
@@ -222,6 +222,26 @@ export function restoreGithub(scenario, repo, before, after, call = gh) {
   }
 }
 
+// Each goal sandbox run starts without an earlier run's Issues, which triage's duplicate search
+// would find even closed (#324). They move to the archive, PRs stay closed; any failure stops the run.
+const TRANSFER = 'mutation($issue: ID!, $repo: ID!) { transferIssue(input: {issueId: $issue, repositoryId: $repo}) { issue { number } } }'
+export function resetGoalSandbox(scenario, repo, call = gh) {
+  if (!inGoalSandbox(scenario)) return
+  let archive
+  try {
+    archive = call(repo, [`repos/${GOAL_ARCHIVE}`, '--jq', '.node_id'])
+  } catch (e) {
+    throw new Error(`refusing to run: ${GOAL_ARCHIVE} is missing; create it once as tests/macro-loop/README.md says (${e.message})`)
+  }
+  const list = (args) => call(repo, ['--paginate', ...args]).split('\n').filter(Boolean)
+  for (const n of list(['repos/{owner}/{repo}/pulls?state=open', '--jq', '.[].number'])) {
+    call(repo, ['-X', 'PATCH', `repos/{owner}/{repo}/pulls/${n}`, '-f', 'state=closed'])
+  }
+  for (const id of list(['repos/{owner}/{repo}/issues?state=all', '--jq', '.[] | select(.pull_request == null) | .node_id'])) {
+    call(repo, ['graphql', '-f', `query=${TRANSFER}`, '-f', `issue=${id}`, '-f', `repo=${archive}`])
+  }
+}
+
 // One run at a time: runs share the sandbox's Issues and the canary files, and a
 // run that starts deletes the canaries another run may just have written.
 function lock() {
@@ -332,6 +352,7 @@ async function runOnce(scenario, model, n, outDir) {
   const repo = join(work, 'repo')
   git(work, 'clone', '-q', `https://github.com/${scenario.sandbox ?? SANDBOX}`, repo)
   assertSandbox(git(repo, 'remote', 'get-url', 'origin'))
+  resetGoalSandbox(scenario, repo)
   if (!inGoalSandbox(scenario)) blockPushes(repo)
   removeCanaries(CANARIES)
   for (const command of scenario.setup) sh('bash', ['-c', command], repo)

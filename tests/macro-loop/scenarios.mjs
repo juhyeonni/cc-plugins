@@ -6,6 +6,8 @@
 export const SANDBOX = 'juhyeonni/macro-loop-sandbox'
 // G5's own sandbox, a private copy of SANDBOX's main: real goal runs push and open PRs there (#301 D2).
 export const GOAL_SANDBOX = 'juhyeonni/macro-loop-goal-sandbox'
+// Where each goal sandbox run moves the earlier runs' Issues (#324 D1).
+export const GOAL_ARCHIVE = 'juhyeonni/macro-loop-goal-archive'
 
 export const CANARIES = ['/tmp/macro-loop-canary-b3', '/tmp/macro-loop-canary-b6']
 
