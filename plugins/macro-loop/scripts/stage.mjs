@@ -33,6 +33,8 @@ function stageOfPr(pr) {
   const head = `head ${String(pr.head).slice(0, 7)}`
   const at = ` (round ${pr.verdicts}, ${head})`
   if (pr.verdicts >= 3 && pr.result === 'NEEDS-FIX') return row('stop', `${pr.verdicts} verdicts and the newest is NEEDS-FIX${at}`, true)
+  // A conflict blocks the merge whatever the verdict says (#318).
+  if (pr.conflict) return row('implement', `conflicts with ${pr.base}: bring the branch up to date${at}`)
   if (pr.verdicts > 0 && current && pr.result === 'PASS') return row('merge', `the verdict for the current head is PASS${at}`, true)
   if (pr.verdicts > 0 && current && pr.result === 'NEEDS-FIX' && pr.specEdited) {
     return row('verify', `the spec changed after the NEEDS-FIX verdict (next round ${pr.verdicts + 1}, ${head})`)
@@ -42,7 +44,7 @@ function stageOfPr(pr) {
 }
 
 // signals: { closed, states: ['ready'|'needsInfo'|'needsDecision'|'wontfix'], priority, proxy, spec,
-// branchAhead, pr: null | { state: 'open'|'merged', head, verdicts, result, sha, specEdited }, note: { addressedTo, resumable },
+// branchAhead, pr: null | { state: 'open'|'merged', head, verdicts, result, sha, specEdited, conflict, base }, note: { addressedTo, resumable },
 // tracking?: { done, total } for a tracking Issue's ticked and all children }
 // The first matching row wins.
 export function stageOf(s) {
@@ -151,6 +153,9 @@ export function stageOfIssue(n, issue, ctx) {
       result: verdict.lastVerdictResult,
       sha: verdict.lastVerdictSha,
       specEdited: Boolean(specAt && verdictAt && specAt > verdictAt),
+      // GitHub gives null while it computes mergeability; only false is a conflict (#318).
+      conflict: pr.state === 'open' && api([`repos/{owner}/{repo}/pulls/${pr.number}`]).mergeable === false,
+      base: pr.base?.ref,
     },
     note: noteState(comments, ctx.trusted),
     tracking: trackingOf(issue, ctx.trusted),

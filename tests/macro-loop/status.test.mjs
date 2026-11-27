@@ -96,6 +96,7 @@ const USER = 'api user'
 const REPO = 'api repos/{owner}/{repo}'
 const CONFIG = 'api repos/{owner}/{repo}/contents/.github/macro-loop.json'
 const COMMENTS = (n) => `api --paginate --slurp repos/{owner}/{repo}/issues/${n}/comments`
+const PULL = (n) => `api repos/{owner}/{repo}/pulls/${n}`
 const config = (text) => ({ stdout: { content: Buffer.from(text).toString('base64'), encoding: 'base64' } })
 const shared = (over = {}) => ({
   [USER]: { stdout: { login: 'carol' } },
@@ -133,6 +134,7 @@ const threeIssues = (over = {}) => shared({
   [COMMENTS(2)]: { stdout: [[]] },
   [COMMENTS(3)]: { stdout: [[SPEC]] },
   [COMMENTS(5)]: { stdout: [[PASS]] },
+  [PULL(5)]: { stdout: { number: 5, mergeable: true } },
   ...over,
 })
 
@@ -145,10 +147,10 @@ test('run: what every Issue shares is read once, and each Issue costs only its c
     ['issue', 2, 'grilling'],
     ['issue', 1, 'implement'],
   ])
-  for (const call of [ISSUES, USER, REPO, CONFIG, PULLS, COMMENTS(1), COMMENTS(2), COMMENTS(3), COMMENTS(5)]) {
+  for (const call of [ISSUES, USER, REPO, CONFIG, PULLS, COMMENTS(1), COMMENTS(2), COMMENTS(3), COMMENTS(5), PULL(5)]) {
     assert.equal(r.calls.filter((c) => c === call).length, 1, call)
   }
-  assert.equal(r.calls.length, 9, r.calls.join('\n'))
+  assert.equal(r.calls.length, 10, r.calls.join('\n'))
 })
 
 test('run: when what every Issue shares cannot be read, nothing is printed and the run fails', () => {

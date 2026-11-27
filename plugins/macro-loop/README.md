@@ -32,7 +32,7 @@ Any stage can be the entry point. When a stage's input is missing, the skill war
 
 A typical run: `/macro-loop:triage What needs attention?`, then `/macro-loop:grilling #12`, then `/macro-loop:spec #12`, then `/macro-loop:implement #12`, which ends with a draft PR opened and verified. `open-pr` asks before it pushes, unless you asked for the push yourself. A draft cannot be merged until you mark it "Ready for review", after reading the verdict.
 
-`/macro-loop:next #12` runs those stages for you in order, and `/macro-loop:execute 12 15 18` runs the machine stages for several Issues at once. A NEEDS-FIX goes back to `implement`, or straight to `verify` when the spec was edited after that verdict, until `stage.mjs` says `stop` (three verdicts, the newest NEEDS-FIX); then a person decides.
+`/macro-loop:next #12` runs those stages for you in order, and `/macro-loop:execute 12 15 18` runs the machine stages for several Issues at once. A NEEDS-FIX goes back to `implement`, or straight to `verify` when the spec was edited after that verdict, until `stage.mjs` says `stop` (three verdicts, the newest NEEDS-FIX); then a person decides. An open PR that conflicts with its base also goes back to `implement`, which merges the base in and sends it to `verify` again.
 
 `init`, `next`, `goal` and `execute` start only from their slash command. The other skills also start from plain words, or when another skill hands over to them.
 
