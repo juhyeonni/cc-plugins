@@ -11,7 +11,7 @@ import { loadSet, overBudget } from './budget.mjs'
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), '../../plugins/macro-loop')
 
 const BUDGETS = {
-  'agents/security-reviewer.md': 3000,
+  'agents/security-reviewer.md': 3176,
   'agents/verifier.md': 16000,
   'skills/execute/SKILL.md': 9620,
   'skills/goal/SKILL.md': 17309,

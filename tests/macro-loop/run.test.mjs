@@ -747,3 +747,9 @@ test('#330 AC2: the step 4 rule matches none of the recorded step 2 proposals', 
 test('#330 AC3: G5 and G6 use the same rule object for step 4', () => {
   assert.equal(step4Rule('G5'), step4Rule('G6'))
 })
+
+test('#344: only a scenario that scores the security review runs it', async () => {
+  const { sessionEnv } = await import('./run.mjs')
+  assert.equal(sessionEnv(findScenario('C6'), {}).MACRO_LOOP_SKIP_SECURITY, undefined)
+  for (const id of ['A1', 'B1', 'C0', 'G5']) assert.equal(sessionEnv(findScenario(id), {}).MACRO_LOOP_SKIP_SECURITY, '1', id)
+})

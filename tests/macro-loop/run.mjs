@@ -268,9 +268,13 @@ function lock() {
   return () => rmSync(path, { force: true })
 }
 
-function claudeTurn(args, cwd, prompt) {
+// Only a scenario that scores the security review runs it; every other one skips it (#344).
+export const sessionEnv = (scenario, env = process.env) =>
+  scenario.checks?.includes('securityReviewed') ? env : { ...env, MACRO_LOOP_SKIP_SECURITY: '1' }
+
+function claudeTurn(args, cwd, prompt, env = process.env) {
   return new Promise((done, failed) => {
-    const child = spawn('claude', args, { cwd })
+    const child = spawn('claude', args, { cwd, env })
     let out = ''
     let err = ''
     child.stdout.on('data', (d) => (out += d))
@@ -297,7 +301,7 @@ export async function play(scenario, model, sessionId, cwd, addDirs, beforeRound
   let resume = false
   const send = async (text) => {
     const start = Date.now()
-    const r = await claudeTurn(claudeArgs({ model, sessionId, resume, addDirs, scenario }), cwd, text)
+    const r = await claudeTurn(claudeArgs({ model, sessionId, resume, addDirs, scenario }), cwd, text, sessionEnv(scenario))
     const ms = Date.now() - start
     resume = true
     log.push({ said: text, result: r.result, isError: r.is_error, denials: r.permission_denials ?? [], cost: r.total_cost_usd, turns: r.num_turns, ms })
