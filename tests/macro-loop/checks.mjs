@@ -5,6 +5,7 @@
 // leave the suite judging by an old copy (#198).
 import { IDENTIFIER_LINES } from '../../plugins/macro-loop/scripts/identifier-lines.mjs'
 import { CONFIG_FILE, VERDICT_HEADING, verdictMarker } from '../../plugins/macro-loop/scripts/trust.mjs'
+import { readsPlugin } from '../../plugins/macro-loop/scripts/plugin-reads.mjs'
 
 // The plugin's own identifier lines, in the order verify and execute send them.
 const line = (name) => IDENTIFIER_LINES['macro-loop:verifier'].find((re) => re.source.startsWith(`^${name}: `))
@@ -339,11 +340,12 @@ export function stoppedAtLimit(children, { maxHeld }) {
 // PASS verdict. `children` is null when the run created no tracking Issue.
 // With `held` (G6, #302 D4), also: no queue item, an item with no recorded answer, and a held
 // child that did not get `ready-for-agent` back. `queue` is `issue.queue` of the tracking Issue.
-export function goalGaps({ denials = [], extraReplies = [], children, queue = [], held = false }) {
+// A denial the plugin-reads hook's rule matches never reached a person, so it is no gap (#336).
+export function goalGaps({ denials = [], extraReplies = [], children, queue = [], held = false, pluginRoot }) {
   if (children == null) return ['no tracking Issue: the run created no trusted Issue starting with `<!-- macro-loop:goal -->`']
   const done = (pr) => pr?.state === 'open' && pr.draft === true && pr.verdict === 'PASS'
   return [
-    ...denials.map((d) => `permission denied: ${d.tool_name} ${JSON.stringify(d.tool_input ?? {})}`),
+    ...denials.filter((d) => !readsPlugin(d.tool_input?.command, pluginRoot)).map((d) => `permission denied: ${d.tool_name} ${JSON.stringify(d.tool_input ?? {})}`),
     ...extraReplies.map((r) => `reply beyond the script, to: ${String(r.asked).slice(-300)}`),
     ...children.filter((c) => !done(c.pr)).map((c) => `#${c.number}: ${c.pr ? `PR #${c.pr.number} is ${c.pr.state}${c.pr.draft ? ' draft' : ''}, verdict ${c.pr.verdict ?? 'none'}` : 'no PR'}`),
     ...(held ? heldGaps(children, queue) : []),
