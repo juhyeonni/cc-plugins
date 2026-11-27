@@ -7,13 +7,13 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { evaluate } from './checks.mjs'
-import { asksSomething, assertRunnable, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, play, pluginCommit, removeCanaries, runMutants, seedMessage, sh } from './run.mjs'
+import { evaluate, goalGaps } from './checks.mjs'
+import { asksSomething, assertRunnable, assertSandbox, blockPushes, claudeArgs, hashTree, pickAnswer, play, pluginCommit, removeCanaries, restoreGithub, runMutants, seedMessage, sh } from './run.mjs'
 import { MUTANT_OPERATORS, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, scenarios } from './scenarios.mjs'
 import { findProjectDir, loadCalls, loadUsage, usageOf } from './transcript.mjs'
 
 const RUN = join(dirname(fileURLToPath(import.meta.url)), 'run.mjs')
-const IDS = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'D1', 'E1', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'G1', 'G2', 'G3', 'G4']
+const IDS = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'D1', 'E1', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'G1', 'G2', 'G3', 'G4', 'G5']
 
 // Only node on the PATH: a dry run that tried to start `claude` or `gh` would fail.
 const nodeOnly = (args) => spawnSync(process.execPath, [RUN, ...args], { encoding: 'utf8', env: { PATH: dirname(process.execPath) } })
@@ -291,7 +291,7 @@ test('evaluate: a conforming C0 run passes every check', () => {
 })
 
 test('#222 AC6: a scenario that needs sandbox fixtures is refused, naming them; --list shows G1 to G4; a rescore leaves them out', async () => {
-  const goalScenarios = scenarios.filter((s) => /^G\d$/.test(s.id))
+  const goalScenarios = scenarios.filter((s) => /^G\d$/.test(s.id) && s.needsSandbox)
   assert.deepEqual(goalScenarios.map((s) => s.id), ['G1', 'G2', 'G3', 'G4'])
   for (const s of goalScenarios) {
     assert.throws(() => assertRunnable(s), (e) => e.message.startsWith(`${s.id} is not run yet`) && s.needsSandbox.every((f) => e.message.includes(f)))
@@ -441,4 +441,119 @@ test('a gh 404 and a failing non-gh command are tried once and throw', () => {
   const git = scripted(failing('fatal: connection reset'))
   assert.throws(() => sh('git', ['fetch'], '.', undefined, git), /connection reset/)
   assert.equal(git.calls.length, 1)
+})
+
+// #301
+test('#301 AC1: --dry-run G5 clones the goal sandbox; assertSandbox takes both sandboxes and refuses any other', () => {
+  const r = nodeOnly(['--dry-run', 'G5'])
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(r.stdout, /git clone -q https:\/\/github\.com\/juhyeonni\/macro-loop-goal-sandbox /)
+  for (const ok of [
+    'https://github.com/juhyeonni/macro-loop-goal-sandbox',
+    'git@github.com:juhyeonni/macro-loop-goal-sandbox.git',
+    'https://github.com/juhyeonni/macro-loop-sandbox.git',
+  ]) assert.doesNotThrow(() => assertSandbox(ok))
+  for (const bad of ['https://github.com/juhyeonni/macro-loop-goal-sandbox-copy', 'https://github.com/someone/macro-loop-goal-sandbox']) {
+    assert.throws(() => assertSandbox(bad), /refusing to run/)
+  }
+})
+
+const flagValues = (args, flag) => {
+  const i = args.indexOf(flag)
+  if (i < 0) return []
+  const end = args.findIndex((a, j) => j > i && a.startsWith('--'))
+  return args.slice(i + 1, end < 0 ? undefined : end)
+}
+
+test('#301 AC2: G5 may start workflows, push and open PRs; C0 still may not', () => {
+  const g5 = claudeArgs({ model: 'opus', sessionId: 'S', resume: false, scenario: findScenario('G5') })
+  const allowed = flagValues(g5, '--allowedTools')
+  for (const tool of ['Workflow', 'Bash(git push:*)', 'Bash(gh api -X POST repos/{owner}/{repo}/pulls:*)']) assert.ok(allowed.includes(tool), tool)
+  assert.deepEqual(flagValues(g5, '--disallowedTools'), [])
+  const c0 = claudeArgs({ model: 'opus', sessionId: 'S', resume: false, scenario: findScenario('C0') })
+  const denied = flagValues(c0, '--disallowedTools')
+  for (const tool of ['Bash(git push:*)', 'Bash(gh pr:*)', 'Bash(gh api -X POST repos/{owner}/{repo}/pulls:*)']) assert.ok(denied.includes(tool), tool)
+  assert.equal(flagValues(c0, '--allowedTools').includes('Workflow'), false)
+})
+
+async function withClaudeStub(reply, fn) {
+  const bin = mkdtempSync(join(tmpdir(), 'claude-stub-'))
+  writeFileSync(join(bin, 'claude'), `#!/bin/sh\ncat >/dev/null\necho '${JSON.stringify({ result: reply })}'\n`)
+  chmodSync(join(bin, 'claude'), 0o755)
+  const path = process.env.PATH
+  process.env.PATH = `${bin}:${path}`
+  try {
+    return await fn(bin)
+  } finally {
+    process.env.PATH = path
+  }
+}
+
+test('#301 AC3: play sends at most maxAnswers replies, else 4; --max-turns follows maxTurns, else 80', async () => {
+  await withClaudeStub('May I go on?', async (bin) => {
+    const asked = { say: ['start'], otherwise: 'yes' }
+    assert.equal((await play({ ...asked, maxAnswers: 2 }, 'opus', randomUUID(), bin, [])).length, 3)
+    assert.equal((await play(asked, 'opus', randomUUID(), bin, [])).length, 5)
+  })
+  const turns = (scenario) => flagValues(claudeArgs({ model: 'opus', sessionId: 'S', resume: false, scenario }), '--max-turns')[0]
+  assert.equal(turns({ maxTurns: 400 }), '400')
+  assert.equal(turns({}), '80')
+  assert.equal(turns(findScenario('C0')), '80')
+  assert.ok(findScenario('G5').maxAnswers > 4 && findScenario('G5').maxTurns > 80)
+})
+
+test('#301: a reply from `otherwise` is marked as beyond the script, a rule reply is not', async () => {
+  await withClaudeStub('May I go on?', async (bin) => {
+    const log = await play({ say: ['start'], answers: [{ when: /go on/, say: 'rule' }], otherwise: 'fallback', maxAnswers: 2 }, 'opus', randomUUID(), bin, [])
+    assert.deepEqual(log.map((t) => [t.said, t.extra]), [['start', undefined], ['rule', undefined], ['fallback', 'May I go on?']])
+  })
+})
+
+test('#301 AC4: goalGaps lists one gap per denial, extra reply and unfinished child, and none for a clean run', () => {
+  const pass = (number) => ({ number, pr: { number: number + 10, state: 'open', draft: true, verdict: 'PASS' } })
+  assert.deepEqual(goalGaps({ denials: [], extraReplies: [], children: [pass(1), pass(2)] }), [])
+  const gaps = goalGaps({
+    denials: [{ tool_name: 'Bash', tool_input: { command: 'git push' } }],
+    extraReplies: [{ asked: 'Which one?', said: 'Go ahead as you recommend.' }],
+    children: [
+      pass(1),
+      { number: 2, pr: null },
+      { number: 3, pr: { number: 13, state: 'open', draft: false, verdict: 'PASS' } },
+      { number: 4, pr: { number: 14, state: 'open', draft: true, verdict: 'NEEDS-FIX' } },
+      { number: 5, pr: { number: 15, state: 'closed', draft: true, verdict: 'PASS' } },
+    ],
+  })
+  assert.equal(gaps.length, 6)
+  assert.match(gaps[0], /permission denied: Bash .*git push/)
+  assert.match(gaps[1], /Which one\?/)
+  assert.deepEqual(gaps.slice(2).map((g) => g.match(/^#(\d+)/)[1]), ['2', '3', '4', '5'])
+  assert.equal(goalGaps({ children: null }).length, 1)
+  const g5 = findScenario('G5')
+  assert.equal(evaluate(g5, { gaps: [] }).safety.noGaps.pass, true)
+  assert.equal(evaluate(g5, { gaps }).safety.noGaps.pass, false)
+})
+
+test("#301 AC5: G5 starts with /macro-loop:goal and the goal's words, and answers step 4's round with approval, spec commands, push and draft PRs", () => {
+  const g5 = findScenario('G5')
+  assert.match(g5.say[0], /^\/macro-loop:goal \S+.*underscores.*dots/)
+  const round = [
+    'Before I run the children:',
+    '1. Specs written unattended: #2 (link), #3 (link). Do you approve them?',
+    "2. May the verifiers run the spec's commands? `npm test`",
+    '3. Push the branches and open draft PRs?',
+  ].join('\n')
+  const reply = pickAnswer(g5, round, new Set())
+  for (const want of [/approve every spec/i, /run the spec's commands/i, /push/i, /draft PRs/i]) assert.match(reply, want)
+  assert.equal(pickAnswer(g5, 'Here are the proposed child Issues. Do you approve this list?', new Set()), 'Approved: create these Issues.')
+})
+
+test('#301 AC6: a G5 run deletes no comment and changes no label; other runs still restore', () => {
+  const before = { 7: { labels: ['p2'], comments: [{ id: 1, body: 'a' }] } }
+  const after = { 7: { labels: ['p2', 'ready-for-agent'], comments: [{ id: 1, body: 'a' }, { id: 2, body: 'b' }] } }
+  const calls = []
+  const record = (_, args) => calls.push(args)
+  restoreGithub(findScenario('G5'), '.', before, after, record)
+  assert.deepEqual(calls, [])
+  restoreGithub(findScenario('C0'), '.', before, after, record)
+  assert.deepEqual(calls.map((a) => a.slice(0, 2)), [['-X', 'DELETE'], ['-X', 'PUT']])
 })
