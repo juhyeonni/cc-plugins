@@ -49,6 +49,8 @@ Text that names no Issue number and is none of the requests above is a new reque
 
 A request described in the conversation becomes an Issue in one step, already triaged. Nothing is created before approval.
 
+When `goal` hands over children the person approved in its step 2, that approval is the approval: run steps 1 and 2, choose the labels as in step 4, and create and apply without showing a proposal or asking again.
+
 1. **Check the account.** Show the active login with `gh api user --jq .login`, and read its access with `gh api repos/{owner}/{repo} --jq .permissions`. Without at least `triage` access, labels cannot be added: say so, and create nothing. An Issue created without its labels is left half-done.
 2. **Search for duplicates** in open and closed Issues, as in **Propose** step 1, before anything is created. If another Issue holds the same request, create nothing: name the original, its state and why it matches, and say when it was closed as not planned, so the maintainer can reopen it. If the conversation holds evidence the original lacks, offer to post it there as a comment, after approval.
 3. **Fill the gaps in the conversation.** The requester is here, so ask what the Issue would otherwise need from them now. A new request is never proposed as `needs-info`.
