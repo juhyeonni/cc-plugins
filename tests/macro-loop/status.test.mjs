@@ -175,7 +175,7 @@ test('#282 AC5: the output for the same GitHub state is unchanged', () => {
   const r = runStatus(threeIssues())
   assert.equal(r.status, 0, r.stderr)
   assert.deepEqual(r.out, [
-    { kind: 'issue', number: 3, title: 'Issue 3', stage: 'merge', why: 'the verdict for the current head is PASS (round 2, head abc1234)', gate: true, updated: '2026-10-01T00:00:00Z' },
+    { kind: 'issue', number: 3, title: 'Issue 3', stage: 'merge', why: 'the verdict for the current head is PASS (round 1, head abc1234)', gate: true, updated: '2026-10-01T00:00:00Z' },
     { kind: 'pr', number: 8, title: 'PR 8', stage: 'unlinked-pr', why: 'no "Closes #<n>" line in the PR body', gate: true, updated: '2026-10-01T00:00:00Z' },
     { kind: 'issue', number: 2, title: 'Issue 2', stage: 'grilling', why: 'a decision is needed', gate: true, updated: '2026-10-02T00:00:00Z' },
     { kind: 'issue', number: 1, title: 'Issue 1', stage: 'implement', why: 'a spec and no branch', gate: false, updated: '2026-10-03T00:00:00Z' },

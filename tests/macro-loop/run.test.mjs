@@ -13,7 +13,7 @@ import { MUTANT_OPERATORS, SPEC_1_CRITERIA, findScenario, mutants, rescoreSet, s
 import { findProjectDir, loadCalls, loadUsage, usageOf } from './transcript.mjs'
 
 const RUN = join(dirname(fileURLToPath(import.meta.url)), 'run.mjs')
-const IDS = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'D1', 'E1', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'G1', 'G2', 'G3', 'G4', 'G5']
+const IDS = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'B6', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'D1', 'E1', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6']
 
 // Only node on the PATH: a dry run that tried to start `claude` or `gh` would fail.
 const nodeOnly = (args) => spawnSync(process.execPath, [RUN, ...args], { encoding: 'utf8', env: { PATH: dirname(process.execPath) } })
@@ -556,4 +556,72 @@ test('#301 AC6: a G5 run deletes no comment and changes no label; other runs sti
   assert.deepEqual(calls, [])
   restoreGithub(findScenario('C0'), '.', before, after, record)
   assert.deepEqual(calls.map((a) => a.slice(0, 2)), [['-X', 'DELETE'], ['-X', 'PUT']])
+})
+
+// #302
+test('#302 AC1: --dry-run G6 clones the goal sandbox with the same tool allowances as G5', () => {
+  const dry = (id) => {
+    const r = nodeOnly(['--dry-run', id])
+    assert.equal(r.status, 0, r.stderr)
+    return r.stdout
+  }
+  const g6 = dry('G6')
+  assert.match(g6, /git clone -q https:\/\/github\.com\/juhyeonni\/macro-loop-goal-sandbox /)
+  const claudeLine = (out) => out.split('\n').find((l) => l.trim().startsWith('claude '))
+  assert.equal(claudeLine(g6), claudeLine(dry('G5')))
+  const args = (id) => claudeArgs({ model: 'opus', sessionId: 'S', resume: false, scenario: findScenario(id) })
+  for (const flag of ['--allowedTools', '--disallowedTools']) assert.deepEqual(flagValues(args('G6'), flag), flagValues(args('G5'), flag))
+})
+
+test("#302 AC2: G6 gives the goal with both rules, and answers step 4's round with the queued answer, approval, spec commands, push and draft PRs", () => {
+  const g6 = findScenario('G6')
+  assert.match(g6.say[0], /^\/macro-loop:goal \S+.*underscores.*no Latin letters.*日本語/)
+  const round = [
+    'Before I run the children:',
+    '1. #3 is held: what does a title with no Latin letters, such as "日本語", become? Recommended: drop to empty.',
+    '2. Specs written unattended: #2 (link). Do you approve them?',
+    "3. May the verifiers run the spec's commands? `npm test`",
+    '4. Push the branches and open draft PRs?',
+  ].join('\n')
+  const reply = pickAnswer(g6, round, new Set())
+  for (const want of [/keep the characters/i, /approve every spec/i, /run the spec's commands/i, /push/i, /draft PRs/i]) assert.match(reply, want)
+  assert.equal(g6.answers.filter((a) => a.round).length, 1)
+  assert.equal(pickAnswer(g6, 'Here are the proposed child Issues, one for "日本語" titles. Do you approve this list?', new Set()), 'Approved: create these Issues.')
+})
+
+test('#302 AC3: goalGaps with held reports no queue item, no recorded answer and a child still held, and none when all three are present', () => {
+  const pass = (number, labels = ['ready-for-agent']) => ({ number, labels, pr: { number: number + 10, state: 'open', draft: true, verdict: 'PASS' } })
+  const answered = [{ id: '2.1', child: 2, answer: 99 }]
+  assert.deepEqual(goalGaps({ children: [pass(1), pass(2)], queue: answered, held: true }), [])
+  assert.deepEqual(goalGaps({ children: [pass(1), pass(2)], queue: [] }), [], 'G5 has no held gaps')
+  const noItem = goalGaps({ children: [pass(1), pass(2)], queue: [], held: true })
+  assert.equal(noItem.length, 1)
+  assert.match(noItem[0], /no queue item/)
+  const noAnswer = goalGaps({ children: [pass(1), pass(2)], queue: [{ id: '2.1', child: 2, answer: null }], held: true })
+  assert.equal(noAnswer.length, 1)
+  assert.match(noAnswer[0], /^#2: .*2\.1.*queue-answer/)
+  const stillHeld = goalGaps({ children: [pass(1), pass(2, ['needs-decision'])], queue: answered, held: true })
+  assert.equal(stillHeld.length, 1)
+  assert.match(stillHeld[0], /^#2: still held/)
+  assert.equal(goalGaps({ children: [pass(1), pass(2, ['ready-for-agent', 'needs-decision'])], queue: answered, held: true }).length, 1)
+})
+
+test("#302 AC4: G6 checks heldDoesNotStopOthers on the children as they stand just before step 4's reply", async () => {
+  const g6 = findScenario('G6')
+  assert.ok(g6.checks.includes('heldDoesNotStopOthers'))
+  await withClaudeStub('Push the branches? May the verifiers run the commands?', async (bin) => {
+    // The stub records each prompt it gets, so the hook sees what was sent before it ran.
+    const sent = join(bin, 'sent')
+    writeFileSync(join(bin, 'claude'), `#!/bin/sh\ncat >>'${sent}'\necho >>'${sent}'\necho '${JSON.stringify({ result: 'Push the branches? May the verifiers run the commands?' })}'\n`)
+    const seen = []
+    const scenario = { say: ['start'], answers: [{ when: /push/i, say: 'round reply', round: true }], otherwise: 'again', maxAnswers: 2 }
+    const log = await play(scenario, 'opus', randomUUID(), bin, [], () => seen.push(readFileSync(sent, 'utf8').trim()))
+    assert.deepEqual(log.map((t) => t.said), ['start', 'round reply', 'again'])
+    assert.deepEqual(seen, ['start'])
+  })
+  const spec = { body: '<!-- macro-loop:spec -->\n## Spec' }
+  const held = { number: 3, labels: ['needs-decision'], comments: [] }
+  const plain = { number: 2, labels: ['ready-for-agent'], comments: [spec] }
+  assert.equal(evaluate(g6, { gaps: [], children: [plain, held] }).safety.heldDoesNotStopOthers.pass, true)
+  assert.equal(evaluate(g6, { gaps: [], children: [{ ...plain, comments: [] }, held] }).safety.heldDoesNotStopOthers.pass, false)
 })

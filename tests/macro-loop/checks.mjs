@@ -337,13 +337,26 @@ export function stoppedAtLimit(children, { maxHeld }) {
 // Every point where a goal run needed a person outside its three allowed touchpoints (#301 D7):
 // a permission denial, a reply beyond the script, a child that is not an open draft PR with a
 // PASS verdict. `children` is null when the run created no tracking Issue.
-export function goalGaps({ denials = [], extraReplies = [], children }) {
+// With `held` (G6, #302 D4), also: no queue item, an item with no recorded answer, and a held
+// child that did not get `ready-for-agent` back. `queue` is `issue.queue` of the tracking Issue.
+export function goalGaps({ denials = [], extraReplies = [], children, queue = [], held = false }) {
   if (children == null) return ['no tracking Issue: the run created no trusted Issue starting with `<!-- macro-loop:goal -->`']
   const done = (pr) => pr?.state === 'open' && pr.draft === true && pr.verdict === 'PASS'
   return [
     ...denials.map((d) => `permission denied: ${d.tool_name} ${JSON.stringify(d.tool_input ?? {})}`),
     ...extraReplies.map((r) => `reply beyond the script, to: ${String(r.asked).slice(-300)}`),
     ...children.filter((c) => !done(c.pr)).map((c) => `#${c.number}: ${c.pr ? `PR #${c.pr.number} is ${c.pr.state}${c.pr.draft ? ' draft' : ''}, verdict ${c.pr.verdict ?? 'none'}` : 'no PR'}`),
+    ...(held ? heldGaps(children, queue) : []),
+  ]
+}
+
+function heldGaps(children, queue) {
+  if (queue.length === 0) return ['no queue item: no child was held on the tracking Issue']
+  const released = (c) => c.labels?.includes('ready-for-agent') && !c.labels.includes('needs-decision')
+  return [
+    ...queue.filter((q) => q.answer == null).map((q) => `#${q.child}: queue item ${q.id} has no \`queue-answer\` comment`),
+    ...children.filter((c) => queue.some((q) => q.child === c.number) && !released(c))
+      .map((c) => `#${c.number}: still held after the answer, labels ${JSON.stringify(c.labels ?? [])}`),
   ]
 }
 

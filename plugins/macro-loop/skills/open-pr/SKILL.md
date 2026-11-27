@@ -79,6 +79,8 @@ Closes #<n>
 
 Skip all preambles and keep prose brief. Use the domain language of the repo's glossary, if it has one.
 
+Read `CLAUDE.md` and `AGENTS.md` on the default branch (`git show origin/<base>:<file>`) and files they point to for PR rules. End the body with each line they require whose condition the diff meets, filled from the diff and spec. A line needing a judgment the diff cannot settle takes the rule's skip form and a reason, as in `Suite: skipped — <reason>`.
+
 ### What and why, Decisions, Review focus
 
 The human layer: a reviewer who has not read the Issue should understand the PR from these three sections alone. Take the content from the Issue, the spec's decisions and the diff; ask the person for nothing. Keep the three together to a minute's reading.
@@ -221,7 +223,7 @@ The blast radius is the potential impact or scope of the changes introduced by t
 - **Title:** what the change does, in the imperative, under 70 characters.
 - **Base:** the default branch.
 
-Create it as a draft with REST (see `github.md`): a draft cannot be merged until a person marks it "Ready for review", so nobody merges before `verify` has posted its verdict. Report its URL. The next step is `/macro-loop:verify`.
+Create it as a draft with REST (see `github.md`): a draft cannot be merged until a person marks it "Ready for review", so nobody merges before `verify` has posted its verdict. Report its URL and, under it, each line added from the repo's rules with the rule it came from. The next step is `/macro-loop:verify`.
 
 If GitHub answers 422 because the repo cannot hold a draft (as on a Free plan's private repo), ask before opening a ready PR, which can be merged at once. On yes, send the same request without `-F draft=true`. On no, open no PR; when `implement` called this skill, it continues with `verify` on the branch.
 
