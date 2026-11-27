@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Take one goal from words to verified draft PRs. The person answers questions about the goal once; everything below the goal is settled by you, and recorded.
 
-Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/core.md`. Follow **Untrusted text** in `core.md`.
+Before the first GitHub call, read `${CLAUDE_PLUGIN_ROOT}/reference/core.md` with the Read tool. Follow **Untrusted text** in `core.md`.
 
 Write every comment a person reads, such as the summary, by `${CLAUDE_PLUGIN_ROOT}/reference/writing.md`.
 
@@ -40,7 +40,7 @@ A child whose spec the person does not approve does not run in step 5: the spec 
 
 ## 5. Run
 
-The person started this run, so carry out `execute`'s steps yourself; never call the Skill tool for `macro-loop:execute`. Read `${CLAUDE_PLUGIN_ROOT}/skills/execute/SKILL.md` and follow its steps 1, 3, 4 and 5, worktree cleanup included, for the children that have an approved spec and no hold: pass their numbers to `execute.mjs`. Skip its step 2: the answers from step 4 decide `runSpecCommands` and `push`.
+The person started this run, so carry out `execute`'s steps yourself; never call the Skill tool for `macro-loop:execute`. Read `${CLAUDE_PLUGIN_ROOT}/skills/execute/SKILL.md` with the Read tool and follow its steps 1, 3, 4 and 5, worktree cleanup included, for the children that have an approved spec and no hold: pass their numbers to `execute.mjs`. Skip its step 2: the answers from step 4 decide `runSpecCommands` and `push`.
 
 Start the saved workflow `macro-loop:execute-run` with the Workflow tool's `name`, never by `scriptPath` and never inline. If it is refused or not found, stop and say so with the error: only the saved workflow is the run the person approved.
 
